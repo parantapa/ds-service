@@ -49,3 +49,6 @@ target_sources(ds-server PRIVATE FILE_SET HEADERS BASE_DIRS cpp)
 target_link_libraries(ds-server PRIVATE spdlog::spdlog argparse::argparse phmap
                                         ds-service-grpc OpenMP::OpenMP_CXX)
 target_compile_features(ds-server PRIVATE cxx_std_23)
+
+install(TARGETS ds-service-grpc FILE_SET HEADERS)
+install(TARGETS ds-server)

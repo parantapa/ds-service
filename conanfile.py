@@ -4,7 +4,14 @@ from conan.tools.cmake import cmake_layout, CMakeDeps, CMakeToolchain, CMake
 
 
 class DsServiceRecipe(ConanFile):
+    name = "ds-service"
+    version = "main"
+
     settings = "os", "compiler", "build_type", "arch"
+    options = {"shared": [True, False], "fPIC": [True, False]}
+    default_options = {"shared": False, "fPIC": True}
+
+    exports_sources = "CMakeLists.txt", "cpp/*", "misc/*"
 
     def layout(self):
         cmake_layout(self)
@@ -31,3 +38,10 @@ class DsServiceRecipe(ConanFile):
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
+
+    def package(self):
+        cmake = CMake(self)
+        cmake.install()
+
+    def package_info(self):
+        self.cpp_info.libs = ["ds-service-grpc"]
