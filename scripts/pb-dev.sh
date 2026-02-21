@@ -40,7 +40,7 @@ run_setup() {
     cmake_build
 }
 
-run_test() {
+run_server() {
     cmake_build
 
     set +Eeuo pipefail
@@ -51,6 +51,16 @@ run_test() {
 
     which ds-server
     ds-server
+}
+
+run_install_in_home() {
+    set +Eeuo pipefail
+    . "$BUILD_DIR/generators/conanrun.sh"
+    set -Eeuo pipefail
+
+    set -x
+
+    cp -a "$BUILD_DIR/ds-server" "$HOME/bin"
 }
 
 show_help() {
