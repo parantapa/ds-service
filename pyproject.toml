@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ds-service-client"
+version = "0.1.0"
+authors = [
+  { name="Parantapa Bhattacharya", email="pb@parantapa.net" },
+]
+description = "Python client for DS service."
+readme = "README.md"
+requires-python = ">=3.13"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "grpcio",
+    "grpcio-tools",
+]
+
+[tool.setuptools.packages.find]
+where = ["python"]
+
+[project.urls]
+"Homepage" = "http://github.com/parantapa/ds-service"

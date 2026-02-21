@@ -1,0 +1,10 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 120
+DerivePointerAlignment: false
+PointerAlignment: Left
+BreakConstructorInitializers: BeforeComma
+SortIncludes: false
+AllowShortFunctionsOnASingleLine: Empty
+BreakTemplateDeclarations: Yes
+AlignEscapedNewlines: Left

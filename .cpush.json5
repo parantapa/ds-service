@@ -1,0 +1,6 @@
+{
+    project: "ds-service",
+    remotes: {
+        rivanna: "rivanna:ds-service"
+    }
+}

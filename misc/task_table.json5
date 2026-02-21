@@ -1,0 +1,20 @@
+{
+    namespace: "task_table",
+    headers: [
+        "string",
+        "ds-service.grpc.pb.h"
+    ],
+    vector: {
+        TaskTable: {
+            task_id: "std::string",
+            priority: "double",
+            function: "std::string",
+            input: "std::string",
+            output: "std::string",
+            state: "TaskState",
+
+            start_time: "double",
+            queues: "std::vector<std::string>"
+        }
+    }
+}
