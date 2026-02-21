@@ -1,6 +1,7 @@
 """Ds Service Client."""
 
 # import json
+import os
 from contextlib import contextmanager
 
 from .ds_service_pb2 import *
@@ -12,6 +13,7 @@ GRPC_CLIENT_OPTIONS = [
     ("grpc.http2.max_pings_without_data", 5),
     ("grpc.keepalive_permit_without_calls", 1),
 ]
+
 
 @contextmanager
 def translate_grpc_error():
@@ -29,9 +31,13 @@ def translate_grpc_error():
 
 
 class Client:
-    def __init__(self, address: str):
-        self.address = address
-        self.channel = grpc.insecure_channel(address, options=GRPC_CLIENT_OPTIONS)
+    def __init__(self, address: str | None = None):
+        if address is None:
+            self.address = os.environ["DS_SERVER_ADDRESS"]
+        else:
+            self.address = address
+
+        self.channel = grpc.insecure_channel(self.address, options=GRPC_CLIENT_OPTIONS)
         self.stub = DsServiceStub(self.channel)
 
     def close(self):
