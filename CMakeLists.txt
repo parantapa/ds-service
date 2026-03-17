@@ -52,8 +52,7 @@ target_link_libraries(
           argparse::argparse
           phmap
           ds-service-grpc
-          OpenMP::OpenMP_CXX
-          -static-libstdc++)
+          OpenMP::OpenMP_CXX)
 target_compile_features(ds-server PRIVATE cxx_std_23)
 
 install(TARGETS ds-service-grpc FILE_SET HEADERS)
