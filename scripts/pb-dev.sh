@@ -28,6 +28,14 @@ cmake_build() {
     cmake --build "$BUILD_DIR" --parallel
 }
 
+cmake_install() {
+    set +Eeuo pipefail
+    . "$BUILD_DIR/generators/conanbuild.sh"
+    set -Eeuo pipefail
+
+    cmake --install "$BUILD_DIR" --prefix "$1"
+}
+
 run_setup() {
     rm -rf "$BUILD_ROOT"
     rm -f compile_commands.json
@@ -53,14 +61,8 @@ run_server() {
     ds-server
 }
 
-run_install_in_home() {
-    set +Eeuo pipefail
-    . "$BUILD_DIR/generators/conanrun.sh"
-    set -Eeuo pipefail
-
-    set -x
-
-    cp -a "$BUILD_DIR/ds-server" "$HOME/bin"
+run_install() {
+    cmake_install "$1"
 }
 
 show_help() {
