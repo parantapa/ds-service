@@ -24,8 +24,9 @@ class DsServiceRecipe(ConanFile):
         self.requires("grpc/1.72.0")
 
     def build_requirements(self):
-        self.requires("grpc/1.72.0", build=True)
-        self.requires("protobuf/5.27.0", build=True)
+        self.tool_requires("grpc/1.72.0")
+        self.tool_requires("protobuf/5.27.0")
+        self.tool_requires("cmake/4.3.0")
 
     def generate(self):
         deps = CMakeDeps(self)
