@@ -1,0 +1,56 @@
+Bootstrap: docker
+From: debian:13.4-slim
+Stage: build
+
+%post
+    export LC_ALL=C
+    export CONAN_HOME=/opt/conan_home
+
+    apt -y update
+    apt -y upgrade
+    apt -y install libgomp1
+    apt -y install build-essential git cmake python3 python3-pip
+    pip install --break-system-packages conan
+
+    conan profile detect --force
+
+    cd /opt
+    git clone https://github.com/parantapa/pb-conan-index.git
+    cd pb-conan-index
+    conan remote add pb-conan-index .
+
+    cd /opt
+    git clone https://github.com/parantapa/ds-service.git
+    cd ds-service
+
+    conan install . --build=missing
+
+    . "build/Release/generators/conanbuild.sh"
+
+    cmake -S . -B "build/Release" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake"
+
+    cmake --build "build/Release" --parallel
+
+    cp -a build/Release/ds-server /bin
+
+    conan remove "cmake/*" --confirm
+    pip cache purge
+
+    apt -y remove build-essential git cmake python3 python3-pip
+    apt -y autoremove
+    apt -y autoclean
+
+%environment
+    export LC_ALL=C
+
+%runscript
+    ds-server "$@"
+
+%labels
+    Author parantapa@virginia.edu
+
+%help
+    Container for ds-server.
+
