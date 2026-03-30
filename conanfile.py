@@ -20,12 +20,13 @@ class DsServiceRecipe(ConanFile):
         self.requires("spdlog/1.17.0")
         self.requires("argparse/3.2")
         self.requires("parallel-hashmap/2.0.0")
-        self.requires("protobuf/5.27.0")
-        self.requires("grpc/1.72.0")
+
+        self.requires("grpc/1.78.1")
+        self.requires("protobuf/6.33.5")
 
     def build_requirements(self):
-        self.tool_requires("grpc/1.72.0")
-        self.tool_requires("protobuf/5.27.0")
+        self.tool_requires("grpc/1.78.1")
+        self.tool_requires("protobuf/6.33.5")
         self.tool_requires("cmake/4.3.0")
 
     def generate(self):
