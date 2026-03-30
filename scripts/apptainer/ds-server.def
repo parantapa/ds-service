@@ -2,28 +2,29 @@ Bootstrap: docker
 From: debian:13.4-slim
 Stage: build
 
+%files
+    ./profiles-default /opt/conan_home/profiles/default
+    ./remotes.json /opt/conan_home/remotes.json
+
 %post
     export LC_ALL=C
     export CONAN_HOME=/opt/conan_home
+    export CONAN_LOGIN_USERNAME_BIIHEAD1=conan_user
+    export CONAN_PASSWORD_BIIHEAD1=conan_user
 
     apt -y update
     apt -y upgrade
-    apt -y install libgomp1
-    apt -y install build-essential git cmake python3 python3-pip
+    apt -y install libgomp1 build-essential git cmake python3 python3-pip
     pip install --break-system-packages conan
 
-    conan profile detect --force
-
-    cd /opt
-    git clone https://github.com/parantapa/pb-conan-index.git
-    cd pb-conan-index
-    conan remote add pb-conan-index .
+    conan remote enable biihead1
+    conan remote login biihead1
 
     cd /opt
     git clone https://github.com/parantapa/ds-service.git
     cd ds-service
 
-    conan install . --build=missing
+    conan install .
 
     . "build/Release/generators/conanbuild.sh"
 
@@ -35,7 +36,7 @@ Stage: build
 
     cp -a build/Release/ds-server /bin
 
-    conan remove "cmake/*" --confirm
+    conan remove "*" --confirm
     pip cache purge
 
     apt -y remove build-essential git cmake python3 python3-pip

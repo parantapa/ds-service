@@ -1,0 +1,14 @@
+{
+ "remotes": [
+  {
+   "name": "biihead1",
+   "url": "http://udc-aj34-33:9300",
+   "verify_ssl": true
+  },
+  {
+   "name": "conancenter",
+   "url": "https://center2.conan.io",
+   "verify_ssl": true
+  }
+ ]
+}
