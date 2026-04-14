@@ -55,5 +55,4 @@ target_link_libraries(
           OpenMP::OpenMP_CXX)
 target_compile_features(ds-server PRIVATE cxx_std_23)
 
-install(TARGETS ds-service-grpc FILE_SET HEADERS)
 install(TARGETS ds-server)
