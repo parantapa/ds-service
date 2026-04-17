@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <queue>
 #include <string>
+#include <utility>
 #include <vector>
 #include <experimental/scope>
 
@@ -13,34 +14,65 @@
 #include <ds-service.grpc.pb.h>
 #include <task_table.hpp>
 
-namespace stdex = std::experimental;
-
 template <typename K, typename V>
 using Map = phmap::parallel_flat_hash_map<K, V>;
 
-auto scoped_lock(omp_lock_t* lock) {
-    omp_set_lock(lock);
-    return stdex::scope_exit([=]() { omp_unset_lock(lock); });
-}
+struct AcquiredOmpLock {
+    omp_lock_t* lock{nullptr};
 
-#define GEN_SPECIAL_MEMBERS(Type)                                 \
-    Type(const Type&) = delete;            /* copy constructor */ \
-    Type(Type&&) = default;                /* move constructor */ \
-    Type& operator=(const Type&) = delete; /* copy assignment */  \
-    Type& operator=(Type&&) = default;     /* move assignment */
+    AcquiredOmpLock() = delete;
 
-struct LockManager {
-    omp_lock_t lock;
-
-    LockManager() {
-        omp_init_lock(&lock);
+    explicit AcquiredOmpLock(omp_lock_t* lock_)
+        : lock{lock_} {
+        omp_set_lock(lock);
     }
 
-    ~LockManager() {
-        omp_destroy_lock(&lock);
+    AcquiredOmpLock(const AcquiredOmpLock&) = delete;
+    AcquiredOmpLock(AcquiredOmpLock&&) = delete;
+
+    ~AcquiredOmpLock() {
+        omp_unset_lock(lock);
+        lock = nullptr;
     }
 
-    GEN_SPECIAL_MEMBERS(LockManager)
+    AcquiredOmpLock& operator=(const AcquiredOmpLock&) = delete;
+    AcquiredOmpLock& operator=(AcquiredOmpLock&&) = delete;
+};
+
+struct OmpLock {
+    omp_lock_t* lock{nullptr};
+
+    OmpLock() {
+        lock = new omp_lock_t();
+        omp_init_lock(lock);
+    }
+
+    OmpLock(const OmpLock&) = delete;
+
+    OmpLock(OmpLock&& other)
+        : lock{std::exchange(other.lock, nullptr)} {}
+
+    ~OmpLock() {
+        if (lock != nullptr) {
+            omp_destroy_lock(lock);
+            lock = nullptr;
+        }
+    }
+
+    OmpLock& operator=(const OmpLock&) = delete;
+
+    OmpLock& operator=(OmpLock&& other) noexcept {
+        if (lock != nullptr) {
+            omp_destroy_lock(lock);
+        }
+
+        lock = std::exchange(other.lock, nullptr);
+        return *this;
+    }
+
+    AcquiredOmpLock acquire() const {
+        return AcquiredOmpLock(lock);
+    }
 };
 
 using TaskQueueEntry = std::priority_queue<std::pair<double, std::size_t>>;
@@ -51,7 +83,7 @@ struct TaskManager {
     Map<std::string, TaskQueueEntry> queue;
 };
 
-omp_lock_t* GLOBAL_LOCK = nullptr;
+OmpLock* GLOBAL_LOCK = nullptr;
 Map<std::string, std::string>* GLOBAL_MAP = nullptr;
 TaskManager* GLOBAL_TASK_MANAGER = nullptr;
 grpc::Server* GLOBAL_SERVER = nullptr;
@@ -59,14 +91,14 @@ bool GLOBAL_SHUTDOWN = false;
 
 struct DsServiceImpl final : public DsService::Service {
     grpc::Status MapSet(grpc::ServerContext*, const MapSetRequest* request, Empty*) override {
-        auto lock = scoped_lock(GLOBAL_LOCK);
+        auto lock = GLOBAL_LOCK->acquire();
 
         (*GLOBAL_MAP)[request->key()] = request->value();
         return grpc::Status::OK;
     }
 
     grpc::Status MapGet(grpc::ServerContext*, const MapGetRequest* request, MapGetResponse* response) override {
-        auto lock = scoped_lock(GLOBAL_LOCK);
+        auto lock = GLOBAL_LOCK->acquire();
 
         auto it = GLOBAL_MAP->find(request->key());
         if (it == GLOBAL_MAP->end()) {
@@ -79,7 +111,7 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status TaskAdd(grpc::ServerContext*, const TaskAddRequest* request, Empty*) override {
-        auto lock = scoped_lock(GLOBAL_LOCK);
+        auto lock = GLOBAL_LOCK->acquire();
 
         auto it = GLOBAL_TASK_MANAGER->task_index.find(request->task_id());
         if (it == GLOBAL_TASK_MANAGER->task_index.end()) {
@@ -104,7 +136,7 @@ struct DsServiceImpl final : public DsService::Service {
 
     grpc::Status TaskStatus(grpc::ServerContext*, const TaskStatusRequest* request,
                             TaskStatusResponse* response) override {
-        auto lock = scoped_lock(GLOBAL_LOCK);
+        auto lock = GLOBAL_LOCK->acquire();
 
         auto it = GLOBAL_TASK_MANAGER->task_index.find(request->task_id());
         if (it == GLOBAL_TASK_MANAGER->task_index.end()) {
@@ -120,7 +152,7 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status TaskGet(grpc::ServerContext*, const TaskGetRequest* request, TaskGetResponse* response) override {
-        auto lock = scoped_lock(GLOBAL_LOCK);
+        auto lock = GLOBAL_LOCK->acquire();
 
         for (const auto& qname : request->queue()) {
             auto& queue = GLOBAL_TASK_MANAGER->queue[qname];
@@ -147,7 +179,7 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status TaskDone(grpc::ServerContext*, const TaskDoneRequest* request, Empty*) override {
-        auto lock = scoped_lock(GLOBAL_LOCK);
+        auto lock = GLOBAL_LOCK->acquire();
 
         auto it = GLOBAL_TASK_MANAGER->task_index.find(request->task_id());
         if (it == GLOBAL_TASK_MANAGER->task_index.end()) {
@@ -165,7 +197,7 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status Requeue(grpc::ServerContext*, const RequeueRequest* request, Empty*) override {
-        auto lock = scoped_lock(GLOBAL_LOCK);
+        auto lock = GLOBAL_LOCK->acquire();
 
         double max_start_time = omp_get_wtime() - request->timeout_s();
 
@@ -207,8 +239,8 @@ int main(int argc, char* argv[]) {
 
     spdlog::info("server_address = {}", server_address);
 
-    LockManager global_lock;
-    GLOBAL_LOCK = &global_lock.lock;
+    OmpLock global_lock;
+    GLOBAL_LOCK = &global_lock;
 
     Map<std::string, std::string> global_map;
     GLOBAL_MAP = &global_map;

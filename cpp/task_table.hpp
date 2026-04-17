@@ -8,7 +8,6 @@
 
 namespace task_table {
 
-
 struct TaskTable {
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
@@ -111,42 +110,78 @@ struct TaskTable {
         TaskTable* _c;
         size_type _i;
 
-        bool operator==(iterator const& other) const { return _i == other._i; }
-        bool operator!=(iterator const& other) const { return _i != other._i; }
-        bool operator<(iterator const& other) const { return _i < other._i; }
+        bool operator==(iterator const& other) const {
+            return _i == other._i;
+        }
+        bool operator!=(iterator const& other) const {
+            return _i != other._i;
+        }
+        bool operator<(iterator const& other) const {
+            return _i < other._i;
+        }
 
         difference_type operator-(iterator const& other) const {
             return difference_type(_i) - difference_type(other._i);
         }
 
-        iterator operator+(difference_type i) const { return {_c, _i + i}; }
-        iterator operator-(difference_type i) const { return {_c, _i - i}; }
+        iterator operator+(difference_type i) const {
+            return {_c, _i + i};
+        }
+        iterator operator-(difference_type i) const {
+            return {_c, _i - i};
+        }
 
-        iterator& operator++() { ++_i; return *this; }
-        iterator& operator--() { --_i; return *this; }
+        iterator& operator++() {
+            ++_i;
+            return *this;
+        }
+        iterator& operator--() {
+            --_i;
+            return *this;
+        }
 
-        reference operator*() const { return {_c, _i}; }
+        reference operator*() const {
+            return {_c, _i};
+        }
     };
 
     struct const_iterator {
         const TaskTable* _c;
         size_type _i;
 
-        bool operator==(const_iterator const& other) const { return _i == other._i; }
-        bool operator!=(const_iterator const& other) const { return _i != other._i; }
-        bool operator<(const_iterator const& other) const { return _i < other._i; }
+        bool operator==(const_iterator const& other) const {
+            return _i == other._i;
+        }
+        bool operator!=(const_iterator const& other) const {
+            return _i != other._i;
+        }
+        bool operator<(const_iterator const& other) const {
+            return _i < other._i;
+        }
 
         difference_type operator-(const_iterator const& other) const {
             return difference_type(_i) - difference_type(other._i);
         }
 
-        const_iterator operator+(difference_type i) const { return {_c, _i + i}; }
-        const_iterator operator-(difference_type i) const { return {_c, _i - i}; }
+        const_iterator operator+(difference_type i) const {
+            return {_c, _i + i};
+        }
+        const_iterator operator-(difference_type i) const {
+            return {_c, _i - i};
+        }
 
-        const_iterator& operator++() { ++_i; return *this; }
-        const_iterator& operator--() { --_i; return *this; }
+        const_iterator& operator++() {
+            ++_i;
+            return *this;
+        }
+        const_iterator& operator--() {
+            --_i;
+            return *this;
+        }
 
-        const_reference operator*() const { return {_c, _i}; }
+        const_reference operator*() const {
+            return {_c, _i};
+        }
     };
 
     void clear() {
@@ -182,7 +217,9 @@ struct TaskTable {
         queues.shrink_to_fit();
     }
 
-    void push_back(const std::string& task_id, const double& priority, const std::string& function, const std::string& input, const std::string& output, const TaskState& state, const double& start_time, const std::vector<std::string>& queues) {
+    void push_back(const std::string& task_id, const double& priority, const std::string& function,
+                   const std::string& input, const std::string& output, const TaskState& state,
+                   const double& start_time, const std::vector<std::string>& queues) {
         this->task_id.push_back(task_id);
         this->priority.push_back(priority);
         this->function.push_back(function);
