@@ -221,7 +221,7 @@ int main(int argc, char* argv[]) {
     argparse::ArgumentParser program(argv[0]);
     program.add_description("A data structure server.");
 
-    std::string server_address;
+    std::string server_address{};
 
     // clang-format off
     program.add_argument("-a", "--address")
@@ -239,29 +239,28 @@ int main(int argc, char* argv[]) {
 
     spdlog::info("server_address = {}", server_address);
 
-    OmpLock global_lock;
+    OmpLock global_lock{};
     GLOBAL_LOCK = &global_lock;
 
-    Map<std::string, std::string> global_map;
+    Map<std::string, std::string> global_map{};
     GLOBAL_MAP = &global_map;
 
-    TaskManager global_task_manager;
+    TaskManager global_task_manager{};
     GLOBAL_TASK_MANAGER = &global_task_manager;
 
-    DsServiceImpl service;
+    DsServiceImpl service{};
     grpc::EnableDefaultHealthCheckService(true);
-    grpc::ServerBuilder builder;
+    grpc::ServerBuilder builder{};
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
 
-    builder.AddChannelArgument("grpc.keepalive_time_ms", 120 * 1000);
-    builder.AddChannelArgument("grpc.keepalive_timeout_ms", 30 * 1000);
-    builder.AddChannelArgument("grpc.keepalive_permit_without_calls", 1);
-    builder.AddChannelArgument("grpc.http2.min_ping_interval_without_data_ms", 10 * 1000);
-
-    builder.AddChannelArgument("grpc.max_connection_idle_ms", 120 * 1000);
-    builder.AddChannelArgument("grpc.max_connection_age_ms", 120 * 1000);
-    builder.AddChannelArgument("grpc.max_connection_age_grace_ms", 5 * 1000);
+    // Server sends keepalive pings every 10 mins with 20 second timeout.
+    // Pings will be sent even if there are no calls in flight.
+    // Server with permit ping at an interval of 10 seconds.
+    builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIME_MS, 10 * 60 * 1000 /*10 min*/);
+    builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIMEOUT_MS, 20 * 1000 /*20 sec*/);
+    builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
+    builder.AddChannelArgument(GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS, 10 * 1000 /*10 sec*/);
 
     std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
     GLOBAL_SERVER = server.get();
