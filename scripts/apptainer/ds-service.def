@@ -34,7 +34,7 @@ Stage: build
 
     cmake --build "build/Release" --parallel
 
-    cp -a build/Release/ds-server /bin
+    cp -a build/Release/ds-service /bin
 
     conan remove "*" --confirm
     pip cache purge
@@ -47,11 +47,11 @@ Stage: build
     export LC_ALL=C
 
 %runscript
-    ds-server "$@"
+    ds-service "$@"
 
 %labels
     Author parantapa@virginia.edu
 
 %help
-    Container for ds-server.
+    Container for ds-service.
 

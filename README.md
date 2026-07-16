@@ -2,7 +2,7 @@
 
 `ds-service` is a small, in-memory data structure server that is accessible via [gRPC](https://grpc.io/).
 
-`ds-service` runs a single server process (`ds-server`)
+`ds-service` runs a single server process (`ds-service`)
 that holds shared state in memory
 and lets many distributed clients and workers coordinate using it.
 
@@ -21,7 +21,7 @@ and a way to hand work out to a pool of workers.
 
 ## Architecture
 
-- **Server** (`cpp/ds-server.cpp`) -- a C++23 gRPC service.
+- **Server** (`cpp/ds-service.cpp`) -- a C++23 gRPC service.
     All state lives in memory and is guarded by a single global lock,
     so operations are serialized and consistent.
     State is **not** persisted; that is, when the server stops all data is lost.
@@ -84,15 +84,15 @@ cmake --build build/Release --parallel
 ```
 
 A reproducible container build is defined in
-`scripts/apptainer/ds-server.def`.
+`scripts/apptainer/ds-service.def`.
 
 ### Running
 
 ```sh
-ds-server --address 0.0.0.0:5051
+ds-service --address 0.0.0.0:5051
 ```
 
-Run `ds-server --help` for the full argument list.
+Run `ds-service --help` for the full argument list.
 
 ## Python client
 

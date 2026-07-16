@@ -57,8 +57,8 @@ run_server() {
 
     PATH="$BUILD_DIR:$PATH"
 
-    which ds-server
-    ds-server
+    which ds-service
+    ds-service
 }
 
 run_install() {

@@ -44,15 +44,15 @@ target_sources(
 target_link_libraries(ds-service-grpc PUBLIC protobuf::protobuf grpc::grpc)
 target_compile_features(ds-service-grpc PRIVATE cxx_std_17)
 
-add_executable(ds-server cpp/ds-server.cpp)
-target_sources(ds-server PRIVATE FILE_SET HEADERS BASE_DIRS cpp)
+add_executable(ds-service cpp/ds-service.cpp)
+target_sources(ds-service PRIVATE FILE_SET HEADERS BASE_DIRS cpp)
 target_link_libraries(
-  ds-server
+  ds-service
   PRIVATE spdlog::spdlog
           argparse::argparse
           phmap
           ds-service-grpc
           OpenMP::OpenMP_CXX)
-target_compile_features(ds-server PRIVATE cxx_std_23)
+target_compile_features(ds-service PRIVATE cxx_std_23)
 
-install(TARGETS ds-server)
+install(TARGETS ds-service)
