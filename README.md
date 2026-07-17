@@ -4,7 +4,7 @@
 
 `ds-service` is a small, in-memory data structure server that is accessible via [gRPC](https://grpc.io/).
 
-`ds-service` runs a single server process (`ds-service`)
+`ds-service` runs a single server process
 that holds shared state in memory
 and lets many distributed clients and workers coordinate using it.
 
@@ -77,7 +77,7 @@ Dependencies are managed with [Conan](https://conan.io/)
 and the build is driven by CMake.
 
 ```sh
-conan install .
+conan install . --build=missing
 . build/Release/generators/conanbuild.sh
 cmake -S . -B build/Release \
     -DCMAKE_BUILD_TYPE=Release \
@@ -85,8 +85,7 @@ cmake -S . -B build/Release \
 cmake --build build/Release --parallel
 ```
 
-A reproducible container build is defined in
-`scripts/apptainer/ds-service.def`.
+A reproducible container build is defined in `scripts/apptainer/ds-service.def`.
 
 ### Running
 
