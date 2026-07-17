@@ -30,3 +30,4 @@ Homepage = "https://github.com/parantapa/ds-service"
 where = ["python"]
 
 [tool.setuptools_scm]
+fallback_version = "1.0.0-dev"
