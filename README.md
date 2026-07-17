@@ -1,5 +1,7 @@
 # ds-service: Yet Another Data Structure Server
 
+![Futuristic banner image.](misc/banner-image.png "Futuristic banner image.")
+
 `ds-service` is a small, in-memory data structure server that is accessible via [gRPC](https://grpc.io/).
 
 `ds-service` runs a single server process (`ds-service`)
