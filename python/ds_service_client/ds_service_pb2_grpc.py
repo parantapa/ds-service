@@ -5,7 +5,7 @@ import warnings
 
 from ds_service_client import ds_service_pb2 as ds__service__client_dot_ds__service__pb2
 
-GRPC_GENERATED_VERSION = '1.78.1'
+GRPC_GENERATED_VERSION = '1.75.1'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in ds_service_client/ds_service_pb2_grpc.py depends on'
+        + f' but the generated code in ds_service_client/ds_service_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -69,6 +69,21 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.RequeueRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
                 _registered_method=True)
+        self.JournalSize = channel.unary_unary(
+                '/DsService/JournalSize',
+                request_serializer=ds__service__client_dot_ds__service__pb2.JournalSizeRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.JournalSizeResponse.FromString,
+                _registered_method=True)
+        self.JournalRead = channel.unary_unary(
+                '/DsService/JournalRead',
+                request_serializer=ds__service__client_dot_ds__service__pb2.JournalReadRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.JournalReadResponse.FromString,
+                _registered_method=True)
+        self.JournalAppend = channel.unary_unary(
+                '/DsService/JournalAppend',
+                request_serializer=ds__service__client_dot_ds__service__pb2.JournalAppendRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
+                _registered_method=True)
 
 
 class DsServiceServicer(object):
@@ -116,6 +131,24 @@ class DsServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def JournalSize(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def JournalRead(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def JournalAppend(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_DsServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -152,6 +185,21 @@ def add_DsServiceServicer_to_server(servicer, server):
             'Requeue': grpc.unary_unary_rpc_method_handler(
                     servicer.Requeue,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.RequeueRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
+            ),
+            'JournalSize': grpc.unary_unary_rpc_method_handler(
+                    servicer.JournalSize,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.JournalSizeRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.JournalSizeResponse.SerializeToString,
+            ),
+            'JournalRead': grpc.unary_unary_rpc_method_handler(
+                    servicer.JournalRead,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.JournalReadRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.JournalReadResponse.SerializeToString,
+            ),
+            'JournalAppend': grpc.unary_unary_rpc_method_handler(
+                    servicer.JournalAppend,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.JournalAppendRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
             ),
     }
@@ -343,6 +391,87 @@ class DsService(object):
             target,
             '/DsService/Requeue',
             ds__service__client_dot_ds__service__pb2.RequeueRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def JournalSize(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/JournalSize',
+            ds__service__client_dot_ds__service__pb2.JournalSizeRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.JournalSizeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def JournalRead(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/JournalRead',
+            ds__service__client_dot_ds__service__pb2.JournalReadRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.JournalReadResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def JournalAppend(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/JournalAppend',
+            ds__service__client_dot_ds__service__pb2.JournalAppendRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.Empty.FromString,
             options,
             channel_credentials,

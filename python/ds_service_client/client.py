@@ -92,3 +92,19 @@ class Client:
     def requeue(self, timeout_s: float):
         with translate_grpc_error():
             return self.stub.Requeue(RequeueRequest(timeout_s=timeout_s))
+
+    def journal_size(self, key: str) -> int:
+        with translate_grpc_error():
+            response: JournalSizeResponse = self.stub.JournalSize(JournalSizeRequest(key=key))
+            return response.size
+
+    def journal_read(self, key: str, start: int, end: int) -> list[bytes]:
+        with translate_grpc_error():
+            response: JournalReadResponse = self.stub.JournalRead(
+                JournalReadRequest(key=key, start=start, end=end)
+            )
+            return list(response.entry)
+
+    def journal_append(self, key: str, value: bytes) -> None:
+        with translate_grpc_error():
+            self.stub.JournalAppend(JournalAppendRequest(key=key, value=value))

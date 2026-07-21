@@ -99,3 +99,39 @@ class RequeueRequest(_message.Message):
     TIMEOUT_S_FIELD_NUMBER: _ClassVar[int]
     timeout_s: float
     def __init__(self, timeout_s: _Optional[float] = ...) -> None: ...
+
+class JournalSizeRequest(_message.Message):
+    __slots__ = ("key",)
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    def __init__(self, key: _Optional[str] = ...) -> None: ...
+
+class JournalSizeResponse(_message.Message):
+    __slots__ = ("size",)
+    SIZE_FIELD_NUMBER: _ClassVar[int]
+    size: int
+    def __init__(self, size: _Optional[int] = ...) -> None: ...
+
+class JournalReadRequest(_message.Message):
+    __slots__ = ("key", "start", "end")
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    START_FIELD_NUMBER: _ClassVar[int]
+    END_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    start: int
+    end: int
+    def __init__(self, key: _Optional[str] = ..., start: _Optional[int] = ..., end: _Optional[int] = ...) -> None: ...
+
+class JournalReadResponse(_message.Message):
+    __slots__ = ("entry",)
+    ENTRY_FIELD_NUMBER: _ClassVar[int]
+    entry: _containers.RepeatedScalarFieldContainer[bytes]
+    def __init__(self, entry: _Optional[_Iterable[bytes]] = ...) -> None: ...
+
+class JournalAppendRequest(_message.Message):
+    __slots__ = ("key", "value")
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    value: bytes
+    def __init__(self, key: _Optional[str] = ..., value: _Optional[bytes] = ...) -> None: ...

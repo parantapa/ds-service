@@ -2,10 +2,8 @@
 
 set -Eeuo pipefail
 
-. "$HOME/default-env.sh"
-
 PROJECT="ds-service"
-BUILD_ROOT="$SCRATCH_DIR/$PROJECT/build"
+BUILD_ROOT="$HOME/scratch/$PROJECT/build"
 BUILD_DIR="$BUILD_ROOT/build/Release"
 
 cmake_configure() {

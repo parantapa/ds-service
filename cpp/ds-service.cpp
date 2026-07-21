@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <queue>
 #include <string>
 #include <utility>
@@ -85,6 +87,7 @@ struct TaskManager {
 
 OmpLock* GLOBAL_LOCK = nullptr;
 Map<std::string, std::string>* GLOBAL_MAP = nullptr;
+Map<std::string, std::vector<std::string>>* GLOBAL_JOURNAL_MAP = nullptr;
 TaskManager* GLOBAL_TASK_MANAGER = nullptr;
 grpc::Server* GLOBAL_SERVER = nullptr;
 bool GLOBAL_SHUTDOWN = false;
@@ -215,6 +218,45 @@ struct DsServiceImpl final : public DsService::Service {
 
         return grpc::Status::OK;
     }
+
+    grpc::Status JournalSize(grpc::ServerContext*, const JournalSizeRequest* request,
+                             JournalSizeResponse* response) override {
+        auto lock = GLOBAL_LOCK->acquire();
+
+        auto it = GLOBAL_JOURNAL_MAP->find(request->key());
+        if (it == GLOBAL_JOURNAL_MAP->end()) {
+            response->set_size(0);
+        } else {
+            response->set_size(it->second.size());
+        }
+
+        return grpc::Status::OK;
+    }
+
+    grpc::Status JournalRead(grpc::ServerContext*, const JournalReadRequest* request,
+                             JournalReadResponse* response) override {
+        auto lock = GLOBAL_LOCK->acquire();
+
+        auto it = GLOBAL_JOURNAL_MAP->find(request->key());
+        if (it != GLOBAL_JOURNAL_MAP->end()) {
+            const auto& journal = it->second;
+            auto size = journal.size();
+            auto start = std::min<std::uint64_t>(request->start(), size);
+            auto end = std::min<std::uint64_t>(request->end(), size);
+            for (auto index = start; index < end; index++) {
+                response->add_entry(journal[index]);
+            }
+        }
+
+        return grpc::Status::OK;
+    }
+
+    grpc::Status JournalAppend(grpc::ServerContext*, const JournalAppendRequest* request, Empty*) override {
+        auto lock = GLOBAL_LOCK->acquire();
+
+        (*GLOBAL_JOURNAL_MAP)[request->key()].push_back(request->value());
+        return grpc::Status::OK;
+    }
 };
 
 int main(int argc, char* argv[]) {
@@ -244,6 +286,9 @@ int main(int argc, char* argv[]) {
 
     Map<std::string, std::string> global_map{};
     GLOBAL_MAP = &global_map;
+
+    Map<std::string, std::vector<std::string>> global_journal_map{};
+    GLOBAL_JOURNAL_MAP = &global_journal_map;
 
     TaskManager global_task_manager{};
     GLOBAL_TASK_MANAGER = &global_task_manager;

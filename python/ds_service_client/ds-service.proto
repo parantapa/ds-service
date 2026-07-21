@@ -11,6 +11,10 @@ service DsService {
     rpc TaskDone(TaskDoneRequest) returns (Empty) {}
 
     rpc Requeue(RequeueRequest) returns (Empty) {}
+
+    rpc JournalSize(JournalSizeRequest) returns (JournalSizeResponse) {}
+    rpc JournalRead(JournalReadRequest) returns (JournalReadResponse) {}
+    rpc JournalAppend(JournalAppendRequest) returns (Empty) {}
 };
 
 message Empty {}
@@ -69,4 +73,27 @@ message TaskDoneRequest {
 
 message RequeueRequest {
     double timeout_s = 1;
+}
+
+message JournalSizeRequest {
+    string key = 1;
+}
+
+message JournalSizeResponse {
+    uint64 size = 1;
+}
+
+message JournalReadRequest {
+    string key = 1;
+    uint64 start = 2;
+    uint64 end = 3;
+}
+
+message JournalReadResponse {
+    repeated bytes entry = 1;
+}
+
+message JournalAppendRequest {
+    string key = 1;
+    bytes value = 2;
 }

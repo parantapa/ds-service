@@ -71,6 +71,23 @@ and reports back with `TaskDone`.
 if a worker crashes without completing its task,
 a periodic `Requeue` call makes that task available to another worker.
 
+## The journal store
+
+A key-to-journal store, where each journal is an append-only, ordered list of
+opaque binary entries identified by a `string` key.
+
+| RPC | Description |
+| --- | --- |
+| `JournalSize(key)` | Return the number of entries in the journal. A journal that does not exist has size `0`. |
+| `JournalRead(key, start, end)` | Return the entries in the half-open index range `[start, end)`. |
+| `JournalAppend(key, value)` | Append a single entry to the journal, creating it if it does not exist. |
+
+`JournalRead` uses half-open ranges, so `JournalRead(key, 0, JournalSize(key))`
+returns the whole journal. The range is clamped silently to the journal's
+bounds: reading past the end returns only the entries that exist, and a range
+with `start >= end` (or a journal that does not exist) returns an empty list --
+neither is an error.
+
 ## Building the server
 
 Dependencies are managed with [Conan](https://conan.io/)
