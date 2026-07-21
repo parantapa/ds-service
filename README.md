@@ -141,6 +141,21 @@ assert status.state == TaskState.Complete
 If `Client()` is constructed without an address, it reads the server address
 from the `DS_SERVER_ADDRESS` environment variable.
 
+## Running the tests
+
+The test suite (`tests/`) is an integration suite driven by
+[pytest](https://pytest.org/): it starts a fresh `ds-service` process for each
+test and drives it through the Python client. Build the server first (the tests
+run the compiled binary), then:
+
+```sh
+pip install -e ".[test]"   # pytest + the client package
+python -m pytest
+```
+
+The tests locate the server binary at `build/Release/ds-service` or
+`build/build/Release/ds-service`; set `DS_SERVICE_BIN` to override.
+
 ## License
 
 MIT -- see [LICENSE](LICENSE).

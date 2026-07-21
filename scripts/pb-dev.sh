@@ -59,6 +59,19 @@ run_server() {
     ds-service
 }
 
+run_test() {
+    cmake_build
+
+    set +Eeuo pipefail
+    . "$BUILD_DIR/generators/conanrun.sh"
+    set -Eeuo pipefail
+
+    PATH="$BUILD_DIR:$PATH"
+
+    which ds-service
+    python -m pytest
+}
+
 run_install() {
     cmake_install "$1"
 }

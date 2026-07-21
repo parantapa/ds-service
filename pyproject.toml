@@ -23,6 +23,11 @@ dependencies = [
     "protobuf>=6.31",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+]
+
 [project.urls]
 Homepage = "https://github.com/parantapa/ds-service"
 
@@ -31,3 +36,6 @@ where = ["python"]
 
 [tool.setuptools_scm]
 fallback_version = "1.0.0-dev"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
