@@ -9,6 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Server** — a single C++23 process (`cpp/ds-service.cpp`). All state is in-memory, non-persistent, and guarded by one global lock, so every RPC is fully serialized.
 - **Client** — a Python 3.12+ library (`python/ds_service_client/`) that wraps the generated gRPC stubs and translates gRPC status codes into Python exceptions.
 
+The client also ships an optional integration: `python/ds_service_client/optuna_storage.py` implements an Optuna `JournalStorage` backend (`optuna` extra). It maps Optuna's append-only study log onto a ds-service **journal** (`read_logs`/`append_logs`) and Optuna's snapshots onto the **KV map** (`save/load_snapshot`). Snapshot support is wired via `BaseJournalSnapshot.register(...)` (virtual subclassing) to avoid depending on Optuna's private base class. Importing this module requires `optuna>=4.0`, so the package `__init__` does not import it — it stays opt-in.
+
 ## The generated-code pipeline (most important thing to understand)
 
 `misc/ds-service.proto` is the single source of truth for the wire format. Several files are **generated from it or from `misc/task_table.json5`** and must be regenerated when their source changes — editing generated files directly is a mistake:
