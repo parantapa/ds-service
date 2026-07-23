@@ -1,6 +1,5 @@
 """Ds Service Client."""
 
-# import json
 import os
 import random
 import time
@@ -185,3 +184,10 @@ class Client:
                 delay = min(delay, remaining)
 
             time.sleep(delay)
+
+    def counter_get_next_value(self, key: str) -> int:
+        with translate_grpc_error():
+            response: CounterGetNextValueResponse = self.stub.CounterGetNextValue(
+                CounterGetNextValueRequest(key=key)
+            )
+            return response.value

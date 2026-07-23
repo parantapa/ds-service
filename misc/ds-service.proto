@@ -22,6 +22,8 @@ service DsService {
 
     rpc MutexTryAcquire(MutexTryAcquireRequest) returns (MutexTryAcquireResponse) {}
     rpc MutexRelease(MutexReleaseRequest) returns (Empty) {}
+
+    rpc CounterGetNextValue(CounterGetNextValueRequest) returns (CounterGetNextValueResponse) {}
 };
 
 message Empty {}
@@ -159,4 +161,14 @@ message MutexTryAcquireResponse {
 
 message MutexReleaseRequest {
     string key = 1;
+}
+
+// The first call for a given key creates the counter and returns 1;
+// each subsequent call returns the previous value plus one.
+message CounterGetNextValueRequest {
+    string key = 1;
+}
+
+message CounterGetNextValueResponse {
+    uint64 value = 1;
 }

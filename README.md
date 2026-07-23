@@ -8,7 +8,7 @@
 that holds shared state in memory
 and lets many distributed clients and workers coordinate using it.
 
-Presently, it provides five things:
+Presently, it provides six things:
 - **A key-value store** -- a shared `string -> bytes` store
     for passing data between processes.
 - **A task queue** -- a priority-based work queue
@@ -20,6 +20,8 @@ Presently, it provides five things:
     floating-point values.
 - **Named mutexes** -- cooperative locks for coordinating exclusive
     access across workers.
+- **Counters** -- named monotonic counters that hand out successive
+    integers.
 
 It is designed as a lightweight coordination system for distributed batch jobs
 (for example, when running calibration and projection workflows across many nodes of an HPC cluster),
@@ -150,6 +152,21 @@ these two RPCs: it retries `MutexTryAcquire` until it succeeds, sleeping between
 attempts, and raises `TimeoutError` if `timeout` seconds elapse first (it
 retries forever when `timeout` is `None`).
 
+## Counters
+
+A `string -> uint64` map of named counters that hand out successive integers --
+useful for generating unique ids or sequence numbers across workers.
+
+| RPC | Description |
+| --- | --- |
+| `CounterGetNextValue(key)` | Return the next value of the counter, creating it if it does not exist. The first call for a key returns `1`, and each subsequent call returns the previous value plus one. |
+
+There is no separate create or read step: the first `CounterGetNextValue` for a
+key creates the counter and returns `1`. Because every call is serialized under
+the server's global lock, concurrent callers always receive distinct,
+gap-free values. Counters are held in memory only, so a server restart resets
+every counter (the next value is `1` again).
+
 ## Building the server
 
 Dependencies are managed with [Conan](https://conan.io/)
@@ -226,6 +243,10 @@ try:
     ...  # exclusive section
 finally:
     client.mutex_release("resource-a")
+
+# Counter
+assert client.counter_get_next_value("ids") == 1
+assert client.counter_get_next_value("ids") == 2
 ```
 
 If `Client()` is constructed without an address, it reads the server address

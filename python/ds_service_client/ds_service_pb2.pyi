@@ -207,3 +207,15 @@ class MutexReleaseRequest(_message.Message):
     KEY_FIELD_NUMBER: _ClassVar[int]
     key: str
     def __init__(self, key: _Optional[str] = ...) -> None: ...
+
+class CounterGetNextValueRequest(_message.Message):
+    __slots__ = ("key",)
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    def __init__(self, key: _Optional[str] = ...) -> None: ...
+
+class CounterGetNextValueResponse(_message.Message):
+    __slots__ = ("value",)
+    VALUE_FIELD_NUMBER: _ClassVar[int]
+    value: int
+    def __init__(self, value: _Optional[int] = ...) -> None: ...

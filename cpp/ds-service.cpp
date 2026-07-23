@@ -44,6 +44,7 @@ struct SystemState {
     Map<std::string, std::vector<std::string>> journal_map{};
     Map<std::string, TimeSeries> time_series{};
     Map<std::string, bool> mutexes{};
+    Map<std::string, std::uint64_t> counters{};
     TaskManager task_manager{};
     grpc::Server* server{nullptr};
     bool shutdown{false};
@@ -384,6 +385,19 @@ struct DsServiceImpl final : public DsService::Service {
         if (it != mutexes.end()) {
             it->second = false;
         }
+
+        return grpc::Status::OK;
+    }
+
+    grpc::Status CounterGetNextValue(grpc::ServerContext*, const CounterGetNextValueRequest* request,
+                                     CounterGetNextValueResponse* response) override {
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+
+        // operator[] value-initializes a missing counter to 0,
+        // so pre-incrementing makes the first call return 1
+        // and creates the counter.
+        std::uint64_t& counter = GLOBAL_SYSTEM_STATE->counters[request->key()];
+        response->set_value(++counter);
 
         return grpc::Status::OK;
     }
