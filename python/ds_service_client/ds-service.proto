@@ -16,6 +16,9 @@ service DsService {
     rpc JournalSize(JournalSizeRequest) returns (JournalSizeResponse) {}
     rpc JournalRead(JournalReadRequest) returns (JournalReadResponse) {}
     rpc JournalAppend(JournalAppendRequest) returns (Empty) {}
+
+    rpc TimeSeriesAppend(TimeSeriesAppendRequest) returns (Empty) {}
+    rpc TimeSeriesGet(TimeSeriesGetRequest) returns (TimeSeriesGetResponse) {}
 };
 
 message Empty {}
@@ -105,4 +108,34 @@ message JournalReadResponse {
 message JournalAppendRequest {
     string key = 1;
     bytes value = 2;
+}
+
+// datetime is an ISO 8601 UTC datetime string (e.g. "2024-01-02T03:04:05Z" or
+// "...+00:00"). step is optional; when omitted it defaults to 0.
+message TimeSeriesAppendRequest {
+    string key = 1;
+    double value = 2;
+    string datetime = 3;
+    int64 step = 4;
+}
+
+message TimeSeriesDataPoint {
+    double value = 1;
+    string datetime = 2;
+    int64 step = 3;
+}
+
+// All four filter fields are optional. start_time/start_step are inclusive lower
+// bounds; end_time/end_step are exclusive upper bounds. An unset field imposes no
+// bound. Time bounds are ISO 8601 UTC datetime strings.
+message TimeSeriesGetRequest {
+    string key = 1;
+    string start_time = 2;
+    string end_time = 3;
+    int64 start_step = 4;
+    int64 end_step = 5;
+}
+
+message TimeSeriesGetResponse {
+    repeated TimeSeriesDataPoint point = 1;
 }

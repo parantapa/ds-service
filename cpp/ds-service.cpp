@@ -1,7 +1,11 @@
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <format>
+#include <optional>
 #include <queue>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -86,14 +90,55 @@ struct TaskManager {
     Map<std::string, TaskQueueEntry> queue;
 };
 
+struct TimeSeries {
+    std::vector<double> value;
+    std::vector<std::chrono::system_clock::time_point> time;
+    std::vector<std::int64_t> step;
+};
+
 struct SystemState {
     OmpLock lock{};
     Map<std::string, std::string> map{};
     Map<std::string, std::vector<std::string>> journal_map{};
+    Map<std::string, TimeSeries> time_series{};
     TaskManager task_manager{};
     grpc::Server* server{nullptr};
     bool shutdown{false};
 };
+
+// Parse an ISO 8601 UTC datetime string into a system_clock time_point.
+// Accepts a '+HH:MM'/'+HHMM' offset (converted to UTC),
+// a trailing 'Z', or no designator (interpreted as UTC).
+// Returns nullopt if the string does not parse.
+std::optional<std::chrono::system_clock::time_point> parse_iso8601_utc(const std::string& s) {
+    for (const char* fmt : {
+             "%Y-%m-%dT%H:%M:%S%Ez",
+             "%Y-%m-%dT%H:%M:%S%z",
+             "%Y-%m-%dT%H:%M:%SZ",
+             "%Y-%m-%dT%H:%M:%S",
+         }) {
+        std::istringstream ss{s};
+        std::chrono::system_clock::time_point tp{};
+        if (ss >> std::chrono::parse(std::string{fmt}, tp)) {
+            ss >> std::ws;
+            if (ss.eof()) {
+                return tp;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+// Format a system_clock time_point as an ISO 8601 UTC datetime string.
+// Whole seconds are rendered without a fractional part;
+// otherwise microseconds are used.
+std::string format_iso8601_utc(const std::chrono::system_clock::time_point& tp) {
+    auto secs = std::chrono::floor<std::chrono::seconds>(tp);
+    if (secs == tp) {
+        return std::format("{:%Y-%m-%dT%H:%M:%S}Z", secs);
+    }
+    return std::format("{:%Y-%m-%dT%H:%M:%S}Z", std::chrono::floor<std::chrono::microseconds>(tp));
+}
 
 SystemState* GLOBAL_SYSTEM_STATE = nullptr;
 
@@ -287,6 +332,79 @@ struct DsServiceImpl final : public DsService::Service {
         auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
 
         GLOBAL_SYSTEM_STATE->journal_map[request->key()].push_back(request->value());
+        return grpc::Status::OK;
+    }
+
+    grpc::Status TimeSeriesAppend(grpc::ServerContext*, const TimeSeriesAppendRequest* request, Empty*) override {
+        auto tp = parse_iso8601_utc(request->datetime());
+        if (!tp) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                fmt::format("Invalid ISO 8601 UTC datetime: {}", request->datetime()));
+        }
+
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
+
+        auto& series = GLOBAL_SYSTEM_STATE->time_series[request->key()];
+        series.value.push_back(request->value());
+        series.time.push_back(*tp);
+        series.step.push_back(request->step());
+
+        return grpc::Status::OK;
+    }
+
+    grpc::Status TimeSeriesGet(grpc::ServerContext*, const TimeSeriesGetRequest* request,
+                               TimeSeriesGetResponse* response) override {
+        // An empty time string means "no bound";
+        // a non-empty one that fails to parse is an error.
+        std::optional<std::chrono::system_clock::time_point> start_time{}, end_time{};
+        if (request->has_start_time() && !request->start_time().empty()) {
+            start_time = parse_iso8601_utc(request->start_time());
+            if (!start_time) {
+                return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                    fmt::format("Invalid ISO 8601 UTC start_time: {}", request->start_time()));
+            }
+        }
+        if (request->has_end_time() && !request->end_time().empty()) {
+            end_time = parse_iso8601_utc(request->end_time());
+            if (!end_time) {
+                return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                    fmt::format("Invalid ISO 8601 UTC end_time: {}", request->end_time()));
+            }
+        }
+
+        bool has_start_step = request->has_start_step();
+        bool has_end_step = request->has_end_step();
+
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
+
+        auto it = GLOBAL_SYSTEM_STATE->time_series.find(request->key());
+        if (it == GLOBAL_SYSTEM_STATE->time_series.end()) {
+            return grpc::Status::OK;
+        }
+
+        const auto& series = it->second;
+        for (std::size_t index = 0; index < series.value.size(); index++) {
+            // start bounds are inclusive, end bounds exclusive;
+            // unset bounds don't filter.
+            if (start_time && series.time[index] < *start_time) {
+                continue;
+            }
+            if (end_time && series.time[index] >= *end_time) {
+                continue;
+            }
+            if (has_start_step && series.step[index] < request->start_step()) {
+                continue;
+            }
+            if (has_end_step && series.step[index] >= request->end_step()) {
+                continue;
+            }
+
+            auto* point = response->add_point();
+            point->set_value(series.value[index]);
+            point->set_datetime(format_iso8601_utc(series.time[index]));
+            point->set_step(series.step[index]);
+        }
+
         return grpc::Status::OK;
     }
 };

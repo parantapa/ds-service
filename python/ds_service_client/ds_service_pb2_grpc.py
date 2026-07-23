@@ -89,6 +89,16 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.JournalAppendRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
                 _registered_method=True)
+        self.TimeSeriesAppend = channel.unary_unary(
+                '/DsService/TimeSeriesAppend',
+                request_serializer=ds__service__client_dot_ds__service__pb2.TimeSeriesAppendRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
+                _registered_method=True)
+        self.TimeSeriesGet = channel.unary_unary(
+                '/DsService/TimeSeriesGet',
+                request_serializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetResponse.FromString,
+                _registered_method=True)
 
 
 class DsServiceServicer(object):
@@ -160,6 +170,18 @@ class DsServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def TimeSeriesAppend(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def TimeSeriesGet(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_DsServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -217,6 +239,16 @@ def add_DsServiceServicer_to_server(servicer, server):
                     servicer.JournalAppend,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.JournalAppendRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
+            ),
+            'TimeSeriesAppend': grpc.unary_unary_rpc_method_handler(
+                    servicer.TimeSeriesAppend,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.TimeSeriesAppendRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
+            ),
+            'TimeSeriesGet': grpc.unary_unary_rpc_method_handler(
+                    servicer.TimeSeriesGet,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -516,6 +548,60 @@ class DsService(object):
             '/DsService/JournalAppend',
             ds__service__client_dot_ds__service__pb2.JournalAppendRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def TimeSeriesAppend(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/TimeSeriesAppend',
+            ds__service__client_dot_ds__service__pb2.TimeSeriesAppendRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def TimeSeriesGet(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/TimeSeriesGet',
+            ds__service__client_dot_ds__service__pb2.TimeSeriesGetRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.TimeSeriesGetResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -119,3 +119,35 @@ class Client:
     def journal_append(self, key: str, value: bytes) -> None:
         with translate_grpc_error():
             self.stub.JournalAppend(JournalAppendRequest(key=key, value=value))
+
+    def time_series_append(
+        self, key: str, value: float, datetime: str, step: int = 0
+    ) -> None:
+        with translate_grpc_error():
+            self.stub.TimeSeriesAppend(
+                TimeSeriesAppendRequest(
+                    key=key, value=value, datetime=datetime, step=step
+                )
+            )
+
+    def time_series_get(
+        self,
+        key: str,
+        start_time: str | None = None,
+        end_time: str | None = None,
+        start_step: int | None = None,
+        end_step: int | None = None,
+    ) -> list[TimeSeriesDataPoint]:
+        request = TimeSeriesGetRequest(key=key)
+        if start_time is not None:
+            request.start_time = start_time
+        if end_time is not None:
+            request.end_time = end_time
+        if start_step is not None:
+            request.start_step = start_step
+        if end_step is not None:
+            request.end_step = end_step
+
+        with translate_grpc_error():
+            response: TimeSeriesGetResponse = self.stub.TimeSeriesGet(request)
+            return list(response.point)

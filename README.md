@@ -8,13 +8,16 @@
 that holds shared state in memory
 and lets many distributed clients and workers coordinate using it.
 
-Presently, it provides two things:
+Presently, it provides four things:
 - **A key-value store** -- a shared `string -> bytes` store
     for passing data between processes.
 - **A task queue** -- a priority-based work queue
     that distributes tasks to workers,
     tracks their state,
     and requeues tasks whose workers have died or stalled.
+- **A journal store** -- append-only, ordered logs of binary entries.
+- **A time series store** -- append-only series of timestamped
+    floating-point values.
 
 It is designed as a lightweight coordination system for distributed batch jobs
 (for example, when running calibration and projection workflows across many nodes of an HPC cluster),
@@ -97,6 +100,30 @@ bounds: reading past the end returns only the entries that exist, and a range
 with `start >= end` (or a journal that does not exist) returns an empty list --
 neither is an error.
 
+## The time series store
+
+A key-to-series store, where each series is an append-only list of data points
+identified by a `string` key. Each point carries a floating-point `value`, a
+`datetime`, and an integer `step`.
+
+| RPC | Description |
+| --- | --- |
+| `TimeSeriesAppend(key, value, datetime, step)` | Append a point to the series, creating it if it does not exist. `step` is optional and defaults to `0`. Returns `INVALID_ARGUMENT` if `datetime` does not parse. |
+| `TimeSeriesGet(key, start_time, end_time, start_step, end_step)` | Return the points of a series, in append order, filtered by the given bounds. A key that does not exist returns an empty list. |
+
+`datetime` is an ISO 8601 UTC datetime string. Both the `Z` form
+(`2024-01-02T03:04:05Z`) and the offset form produced by Python's
+`datetime.isoformat()` (`2024-01-02T03:04:05+00:00`) are accepted, as is a
+non-UTC offset (converted to UTC) or a bare datetime (interpreted as UTC).
+Fractional seconds are preserved to microsecond resolution. Datetimes returned
+by `TimeSeriesGet` are normalized to the `Z` form.
+
+All four bounds on `TimeSeriesGet` are optional. `start_time` and `start_step`
+are inclusive lower bounds; `end_time` and `end_step` are exclusive upper
+bounds. An unset bound imposes no restriction, and the bounds combine: a point
+is returned only if it satisfies every bound provided. Points always come back
+in the order they were appended, never sorted by time or step.
+
 ## Building the server
 
 Dependencies are managed with [Conan](https://conan.io/)
@@ -150,6 +177,15 @@ client.task_done(task.task_id, output=b"result")
 
 status = client.task_status("job-1")
 assert status.state == TaskState.Complete
+
+# Time series
+from datetime import datetime, timezone
+
+client.time_series_append("loss", 0.9, datetime.now(timezone.utc).isoformat(), step=0)
+client.time_series_append("loss", 0.5, datetime.now(timezone.utc).isoformat(), step=1)
+
+points = client.time_series_get("loss", start_step=1)  # points with step >= 1
+assert [p.value for p in points] == [0.5]
 ```
 
 If `Client()` is constructed without an address, it reads the server address
