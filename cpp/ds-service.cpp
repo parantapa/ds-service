@@ -12,7 +12,6 @@
 #include <vector>
 #include <experimental/scope>
 
-#include <omp.h>
 #include <spdlog/spdlog.h>
 #include <argparse/argparse.hpp>
 #include <parallel_hashmap/phmap.h>
@@ -81,6 +80,13 @@ std::string format_iso8601_utc(const std::chrono::system_clock::time_point& tp) 
         return std::format("{:%Y-%m-%dT%H:%M:%S}Z", secs);
     }
     return std::format("{:%Y-%m-%dT%H:%M:%S}Z", std::chrono::floor<std::chrono::microseconds>(tp));
+}
+
+// Current time in seconds as a double.
+// Only differences between two readings are meaningful; the epoch is arbitrary.
+double now_seconds() {
+    using namespace std::chrono;
+    return duration<double>(high_resolution_clock::now().time_since_epoch()).count();
 }
 
 SystemState* GLOBAL_SYSTEM_STATE = nullptr;
@@ -180,7 +186,7 @@ struct DsServiceImpl final : public DsService::Service {
                 auto task = task_manager.tasks[index];
                 if (task.state() == TaskState::Ready) {
                     task.state() = TaskState::Running;
-                    task.start_time() = omp_get_wtime();
+                    task.start_time() = now_seconds();
 
                     response->set_task_id(task.task_id());
                     response->set_function(task.function());
@@ -219,7 +225,7 @@ struct DsServiceImpl final : public DsService::Service {
     grpc::Status Requeue(grpc::ServerContext*, const RequeueRequest* request, Empty*) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
 
-        double max_start_time = omp_get_wtime() - request->timeout_s();
+        double max_start_time = now_seconds() - request->timeout_s();
 
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         for (std::size_t index = 0; index < std::size(task_manager.tasks); index++) {

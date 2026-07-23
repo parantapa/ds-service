@@ -5,8 +5,6 @@ project(
   VERSION 0.0.1
   LANGUAGES CXX)
 
-find_package(OpenMP REQUIRED)
-
 find_package(spdlog REQUIRED)
 find_package(argparse REQUIRED)
 find_package(phmap REQUIRED)
@@ -53,8 +51,7 @@ target_link_libraries(
           argparse::argparse
           re2::re2
           phmap
-          ds-service-grpc
-          OpenMP::OpenMP_CXX)
+          ds-service-grpc)
 target_compile_features(ds-service PRIVATE cxx_std_23)
 
 install(TARGETS ds-service)
