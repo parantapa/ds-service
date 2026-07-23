@@ -39,13 +39,24 @@ struct TimeSeries {
 };
 
 struct SystemState {
-    std::mutex lock{};
+    std::mutex map_lock{};
     Map<std::string, std::string> map{};
+
+    std::mutex journal_map_lock{};
     Map<std::string, std::vector<std::string>> journal_map{};
+
+    std::mutex time_series_lock{};
     Map<std::string, TimeSeries> time_series{};
+
+    std::mutex mutexes_lock{};
     Map<std::string, bool> mutexes{};
+
+    std::mutex counters_lock{};
     Map<std::string, std::uint64_t> counters{};
+
+    std::mutex task_manager_lock{};
     TaskManager task_manager{};
+
     grpc::Server* server{nullptr};
     bool shutdown{false};
 };
@@ -95,14 +106,14 @@ SystemState* GLOBAL_SYSTEM_STATE = nullptr;
 
 struct DsServiceImpl final : public DsService::Service {
     grpc::Status MapSet(grpc::ServerContext*, const MapSetRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->map_lock};
 
         GLOBAL_SYSTEM_STATE->map[request->key()] = request->value();
         return grpc::Status::OK;
     }
 
     grpc::Status MapGet(grpc::ServerContext*, const MapGetRequest* request, MapGetResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->map_lock};
 
         auto& map = GLOBAL_SYSTEM_STATE->map;
         auto it = map.find(request->key());
@@ -123,7 +134,7 @@ struct DsServiceImpl final : public DsService::Service {
                                 fmt::format("Invalid regular expression: {}", pattern.error()));
         }
 
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->map_lock};
 
         for (const auto& [key, _] : GLOBAL_SYSTEM_STATE->map) {
             if (RE2::PartialMatch(key, pattern)) {
@@ -135,7 +146,7 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status TaskAdd(grpc::ServerContext*, const TaskAddRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto it = task_manager.task_index.find(request->task_id());
@@ -161,7 +172,7 @@ struct DsServiceImpl final : public DsService::Service {
 
     grpc::Status TaskStatus(grpc::ServerContext*, const TaskStatusRequest* request,
                             TaskStatusResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto it = task_manager.task_index.find(request->task_id());
@@ -178,7 +189,7 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status TaskGet(grpc::ServerContext*, const TaskGetRequest* request, TaskGetResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         for (const auto& qname : request->queue()) {
@@ -206,7 +217,7 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status TaskDone(grpc::ServerContext*, const TaskDoneRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto it = task_manager.task_index.find(request->task_id());
@@ -225,7 +236,7 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status Requeue(grpc::ServerContext*, const RequeueRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
         double max_start_time = now_seconds() - request->timeout_s();
 
@@ -247,7 +258,7 @@ struct DsServiceImpl final : public DsService::Service {
 
     grpc::Status JournalSize(grpc::ServerContext*, const JournalSizeRequest* request,
                              JournalSizeResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->journal_map_lock};
 
         auto& journal_map = GLOBAL_SYSTEM_STATE->journal_map;
         auto it = journal_map.find(request->key());
@@ -262,7 +273,7 @@ struct DsServiceImpl final : public DsService::Service {
 
     grpc::Status JournalRead(grpc::ServerContext*, const JournalReadRequest* request,
                              JournalReadResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->journal_map_lock};
 
         auto& journal_map = GLOBAL_SYSTEM_STATE->journal_map;
         auto it = journal_map.find(request->key());
@@ -280,7 +291,7 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status JournalAppend(grpc::ServerContext*, const JournalAppendRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->journal_map_lock};
 
         GLOBAL_SYSTEM_STATE->journal_map[request->key()].push_back(request->value());
         return grpc::Status::OK;
@@ -293,7 +304,7 @@ struct DsServiceImpl final : public DsService::Service {
                                 fmt::format("Invalid ISO 8601 UTC datetime: {}", request->datetime()));
         }
 
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->time_series_lock};
 
         auto& series = GLOBAL_SYSTEM_STATE->time_series[request->key()];
         series.value.push_back(request->value());
@@ -326,7 +337,7 @@ struct DsServiceImpl final : public DsService::Service {
         bool has_start_step = request->has_start_step();
         bool has_end_step = request->has_end_step();
 
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->time_series_lock};
 
         auto it = GLOBAL_SYSTEM_STATE->time_series.find(request->key());
         if (it == GLOBAL_SYSTEM_STATE->time_series.end()) {
@@ -361,7 +372,7 @@ struct DsServiceImpl final : public DsService::Service {
 
     grpc::Status MutexTryAcquire(grpc::ServerContext*, const MutexTryAcquireRequest* request,
                                  MutexTryAcquireResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
 
         // operator[] value-initializes a missing mutex to false (unheld), so an
         // unknown key is created and then acquired by this same call.
@@ -377,7 +388,7 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status MutexRelease(grpc::ServerContext*, const MutexReleaseRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
 
         // Releasing an unheld or unknown mutex is a no-op; don't create the key.
         auto& mutexes = GLOBAL_SYSTEM_STATE->mutexes;
@@ -391,7 +402,7 @@ struct DsServiceImpl final : public DsService::Service {
 
     grpc::Status CounterGetNextValue(grpc::ServerContext*, const CounterGetNextValueRequest* request,
                                      CounterGetNextValueResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->counters_lock};
 
         // operator[] value-initializes a missing counter to 0,
         // so pre-incrementing makes the first call return 1

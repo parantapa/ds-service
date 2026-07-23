@@ -31,8 +31,11 @@ and a way to hand work out to a pool of workers.
 ## Architecture
 
 - **Server** (`cpp/ds-service.cpp`) -- a C++23 gRPC service.
-    All state lives in memory and is guarded by a single global lock,
-    so operations are serialized and consistent.
+    All state lives in memory, with a separate lock guarding each top-level data
+    structure (the key-value map, journal store, time series store, mutexes,
+    counters, and task queue). Operations on one structure are serialized, while
+    operations on different structures may run concurrently. Each RPC touches a
+    single structure, so no request ever holds more than one lock.
     State is **not** persisted; that is, when the server stops all data is lost.
 - **Client** (`python/ds_service_client/`) -- a Python 3.12+ client library
     that wraps the generated gRPC stubs
@@ -60,9 +63,10 @@ they like (JSON, pickle, protobuf, raw binary).
 regular expression. The match is unanchored, so a key matches when any substring
 of it matches the pattern; anchor with `^` and `$` to match a whole key.
 Matching keys come back in unspecified order, so sort them if you need a stable
-one. The search walks every key in the map while holding the global lock, which
+one. The search walks every key in the map while holding the map's lock, which
 is fine for the map sizes this server is meant for but is worth keeping in mind
-if a map grows very large.
+if a map grows very large -- it blocks other map operations (though not
+operations on the other data structures) for its duration.
 
 ## The task queue
 
@@ -162,8 +166,8 @@ useful for generating unique ids or sequence numbers across workers.
 | `CounterGetNextValue(key)` | Return the next value of the counter, creating it if it does not exist. The first call for a key returns `1`, and each subsequent call returns the previous value plus one. |
 
 There is no separate create or read step: the first `CounterGetNextValue` for a
-key creates the counter and returns `1`. Because every call is serialized under
-the server's global lock, concurrent callers always receive distinct,
+key creates the counter and returns `1`. Because counter operations are
+serialized under the counters' lock, concurrent callers always receive distinct,
 gap-free values. Counters are held in memory only, so a server restart resets
 every counter (the next value is `1` again).
 
