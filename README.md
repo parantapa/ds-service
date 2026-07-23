@@ -8,7 +8,7 @@
 that holds shared state in memory
 and lets many distributed clients and workers coordinate using it.
 
-Presently, it provides four things:
+Presently, it provides five things:
 - **A key-value store** -- a shared `string -> bytes` store
     for passing data between processes.
 - **A task queue** -- a priority-based work queue
@@ -18,6 +18,8 @@ Presently, it provides four things:
 - **A journal store** -- append-only, ordered logs of binary entries.
 - **A time series store** -- append-only series of timestamped
     floating-point values.
+- **Named mutexes** -- cooperative locks for coordinating exclusive
+    access across workers.
 
 It is designed as a lightweight coordination system for distributed batch jobs
 (for example, when running calibration and projection workflows across many nodes of an HPC cluster),
@@ -124,6 +126,30 @@ bounds. An unset bound imposes no restriction, and the bounds combine: a point
 is returned only if it satisfies every bound provided. Points always come back
 in the order they were appended, never sorted by time or step.
 
+## Named mutexes
+
+A `string -> bool` map of named locks, for coordinating exclusive access to a
+resource across workers. A mutex is identified by a `string` key and is either
+held or free.
+
+| RPC | Description |
+| --- | --- |
+| `MutexTryAcquire(key)` | Try once to acquire the mutex, creating it if it does not exist. Returns `true` if it was acquired, `false` if it is already held. |
+| `MutexRelease(key)` | Release the mutex. Releasing a mutex that is already free, or one that does not exist, is a no-op. |
+
+These are **cooperative** locks, not owned ones: there is no notion of which
+client holds a mutex, so any client may release any key, and the lock is not
+reentrant. Because server state is not persisted and mutexes have no expiry, a
+worker that acquires a mutex and then dies leaves it held until some client
+releases it -- there is no automatic timeout (unlike the task queue's
+`Requeue`). Use them where a stuck lock is recoverable, not for correctness that
+depends on a crashed holder being cleaned up.
+
+The Python client adds a blocking `mutex_acquire(key, timeout=None)` on top of
+these two RPCs: it retries `MutexTryAcquire` until it succeeds, sleeping between
+attempts, and raises `TimeoutError` if `timeout` seconds elapse first (it
+retries forever when `timeout` is `None`).
+
 ## Building the server
 
 Dependencies are managed with [Conan](https://conan.io/)
@@ -186,6 +212,20 @@ client.time_series_append("loss", 0.5, datetime.now(timezone.utc).isoformat(), s
 
 points = client.time_series_get("loss", start_step=1)  # points with step >= 1
 assert [p.value for p in points] == [0.5]
+
+# Named mutex
+if client.mutex_try_acquire("resource-a"):
+    try:
+        ...  # exclusive section
+    finally:
+        client.mutex_release("resource-a")
+
+# Or block until acquired, giving up after 30 seconds
+client.mutex_acquire("resource-a", timeout=30.0)
+try:
+    ...  # exclusive section
+finally:
+    client.mutex_release("resource-a")
 ```
 
 If `Client()` is constructed without an address, it reads the server address

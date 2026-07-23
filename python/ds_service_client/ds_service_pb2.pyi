@@ -189,3 +189,21 @@ class TimeSeriesGetResponse(_message.Message):
     POINT_FIELD_NUMBER: _ClassVar[int]
     point: _containers.RepeatedCompositeFieldContainer[TimeSeriesDataPoint]
     def __init__(self, point: _Optional[_Iterable[_Union[TimeSeriesDataPoint, _Mapping]]] = ...) -> None: ...
+
+class MutexTryAcquireRequest(_message.Message):
+    __slots__ = ("key",)
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    def __init__(self, key: _Optional[str] = ...) -> None: ...
+
+class MutexTryAcquireResponse(_message.Message):
+    __slots__ = ("acquired",)
+    ACQUIRED_FIELD_NUMBER: _ClassVar[int]
+    acquired: bool
+    def __init__(self, acquired: bool = ...) -> None: ...
+
+class MutexReleaseRequest(_message.Message):
+    __slots__ = ("key",)
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    def __init__(self, key: _Optional[str] = ...) -> None: ...

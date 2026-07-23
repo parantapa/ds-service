@@ -99,6 +99,16 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetResponse.FromString,
                 _registered_method=True)
+        self.MutexTryAcquire = channel.unary_unary(
+                '/DsService/MutexTryAcquire',
+                request_serializer=ds__service__client_dot_ds__service__pb2.MutexTryAcquireRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.MutexTryAcquireResponse.FromString,
+                _registered_method=True)
+        self.MutexRelease = channel.unary_unary(
+                '/DsService/MutexRelease',
+                request_serializer=ds__service__client_dot_ds__service__pb2.MutexReleaseRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
+                _registered_method=True)
 
 
 class DsServiceServicer(object):
@@ -182,6 +192,18 @@ class DsServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def MutexTryAcquire(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def MutexRelease(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_DsServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -249,6 +271,16 @@ def add_DsServiceServicer_to_server(servicer, server):
                     servicer.TimeSeriesGet,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetResponse.SerializeToString,
+            ),
+            'MutexTryAcquire': grpc.unary_unary_rpc_method_handler(
+                    servicer.MutexTryAcquire,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.MutexTryAcquireRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.MutexTryAcquireResponse.SerializeToString,
+            ),
+            'MutexRelease': grpc.unary_unary_rpc_method_handler(
+                    servicer.MutexRelease,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.MutexReleaseRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -602,6 +634,60 @@ class DsService(object):
             '/DsService/TimeSeriesGet',
             ds__service__client_dot_ds__service__pb2.TimeSeriesGetRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.TimeSeriesGetResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def MutexTryAcquire(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/MutexTryAcquire',
+            ds__service__client_dot_ds__service__pb2.MutexTryAcquireRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.MutexTryAcquireResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def MutexRelease(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/MutexRelease',
+            ds__service__client_dot_ds__service__pb2.MutexReleaseRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.Empty.FromString,
             options,
             channel_credentials,
             insecure,

@@ -43,6 +43,7 @@ struct SystemState {
     Map<std::string, std::string> map{};
     Map<std::string, std::vector<std::string>> journal_map{};
     Map<std::string, TimeSeries> time_series{};
+    Map<std::string, bool> mutexes{};
     TaskManager task_manager{};
     grpc::Server* server{nullptr};
     bool shutdown{false};
@@ -352,6 +353,36 @@ struct DsServiceImpl final : public DsService::Service {
             point->set_value(series.value[index]);
             point->set_datetime(format_iso8601_utc(series.time[index]));
             point->set_step(series.step[index]);
+        }
+
+        return grpc::Status::OK;
+    }
+
+    grpc::Status MutexTryAcquire(grpc::ServerContext*, const MutexTryAcquireRequest* request,
+                                 MutexTryAcquireResponse* response) override {
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+
+        // operator[] value-initializes a missing mutex to false (unheld), so an
+        // unknown key is created and then acquired by this same call.
+        bool& held = GLOBAL_SYSTEM_STATE->mutexes[request->key()];
+        if (held) {
+            response->set_acquired(false);
+        } else {
+            held = true;
+            response->set_acquired(true);
+        }
+
+        return grpc::Status::OK;
+    }
+
+    grpc::Status MutexRelease(grpc::ServerContext*, const MutexReleaseRequest* request, Empty*) override {
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->lock};
+
+        // Releasing an unheld or unknown mutex is a no-op; don't create the key.
+        auto& mutexes = GLOBAL_SYSTEM_STATE->mutexes;
+        auto it = mutexes.find(request->key());
+        if (it != mutexes.end()) {
+            it->second = false;
         }
 
         return grpc::Status::OK;

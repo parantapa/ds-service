@@ -19,6 +19,9 @@ service DsService {
 
     rpc TimeSeriesAppend(TimeSeriesAppendRequest) returns (Empty) {}
     rpc TimeSeriesGet(TimeSeriesGetRequest) returns (TimeSeriesGetResponse) {}
+
+    rpc MutexTryAcquire(MutexTryAcquireRequest) returns (MutexTryAcquireResponse) {}
+    rpc MutexRelease(MutexReleaseRequest) returns (Empty) {}
 };
 
 message Empty {}
@@ -141,4 +144,19 @@ message TimeSeriesGetRequest {
 
 message TimeSeriesGetResponse {
     repeated TimeSeriesDataPoint point = 1;
+}
+
+// Acquiring a mutex that does not exist creates it first.
+message MutexTryAcquireRequest {
+    string key = 1;
+}
+
+// acquired is true if the mutex was acquired by this call,
+// false if it was already held by someone else.
+message MutexTryAcquireResponse {
+    bool acquired = 1;
+}
+
+message MutexReleaseRequest {
+    string key = 1;
 }

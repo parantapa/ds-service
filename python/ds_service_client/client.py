@@ -2,6 +2,8 @@
 
 # import json
 import os
+import random
+import time
 from contextlib import contextmanager
 
 from .ds_service_pb2 import *
@@ -13,6 +15,10 @@ GRPC_CLIENT_OPTIONS = [
     ("grpc.http2.max_pings_without_data", 5),
     ("grpc.keepalive_permit_without_calls", 1),
 ]
+
+# Base sleep, and its +/- jitter, between mutex_acquire retries, in seconds.
+MUTEX_ACQUIRE_SLEEP_S = 0.5
+MUTEX_ACQUIRE_JITTER_S = 0.1
 
 
 @contextmanager
@@ -151,3 +157,31 @@ class Client:
         with translate_grpc_error():
             response: TimeSeriesGetResponse = self.stub.TimeSeriesGet(request)
             return list(response.point)
+
+    def mutex_try_acquire(self, key: str) -> bool:
+        with translate_grpc_error():
+            response: MutexTryAcquireResponse = self.stub.MutexTryAcquire(
+                MutexTryAcquireRequest(key=key)
+            )
+            return response.acquired
+
+    def mutex_release(self, key: str) -> None:
+        with translate_grpc_error():
+            self.stub.MutexRelease(MutexReleaseRequest(key=key))
+
+    def mutex_acquire(self, key: str, timeout: float | None = None) -> None:
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while True:
+            if self.mutex_try_acquire(key):
+                return
+
+            delay = MUTEX_ACQUIRE_SLEEP_S + random.uniform(
+                -MUTEX_ACQUIRE_JITTER_S, MUTEX_ACQUIRE_JITTER_S
+            )
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError(f"Timed out acquiring mutex {key!r}.")
+                delay = min(delay, remaining)
+
+            time.sleep(delay)
