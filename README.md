@@ -44,9 +44,18 @@ A flat `string -> bytes` key-value store.
 | --- | --- |
 | `MapSet(key, value)` | Store `value` under `key`, overwriting any existing value. |
 | `MapGet(key)` | Return the value for `key`, or `NOT_FOUND` if it is missing. |
+| `MapSearchKey(pattern)` | Return every key matching the regular expression `pattern`. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
 
 Values are opaque bytes, so callers are free to store whatever serialization
 they like (JSON, pickle, protobuf, raw binary).
+
+`MapSearchKey` matches keys against an [RE2](https://github.com/google/re2)
+regular expression. The match is unanchored, so a key matches when any substring
+of it matches the pattern; anchor with `^` and `$` to match a whole key.
+Matching keys come back in unspecified order, so sort them if you need a stable
+one. The search walks every key in the map while holding the global lock, which
+is fine for the map sizes this server is meant for but is worth keeping in mind
+if a map grows very large.
 
 ## The task queue
 
@@ -126,6 +135,11 @@ client = Client("127.0.0.1:5051")  # or set DS_SERVER_ADDRESS and call Client()
 # Key-value map
 client.map_set("greeting", b"hello")
 assert client.map_get("greeting") == b"hello"
+
+# Find keys by regular expression
+client.map_set("run/1", b"...")
+client.map_set("run/2", b"...")
+assert sorted(client.map_search_key("^run/")) == ["run/1", "run/2"]
 
 # Task queue
 client.task_add("job-1", queue="work", priority=1.0, function=b"...", input=b"...")

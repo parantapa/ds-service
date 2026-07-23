@@ -3,6 +3,7 @@ edition = "2023";
 service DsService {
     rpc MapSet(MapSetRequest) returns (Empty) {}
     rpc MapGet(MapGetRequest) returns (MapGetResponse) {}
+    rpc MapSearchKey(MapSearchKeyRequest) returns (MapSearchKeyResponse) {}
 
     rpc TaskAdd(TaskAddRequest) returns (Empty) {}
     rpc TaskStatus(TaskStatusRequest) returns (TaskStatusResponse) {}
@@ -30,6 +31,14 @@ message MapGetRequest {
 
 message MapGetResponse {
     bytes value = 1;
+}
+
+message MapSearchKeyRequest {
+    string pattern = 1;
+}
+
+message MapSearchKeyResponse {
+    repeated string key = 1;
 }
 
 message TaskAddRequest {

@@ -24,6 +24,8 @@ def translate_grpc_error():
             raise KeyError(e.details())
         elif e.code() == grpc.StatusCode.ALREADY_EXISTS:
             raise ValueError(e.details())
+        elif e.code() == grpc.StatusCode.INVALID_ARGUMENT:
+            raise ValueError(e.details())
         elif e.code() == grpc.StatusCode.UNAVAILABLE:
             raise TimeoutError(e.details())
         else:
@@ -51,6 +53,13 @@ class Client:
         with translate_grpc_error():
             response: MapGetResponse = self.stub.MapGet(MapGetRequest(key=key))
             return response.value
+
+    def map_search_key(self, pattern: str) -> list[str]:
+        with translate_grpc_error():
+            response: MapSearchKeyResponse = self.stub.MapSearchKey(
+                MapSearchKeyRequest(pattern=pattern)
+            )
+            return list(response.key)
 
     def task_add(
         self,
@@ -95,7 +104,9 @@ class Client:
 
     def journal_size(self, key: str) -> int:
         with translate_grpc_error():
-            response: JournalSizeResponse = self.stub.JournalSize(JournalSizeRequest(key=key))
+            response: JournalSizeResponse = self.stub.JournalSize(
+                JournalSizeRequest(key=key)
+            )
             return response.size
 
     def journal_read(self, key: str, start: int, end: int) -> list[bytes]:

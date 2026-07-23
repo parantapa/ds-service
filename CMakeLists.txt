@@ -10,6 +10,7 @@ find_package(OpenMP REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(argparse REQUIRED)
 find_package(phmap REQUIRED)
+find_package(re2 REQUIRED)
 find_package(gRPC REQUIRED)
 find_package(protobuf REQUIRED)
 
@@ -50,6 +51,7 @@ target_link_libraries(
   ds-service
   PRIVATE spdlog::spdlog
           argparse::argparse
+          re2::re2
           phmap
           ds-service-grpc
           OpenMP::OpenMP_CXX)

@@ -44,6 +44,11 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.MapGetRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.MapGetResponse.FromString,
                 _registered_method=True)
+        self.MapSearchKey = channel.unary_unary(
+                '/DsService/MapSearchKey',
+                request_serializer=ds__service__client_dot_ds__service__pb2.MapSearchKeyRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.MapSearchKeyResponse.FromString,
+                _registered_method=True)
         self.TaskAdd = channel.unary_unary(
                 '/DsService/TaskAdd',
                 request_serializer=ds__service__client_dot_ds__service__pb2.TaskAddRequest.SerializeToString,
@@ -96,6 +101,12 @@ class DsServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def MapGet(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def MapSearchKey(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -161,6 +172,11 @@ def add_DsServiceServicer_to_server(servicer, server):
                     servicer.MapGet,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.MapGetRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.MapGetResponse.SerializeToString,
+            ),
+            'MapSearchKey': grpc.unary_unary_rpc_method_handler(
+                    servicer.MapSearchKey,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.MapSearchKeyRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.MapSearchKeyResponse.SerializeToString,
             ),
             'TaskAdd': grpc.unary_unary_rpc_method_handler(
                     servicer.TaskAdd,
@@ -257,6 +273,33 @@ class DsService(object):
             '/DsService/MapGet',
             ds__service__client_dot_ds__service__pb2.MapGetRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.MapGetResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def MapSearchKey(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/MapSearchKey',
+            ds__service__client_dot_ds__service__pb2.MapSearchKeyRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.MapSearchKeyResponse.FromString,
             options,
             channel_credentials,
             insecure,

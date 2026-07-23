@@ -40,6 +40,18 @@ class MapGetResponse(_message.Message):
     value: bytes
     def __init__(self, value: _Optional[bytes] = ...) -> None: ...
 
+class MapSearchKeyRequest(_message.Message):
+    __slots__ = ("pattern",)
+    PATTERN_FIELD_NUMBER: _ClassVar[int]
+    pattern: str
+    def __init__(self, pattern: _Optional[str] = ...) -> None: ...
+
+class MapSearchKeyResponse(_message.Message):
+    __slots__ = ("key",)
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    key: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, key: _Optional[_Iterable[str]] = ...) -> None: ...
+
 class TaskAddRequest(_message.Message):
     __slots__ = ("task_id", "queue", "priority", "function", "input")
     TASK_ID_FIELD_NUMBER: _ClassVar[int]

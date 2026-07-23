@@ -23,6 +23,7 @@ class DsServiceRecipe(ConanFile):
 
         self.requires("grpc/1.78.1")
         self.requires("protobuf/6.33.5")
+        self.requires("re2/20251105")
 
     def build_requirements(self):
         self.tool_requires("grpc/1.78.1")

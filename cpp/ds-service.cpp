@@ -11,6 +11,7 @@
 #include <spdlog/spdlog.h>
 #include <argparse/argparse.hpp>
 #include <parallel_hashmap/phmap.h>
+#include <re2/re2.h>
 #include <grpcpp/grpcpp.h>
 
 #include <ds-service.grpc.pb.h>
@@ -113,6 +114,25 @@ struct DsServiceImpl final : public DsService::Service {
             return grpc::Status(grpc::StatusCode::NOT_FOUND, fmt::format("Key {} not found.", request->key()));
         } else {
             response->set_value(it->second);
+        }
+
+        return grpc::Status::OK;
+    }
+
+    grpc::Status MapSearchKey(grpc::ServerContext*, const MapSearchKeyRequest* request,
+                              MapSearchKeyResponse* response) override {
+        RE2 pattern{request->pattern()};
+        if (!pattern.ok()) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                fmt::format("Invalid regular expression: {}", pattern.error()));
+        }
+
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
+
+        for (const auto& [key, _] : GLOBAL_SYSTEM_STATE->map) {
+            if (RE2::PartialMatch(key, pattern)) {
+                response->add_key(key);
+            }
         }
 
         return grpc::Status::OK;

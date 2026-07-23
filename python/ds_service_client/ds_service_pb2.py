@@ -24,15 +24,15 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"ds_service_client/ds-service.proto\"\x07\n\x05\x45mpty\"+\n\rMapSetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c\"\x1c\n\rMapGetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"\x1f\n\x0eMapGetResponse\x12\r\n\x05value\x18\x01 \x01(\x0c\"c\n\x0eTaskAddRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\r\n\x05queue\x18\x02 \x03(\t\x12\x10\n\x08priority\x18\x03 \x01(\x01\x12\x10\n\x08\x66unction\x18\x04 \x01(\x0c\x12\r\n\x05input\x18\x05 \x01(\x0c\"$\n\x11TaskStatusRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\"?\n\x12TaskStatusResponse\x12\x19\n\x05state\x18\x01 \x01(\x0e\x32\n.TaskState\x12\x0e\n\x06output\x18\x02 \x01(\x0c\"2\n\x0eTaskGetRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\r\n\x05queue\x18\x02 \x03(\t\"C\n\x0fTaskGetResponse\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x10\n\x08\x66unction\x18\x02 \x01(\x0c\x12\r\n\x05input\x18\x03 \x01(\x0c\"2\n\x0fTaskDoneRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x0e\n\x06output\x18\x02 \x01(\x0c\"#\n\x0eRequeueRequest\x12\x11\n\ttimeout_s\x18\x01 \x01(\x01\"!\n\x12JournalSizeRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"#\n\x13JournalSizeResponse\x12\x0c\n\x04size\x18\x01 \x01(\x04\"=\n\x12JournalReadRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05start\x18\x02 \x01(\x04\x12\x0b\n\x03\x65nd\x18\x03 \x01(\x04\"$\n\x13JournalReadResponse\x12\r\n\x05\x65ntry\x18\x01 \x03(\x0c\"2\n\x14JournalAppendRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c*1\n\tTaskState\x12\t\n\x05Ready\x10\x00\x12\x0b\n\x07Running\x10\x01\x12\x0c\n\x08\x43omplete\x10\x02\x32\xe3\x03\n\tDsService\x12\"\n\x06MapSet\x12\x0e.MapSetRequest\x1a\x06.Empty\"\x00\x12+\n\x06MapGet\x12\x0e.MapGetRequest\x1a\x0f.MapGetResponse\"\x00\x12$\n\x07TaskAdd\x12\x0f.TaskAddRequest\x1a\x06.Empty\"\x00\x12\x37\n\nTaskStatus\x12\x12.TaskStatusRequest\x1a\x13.TaskStatusResponse\"\x00\x12.\n\x07TaskGet\x12\x0f.TaskGetRequest\x1a\x10.TaskGetResponse\"\x00\x12&\n\x08TaskDone\x12\x10.TaskDoneRequest\x1a\x06.Empty\"\x00\x12$\n\x07Requeue\x12\x0f.RequeueRequest\x1a\x06.Empty\"\x00\x12:\n\x0bJournalSize\x12\x13.JournalSizeRequest\x1a\x14.JournalSizeResponse\"\x00\x12:\n\x0bJournalRead\x12\x13.JournalReadRequest\x1a\x14.JournalReadResponse\"\x00\x12\x30\n\rJournalAppend\x12\x15.JournalAppendRequest\x1a\x06.Empty\"\x00\x62\x08\x65\x64itionsp\xe8\x07')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"ds_service_client/ds-service.proto\"\x07\n\x05\x45mpty\"+\n\rMapSetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c\"\x1c\n\rMapGetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"\x1f\n\x0eMapGetResponse\x12\r\n\x05value\x18\x01 \x01(\x0c\"&\n\x13MapSearchKeyRequest\x12\x0f\n\x07pattern\x18\x01 \x01(\t\"#\n\x14MapSearchKeyResponse\x12\x0b\n\x03key\x18\x01 \x03(\t\"c\n\x0eTaskAddRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\r\n\x05queue\x18\x02 \x03(\t\x12\x10\n\x08priority\x18\x03 \x01(\x01\x12\x10\n\x08\x66unction\x18\x04 \x01(\x0c\x12\r\n\x05input\x18\x05 \x01(\x0c\"$\n\x11TaskStatusRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\"?\n\x12TaskStatusResponse\x12\x19\n\x05state\x18\x01 \x01(\x0e\x32\n.TaskState\x12\x0e\n\x06output\x18\x02 \x01(\x0c\"2\n\x0eTaskGetRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\r\n\x05queue\x18\x02 \x03(\t\"C\n\x0fTaskGetResponse\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x10\n\x08\x66unction\x18\x02 \x01(\x0c\x12\r\n\x05input\x18\x03 \x01(\x0c\"2\n\x0fTaskDoneRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x0e\n\x06output\x18\x02 \x01(\x0c\"#\n\x0eRequeueRequest\x12\x11\n\ttimeout_s\x18\x01 \x01(\x01\"!\n\x12JournalSizeRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"#\n\x13JournalSizeResponse\x12\x0c\n\x04size\x18\x01 \x01(\x04\"=\n\x12JournalReadRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05start\x18\x02 \x01(\x04\x12\x0b\n\x03\x65nd\x18\x03 \x01(\x04\"$\n\x13JournalReadResponse\x12\r\n\x05\x65ntry\x18\x01 \x03(\x0c\"2\n\x14JournalAppendRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c*1\n\tTaskState\x12\t\n\x05Ready\x10\x00\x12\x0b\n\x07Running\x10\x01\x12\x0c\n\x08\x43omplete\x10\x02\x32\xa2\x04\n\tDsService\x12\"\n\x06MapSet\x12\x0e.MapSetRequest\x1a\x06.Empty\"\x00\x12+\n\x06MapGet\x12\x0e.MapGetRequest\x1a\x0f.MapGetResponse\"\x00\x12=\n\x0cMapSearchKey\x12\x14.MapSearchKeyRequest\x1a\x15.MapSearchKeyResponse\"\x00\x12$\n\x07TaskAdd\x12\x0f.TaskAddRequest\x1a\x06.Empty\"\x00\x12\x37\n\nTaskStatus\x12\x12.TaskStatusRequest\x1a\x13.TaskStatusResponse\"\x00\x12.\n\x07TaskGet\x12\x0f.TaskGetRequest\x1a\x10.TaskGetResponse\"\x00\x12&\n\x08TaskDone\x12\x10.TaskDoneRequest\x1a\x06.Empty\"\x00\x12$\n\x07Requeue\x12\x0f.RequeueRequest\x1a\x06.Empty\"\x00\x12:\n\x0bJournalSize\x12\x13.JournalSizeRequest\x1a\x14.JournalSizeResponse\"\x00\x12:\n\x0bJournalRead\x12\x13.JournalReadRequest\x1a\x14.JournalReadResponse\"\x00\x12\x30\n\rJournalAppend\x12\x15.JournalAppendRequest\x1a\x06.Empty\"\x00\x62\x08\x65\x64itionsp\xe8\x07')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'ds_service_client.ds_service_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_TASKSTATE']._serialized_start=794
-  _globals['_TASKSTATE']._serialized_end=843
+  _globals['_TASKSTATE']._serialized_start=871
+  _globals['_TASKSTATE']._serialized_end=920
   _globals['_EMPTY']._serialized_start=38
   _globals['_EMPTY']._serialized_end=45
   _globals['_MAPSETREQUEST']._serialized_start=47
@@ -41,30 +41,34 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_MAPGETREQUEST']._serialized_end=120
   _globals['_MAPGETRESPONSE']._serialized_start=122
   _globals['_MAPGETRESPONSE']._serialized_end=153
-  _globals['_TASKADDREQUEST']._serialized_start=155
-  _globals['_TASKADDREQUEST']._serialized_end=254
-  _globals['_TASKSTATUSREQUEST']._serialized_start=256
-  _globals['_TASKSTATUSREQUEST']._serialized_end=292
-  _globals['_TASKSTATUSRESPONSE']._serialized_start=294
-  _globals['_TASKSTATUSRESPONSE']._serialized_end=357
-  _globals['_TASKGETREQUEST']._serialized_start=359
-  _globals['_TASKGETREQUEST']._serialized_end=409
-  _globals['_TASKGETRESPONSE']._serialized_start=411
-  _globals['_TASKGETRESPONSE']._serialized_end=478
-  _globals['_TASKDONEREQUEST']._serialized_start=480
-  _globals['_TASKDONEREQUEST']._serialized_end=530
-  _globals['_REQUEUEREQUEST']._serialized_start=532
-  _globals['_REQUEUEREQUEST']._serialized_end=567
-  _globals['_JOURNALSIZEREQUEST']._serialized_start=569
-  _globals['_JOURNALSIZEREQUEST']._serialized_end=602
-  _globals['_JOURNALSIZERESPONSE']._serialized_start=604
-  _globals['_JOURNALSIZERESPONSE']._serialized_end=639
-  _globals['_JOURNALREADREQUEST']._serialized_start=641
-  _globals['_JOURNALREADREQUEST']._serialized_end=702
-  _globals['_JOURNALREADRESPONSE']._serialized_start=704
-  _globals['_JOURNALREADRESPONSE']._serialized_end=740
-  _globals['_JOURNALAPPENDREQUEST']._serialized_start=742
-  _globals['_JOURNALAPPENDREQUEST']._serialized_end=792
-  _globals['_DSSERVICE']._serialized_start=846
-  _globals['_DSSERVICE']._serialized_end=1329
+  _globals['_MAPSEARCHKEYREQUEST']._serialized_start=155
+  _globals['_MAPSEARCHKEYREQUEST']._serialized_end=193
+  _globals['_MAPSEARCHKEYRESPONSE']._serialized_start=195
+  _globals['_MAPSEARCHKEYRESPONSE']._serialized_end=230
+  _globals['_TASKADDREQUEST']._serialized_start=232
+  _globals['_TASKADDREQUEST']._serialized_end=331
+  _globals['_TASKSTATUSREQUEST']._serialized_start=333
+  _globals['_TASKSTATUSREQUEST']._serialized_end=369
+  _globals['_TASKSTATUSRESPONSE']._serialized_start=371
+  _globals['_TASKSTATUSRESPONSE']._serialized_end=434
+  _globals['_TASKGETREQUEST']._serialized_start=436
+  _globals['_TASKGETREQUEST']._serialized_end=486
+  _globals['_TASKGETRESPONSE']._serialized_start=488
+  _globals['_TASKGETRESPONSE']._serialized_end=555
+  _globals['_TASKDONEREQUEST']._serialized_start=557
+  _globals['_TASKDONEREQUEST']._serialized_end=607
+  _globals['_REQUEUEREQUEST']._serialized_start=609
+  _globals['_REQUEUEREQUEST']._serialized_end=644
+  _globals['_JOURNALSIZEREQUEST']._serialized_start=646
+  _globals['_JOURNALSIZEREQUEST']._serialized_end=679
+  _globals['_JOURNALSIZERESPONSE']._serialized_start=681
+  _globals['_JOURNALSIZERESPONSE']._serialized_end=716
+  _globals['_JOURNALREADREQUEST']._serialized_start=718
+  _globals['_JOURNALREADREQUEST']._serialized_end=779
+  _globals['_JOURNALREADRESPONSE']._serialized_start=781
+  _globals['_JOURNALREADRESPONSE']._serialized_end=817
+  _globals['_JOURNALAPPENDREQUEST']._serialized_start=819
+  _globals['_JOURNALAPPENDREQUEST']._serialized_end=869
+  _globals['_DSSERVICE']._serialized_start=923
+  _globals['_DSSERVICE']._serialized_end=1469
 # @@protoc_insertion_point(module_scope)
