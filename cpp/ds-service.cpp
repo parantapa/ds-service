@@ -85,26 +85,31 @@ struct TaskManager {
     Map<std::string, TaskQueueEntry> queue;
 };
 
-OmpLock* GLOBAL_LOCK = nullptr;
-Map<std::string, std::string>* GLOBAL_MAP = nullptr;
-Map<std::string, std::vector<std::string>>* GLOBAL_JOURNAL_MAP = nullptr;
-TaskManager* GLOBAL_TASK_MANAGER = nullptr;
-grpc::Server* GLOBAL_SERVER = nullptr;
-bool GLOBAL_SHUTDOWN = false;
+struct SystemState {
+    OmpLock lock{};
+    Map<std::string, std::string> map{};
+    Map<std::string, std::vector<std::string>> journal_map{};
+    TaskManager task_manager{};
+    grpc::Server* server{nullptr};
+    bool shutdown{false};
+};
+
+SystemState* GLOBAL_SYSTEM_STATE = nullptr;
 
 struct DsServiceImpl final : public DsService::Service {
     grpc::Status MapSet(grpc::ServerContext*, const MapSetRequest* request, Empty*) override {
-        auto lock = GLOBAL_LOCK->acquire();
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
 
-        (*GLOBAL_MAP)[request->key()] = request->value();
+        GLOBAL_SYSTEM_STATE->map[request->key()] = request->value();
         return grpc::Status::OK;
     }
 
     grpc::Status MapGet(grpc::ServerContext*, const MapGetRequest* request, MapGetResponse* response) override {
-        auto lock = GLOBAL_LOCK->acquire();
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
 
-        auto it = GLOBAL_MAP->find(request->key());
-        if (it == GLOBAL_MAP->end()) {
+        auto& map = GLOBAL_SYSTEM_STATE->map;
+        auto it = map.find(request->key());
+        if (it == map.end()) {
             return grpc::Status(grpc::StatusCode::NOT_FOUND, fmt::format("Key {} not found.", request->key()));
         } else {
             response->set_value(it->second);
@@ -114,20 +119,21 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status TaskAdd(grpc::ServerContext*, const TaskAddRequest* request, Empty*) override {
-        auto lock = GLOBAL_LOCK->acquire();
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
 
-        auto it = GLOBAL_TASK_MANAGER->task_index.find(request->task_id());
-        if (it == GLOBAL_TASK_MANAGER->task_index.end()) {
-            GLOBAL_TASK_MANAGER->tasks.push_back(request->task_id(), request->priority(), request->function(),
-                                                 request->input(), "", TaskState::Ready, -1.0, {});
+        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
+        auto it = task_manager.task_index.find(request->task_id());
+        if (it == task_manager.task_index.end()) {
+            task_manager.tasks.push_back(request->task_id(), request->priority(), request->function(), request->input(),
+                                         "", TaskState::Ready, -1.0, {});
 
-            auto index = GLOBAL_TASK_MANAGER->tasks.size() - 1;
-            auto task = GLOBAL_TASK_MANAGER->tasks[index];
+            auto index = task_manager.tasks.size() - 1;
+            auto task = task_manager.tasks[index];
 
-            GLOBAL_TASK_MANAGER->task_index[request->task_id()] = index;
+            task_manager.task_index[request->task_id()] = index;
             for (const auto& qname : request->queue()) {
                 task.queues().push_back(qname);
-                GLOBAL_TASK_MANAGER->queue[qname].push(std::make_pair(request->priority(), index));
+                task_manager.queue[qname].push(std::make_pair(request->priority(), index));
             }
 
             return grpc::Status::OK;
@@ -139,15 +145,16 @@ struct DsServiceImpl final : public DsService::Service {
 
     grpc::Status TaskStatus(grpc::ServerContext*, const TaskStatusRequest* request,
                             TaskStatusResponse* response) override {
-        auto lock = GLOBAL_LOCK->acquire();
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
 
-        auto it = GLOBAL_TASK_MANAGER->task_index.find(request->task_id());
-        if (it == GLOBAL_TASK_MANAGER->task_index.end()) {
+        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
+        auto it = task_manager.task_index.find(request->task_id());
+        if (it == task_manager.task_index.end()) {
             return grpc::Status(grpc::StatusCode::NOT_FOUND,
                                 fmt::format("Task with ID = {} not found.", request->task_id()));
         } else {
-            auto index = GLOBAL_TASK_MANAGER->task_index[request->task_id()];
-            const auto& task = GLOBAL_TASK_MANAGER->tasks[index];
+            auto index = task_manager.task_index[request->task_id()];
+            const auto& task = task_manager.tasks[index];
             response->set_state(task.state());
             response->set_output(task.output());
             return grpc::Status::OK;
@@ -155,13 +162,14 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status TaskGet(grpc::ServerContext*, const TaskGetRequest* request, TaskGetResponse* response) override {
-        auto lock = GLOBAL_LOCK->acquire();
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
 
+        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         for (const auto& qname : request->queue()) {
-            auto& queue = GLOBAL_TASK_MANAGER->queue[qname];
+            auto& queue = task_manager.queue[qname];
             while (!queue.empty()) {
                 const auto& [_, index] = queue.top();
-                auto task = GLOBAL_TASK_MANAGER->tasks[index];
+                auto task = task_manager.tasks[index];
                 if (task.state() == TaskState::Ready) {
                     task.state() = TaskState::Running;
                     task.start_time() = omp_get_wtime();
@@ -182,15 +190,16 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status TaskDone(grpc::ServerContext*, const TaskDoneRequest* request, Empty*) override {
-        auto lock = GLOBAL_LOCK->acquire();
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
 
-        auto it = GLOBAL_TASK_MANAGER->task_index.find(request->task_id());
-        if (it == GLOBAL_TASK_MANAGER->task_index.end()) {
+        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
+        auto it = task_manager.task_index.find(request->task_id());
+        if (it == task_manager.task_index.end()) {
             return grpc::Status(grpc::StatusCode::NOT_FOUND,
                                 fmt::format("Task with ID = {} not found.", request->task_id()));
         } else {
-            auto index = GLOBAL_TASK_MANAGER->task_index[request->task_id()];
-            auto task = GLOBAL_TASK_MANAGER->tasks[index];
+            auto index = task_manager.task_index[request->task_id()];
+            auto task = task_manager.tasks[index];
             if (task.state() == TaskState::Running) {
                 task.state() = TaskState::Complete;
                 task.output() = request->output();
@@ -200,18 +209,19 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status Requeue(grpc::ServerContext*, const RequeueRequest* request, Empty*) override {
-        auto lock = GLOBAL_LOCK->acquire();
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
 
         double max_start_time = omp_get_wtime() - request->timeout_s();
 
-        for (std::size_t index = 0; index < std::size(GLOBAL_TASK_MANAGER->tasks); index++) {
-            auto task = GLOBAL_TASK_MANAGER->tasks[index];
+        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
+        for (std::size_t index = 0; index < std::size(task_manager.tasks); index++) {
+            auto task = task_manager.tasks[index];
             if (task.state() == TaskState::Running && task.start_time() < max_start_time) {
                 task.state() = TaskState::Ready;
                 task.start_time() = -1;
 
                 for (const auto& qname : task.queues()) {
-                    GLOBAL_TASK_MANAGER->queue[qname].push(std::make_pair(task.priority(), index));
+                    task_manager.queue[qname].push(std::make_pair(task.priority(), index));
                 }
             }
         }
@@ -221,10 +231,11 @@ struct DsServiceImpl final : public DsService::Service {
 
     grpc::Status JournalSize(grpc::ServerContext*, const JournalSizeRequest* request,
                              JournalSizeResponse* response) override {
-        auto lock = GLOBAL_LOCK->acquire();
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
 
-        auto it = GLOBAL_JOURNAL_MAP->find(request->key());
-        if (it == GLOBAL_JOURNAL_MAP->end()) {
+        auto& journal_map = GLOBAL_SYSTEM_STATE->journal_map;
+        auto it = journal_map.find(request->key());
+        if (it == journal_map.end()) {
             response->set_size(0);
         } else {
             response->set_size(it->second.size());
@@ -235,10 +246,11 @@ struct DsServiceImpl final : public DsService::Service {
 
     grpc::Status JournalRead(grpc::ServerContext*, const JournalReadRequest* request,
                              JournalReadResponse* response) override {
-        auto lock = GLOBAL_LOCK->acquire();
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
 
-        auto it = GLOBAL_JOURNAL_MAP->find(request->key());
-        if (it != GLOBAL_JOURNAL_MAP->end()) {
+        auto& journal_map = GLOBAL_SYSTEM_STATE->journal_map;
+        auto it = journal_map.find(request->key());
+        if (it != journal_map.end()) {
             const auto& journal = it->second;
             auto size = journal.size();
             auto start = std::min<std::uint64_t>(request->start(), size);
@@ -252,9 +264,9 @@ struct DsServiceImpl final : public DsService::Service {
     }
 
     grpc::Status JournalAppend(grpc::ServerContext*, const JournalAppendRequest* request, Empty*) override {
-        auto lock = GLOBAL_LOCK->acquire();
+        auto lock = GLOBAL_SYSTEM_STATE->lock.acquire();
 
-        (*GLOBAL_JOURNAL_MAP)[request->key()].push_back(request->value());
+        GLOBAL_SYSTEM_STATE->journal_map[request->key()].push_back(request->value());
         return grpc::Status::OK;
     }
 };
@@ -281,17 +293,8 @@ int main(int argc, char* argv[]) {
 
     spdlog::info("server_address = {}", server_address);
 
-    OmpLock global_lock{};
-    GLOBAL_LOCK = &global_lock;
-
-    Map<std::string, std::string> global_map{};
-    GLOBAL_MAP = &global_map;
-
-    Map<std::string, std::vector<std::string>> global_journal_map{};
-    GLOBAL_JOURNAL_MAP = &global_journal_map;
-
-    TaskManager global_task_manager{};
-    GLOBAL_TASK_MANAGER = &global_task_manager;
+    SystemState global_system_state{};
+    GLOBAL_SYSTEM_STATE = &global_system_state;
 
     DsServiceImpl service{};
     grpc::EnableDefaultHealthCheckService(true);
@@ -308,7 +311,7 @@ int main(int argc, char* argv[]) {
     builder.AddChannelArgument(GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS, 10 * 1000 /*10 sec*/);
 
     std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-    GLOBAL_SERVER = server.get();
+    GLOBAL_SYSTEM_STATE->server = server.get();
 
     spdlog::info("starting server ...");
     server->Wait();
