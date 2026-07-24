@@ -43,3 +43,4 @@ fallback_version = "1.0.0-dev"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["python"]
