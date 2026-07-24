@@ -12,39 +12,32 @@ Presently, it provides six things:
 - **A key-value store** -- a shared `string -> bytes` store
     for passing data between processes.
 - **A task queue** -- a priority-based work queue
-    that distributes tasks to workers,
-    tracks their state,
-    and requeues tasks whose workers have died or stalled.
+    that distributes tasks to workers and tracks their state.
 - **A journal store** -- append-only, ordered logs of binary entries.
-- **A time series store** -- append-only series of timestamped
-    floating-point values.
-- **Named mutexes** -- cooperative locks for coordinating exclusive
-    access across workers.
-- **Counters** -- named monotonic counters that hand out successive
-    integers.
-
-It is designed as a lightweight coordination system for distributed batch jobs
-(for example, when running calibration and projection workflows across many nodes of an HPC cluster),
-where you need some shared data structures
-and a way to hand work out to a pool of workers.
+- **A time series store** -- append-only series of
+    timestamped floating-point values.
+- **Named mutexes** -- cooperative locks
+    for coordinating exclusive resource access across workers.
+- **Counters** -- named monotonic counters
+    that hand out successive integers.
 
 ## Architecture
 
 - **Server** (`cpp/ds-service.cpp`) -- a C++23 gRPC service.
-    All state lives in memory, with a separate lock guarding each top-level data
-    structure (the key-value map, journal store, time series store, mutexes,
-    counters, and task queue). Operations on one structure are serialized, while
-    operations on different structures may run concurrently. Each RPC touches a
-    single structure, so no request ever holds more than one lock.
-    State is **not** persisted; that is, when the server stops all data is lost.
+    All state lives in memory,
+    with a separate lock guarding each top-level data structure.
+    Operations on one structure are serialized,
+    while operations on different structures may run concurrently.
+    Each RPC touches a single structure,
+    so no request ever holds more than one lock.
+    State is **not** persisted;
+    that is, when the server stops all data is lost.
 - **Client** (`python/ds_service_client/`) -- a Python 3.12+ client library
     that wraps the generated gRPC stubs
-    and translates gRPC status codes into ordinary Python exceptions
+    and translates gRPC status codes into Python exceptions
     (`KeyError`, `ValueError`, `TimeoutError`).
 - **Interface** (`misc/ds-service.proto`) -- the protobuf/gRPC contract
     shared by both sides.
-
-By default the server listens on `127.0.0.1:5051`.
 
 ## The key-value store
 
