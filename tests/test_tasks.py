@@ -100,7 +100,7 @@ def test_worker_polls_across_queues_in_order(client):
     assert client.task_get(worker_id="w1", queue=["qa", "qb"]).task_id == "b"
 
 
-def test_requeue_returns_stalled_task(client):
+def test_task_requeue_returns_stalled_task(client):
     client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
     client.task_get(worker_id="w1", queue="work")  # now Running
 
@@ -110,7 +110,7 @@ def test_requeue_returns_stalled_task(client):
 
     # Reset any task running longer than the (tiny) timeout back to Ready.
     time.sleep(0.05)
-    client.requeue(timeout_s=0.0)
+    client.task_requeue(timeout_s=0.0)
 
     assert client.task_get_status("t") == TaskState.Ready
     assert client.task_get(worker_id="w2", queue="work").task_id == "t"

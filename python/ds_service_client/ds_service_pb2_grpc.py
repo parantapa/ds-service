@@ -79,9 +79,9 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.TaskDoneRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
                 _registered_method=True)
-        self.Requeue = channel.unary_unary(
-                '/DsService/Requeue',
-                request_serializer=ds__service__client_dot_ds__service__pb2.RequeueRequest.SerializeToString,
+        self.TaskRequeue = channel.unary_unary(
+                '/DsService/TaskRequeue',
+                request_serializer=ds__service__client_dot_ds__service__pb2.TaskRequeueRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
                 _registered_method=True)
         self.JournalSize = channel.unary_unary(
@@ -208,7 +208,7 @@ class DsServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def Requeue(self, request, context):
+    def TaskRequeue(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -340,9 +340,9 @@ def add_DsServiceServicer_to_server(servicer, server):
                     request_deserializer=ds__service__client_dot_ds__service__pb2.TaskDoneRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
             ),
-            'Requeue': grpc.unary_unary_rpc_method_handler(
-                    servicer.Requeue,
-                    request_deserializer=ds__service__client_dot_ds__service__pb2.RequeueRequest.FromString,
+            'TaskRequeue': grpc.unary_unary_rpc_method_handler(
+                    servicer.TaskRequeue,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.TaskRequeueRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
             ),
             'JournalSize': grpc.unary_unary_rpc_method_handler(
@@ -665,7 +665,7 @@ class DsService(object):
             _registered_method=True)
 
     @staticmethod
-    def Requeue(request,
+    def TaskRequeue(request,
             target,
             options=(),
             channel_credentials=None,
@@ -678,8 +678,8 @@ class DsService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/DsService/Requeue',
-            ds__service__client_dot_ds__service__pb2.RequeueRequest.SerializeToString,
+            '/DsService/TaskRequeue',
+            ds__service__client_dot_ds__service__pb2.TaskRequeueRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.Empty.FromString,
             options,
             channel_credentials,

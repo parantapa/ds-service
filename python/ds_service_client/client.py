@@ -123,9 +123,9 @@ class Client:
         with translate_grpc_error():
             return self.stub.TaskDone(TaskDoneRequest(task_id=task_id, output=output))
 
-    def requeue(self, timeout_s: float):
+    def task_requeue(self, timeout_s: float):
         with translate_grpc_error():
-            return self.stub.Requeue(RequeueRequest(timeout_s=timeout_s))
+            return self.stub.TaskRequeue(TaskRequeueRequest(timeout_s=timeout_s))
 
     def journal_size(self, key: str) -> int:
         with translate_grpc_error():

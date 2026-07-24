@@ -280,7 +280,7 @@ struct DsServiceImpl final : public DsService::Service {
         }
     }
 
-    grpc::Status Requeue(grpc::ServerContext*, const RequeueRequest* request, Empty*) override {
+    grpc::Status TaskRequeue(grpc::ServerContext*, const TaskRequeueRequest* request, Empty*) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
         double max_start_time = now_seconds() - request->timeout_s();

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `ds-service` is an in-memory data-structure server (a key-value map + a priority task queue) exposed over gRPC, used to coordinate distributed batch workers on HPC clusters. It has two halves that share one wire contract:
 
-- **Server** — a single C++23 process (`cpp/ds-service.cpp`). All state is in-memory, non-persistent, and guarded by one global lock, so every RPC is fully serialized.
+- **Server** — a single C++23 process (`cpp/ds-service.cpp`). All state is in-memory, non-persistent, and guarded by a separate `std::mutex` per top-level data structure, so operations on one structure are serialized while operations on different structures can run concurrently.
 - **Client** — a Python 3.12+ library (`python/ds_service_client/`) that wraps the generated gRPC stubs and translates gRPC status codes into Python exceptions.
 
 ## The generated-code pipeline (most important thing to understand)
@@ -44,15 +44,15 @@ The suite lives in `tests/` and is driven by **pytest** (config in `pyproject.to
 
 - **Build the server first** — the tests run the compiled binary. The fixture locates it via `DS_SERVICE_BIN` (an explicit path) or, failing that, a `ds-service` on the `PATH`; it does not probe the build tree, so set `DS_SERVICE_BIN=build/Release/ds-service` (or put the binary on `PATH`) when running the suite.
 - `pyproject.toml` sets `pythonpath = ["python"]`, so the client package imports without installing.
-- Run everything: `python -m pytest`. One file: `python -m pytest tests/test_journal.py`. One test: `python -m pytest tests/test_tasks.py::test_requeue_returns_stalled_task`.
+- Run everything: `python -m pytest`. One file: `python -m pytest tests/test_journal.py`. One test: `python -m pytest tests/test_tasks.py::test_task_requeue_returns_stalled_task`.
 - Install deps with the `test` extra: `pip install -e ".[test]"` (pulls in `pytest`; `grpcio` is a core dependency).
 - After changing the proto or C++, rebuild the binary (and regenerate Python stubs) before running the suite, or it tests stale code.
 
 ## Server internals worth knowing
 
-- **One global OMP lock** (`GLOBAL_LOCK`) wraps the body of every RPC; state lives in file-scope globals (`GLOBAL_MAP`, `GLOBAL_TASK_MANAGER`). This is the concurrency model — there is no per-key or per-queue locking.
-- The task table is **struct-of-arrays**: a task is a row index shared across parallel vectors, accessed via a `reference` proxy (`GLOBAL_TASK_MANAGER->tasks[index].state()`), not a struct. `task_index` maps `task_id → row`; `queue` maps queue name → a `std::priority_queue` of `(priority, index)`, so higher priority dispatches first.
-- Task lifecycle is `Ready → Running → Complete`. `TaskGet` lazily discards non-`Ready` entries it pops. `Requeue(timeout_s)` scans all tasks and resets stalled `Running` ones (started before `now - timeout_s`) back to `Ready` — this is the only fault-tolerance mechanism; timing uses `omp_get_wtime()`.
+- **Locking is per top-level structure**, not one big lock (OpenMP was removed; there are no OMP locks anywhere). All state lives in one file-scope `GLOBAL_SYSTEM_STATE` (a `SystemState`), which pairs each structure with its own `std::mutex` — `map`/`map_lock`, `journal_map`/`journal_map_lock`, `time_series`/`time_series_lock`, `mutexes`/`mutexes_lock`, `counters`/`counters_lock`, `task_manager`/`task_manager_lock`. Each RPC takes a `std::scoped_lock` on the single structure it touches, so no request ever holds more than one lock; there is no per-key or per-queue locking within a structure.
+- The task table is **struct-of-arrays**: a task is a row index shared across parallel vectors, accessed via a `reference` proxy (`GLOBAL_SYSTEM_STATE->task_manager.tasks[index].state()`), not a struct. `task_index` maps `task_id → row`; `queue` maps queue name → a `std::priority_queue` of `(priority, index)`, so higher priority dispatches first.
+- Task lifecycle is `Ready → Running → Complete`. `TaskGet` lazily discards non-`Ready` entries it pops. `TaskRequeue(timeout_s)` scans all tasks and resets stalled `Running` ones (started before `now - timeout_s`) back to `Ready` — this is the only fault-tolerance mechanism; timing uses `now_seconds()`, a `std::chrono::high_resolution_clock` reading (not `omp_get_wtime()`).
 - gRPC status codes are the API's error channel and the client depends on the exact mapping: `NOT_FOUND`→`KeyError`, `ALREADY_EXISTS`→`ValueError`, `UNAVAILABLE`→`TimeoutError`. Preserve these when adding RPCs.
 
 ## Conventions

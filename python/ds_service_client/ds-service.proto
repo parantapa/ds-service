@@ -13,7 +13,7 @@ service DsService {
     rpc TaskGet(TaskGetRequest) returns (TaskGetResponse) {}
     rpc TaskDone(TaskDoneRequest) returns (Empty) {}
 
-    rpc Requeue(RequeueRequest) returns (Empty) {}
+    rpc TaskRequeue(TaskRequeueRequest) returns (Empty) {}
 
     rpc JournalSize(JournalSizeRequest) returns (JournalSizeResponse) {}
     rpc JournalRead(JournalReadRequest) returns (JournalReadResponse) {}
@@ -117,7 +117,7 @@ message TaskDoneRequest {
     bytes output = 2;
 }
 
-message RequeueRequest {
+message TaskRequeueRequest {
     double timeout_s = 1;
 }
 

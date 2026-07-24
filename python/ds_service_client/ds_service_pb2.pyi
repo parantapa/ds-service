@@ -128,7 +128,7 @@ class TaskDoneRequest(_message.Message):
     output: bytes
     def __init__(self, task_id: _Optional[str] = ..., output: _Optional[bytes] = ...) -> None: ...
 
-class RequeueRequest(_message.Message):
+class TaskRequeueRequest(_message.Message):
     __slots__ = ("timeout_s",)
     TIMEOUT_S_FIELD_NUMBER: _ClassVar[int]
     timeout_s: float

@@ -88,16 +88,16 @@ it is what `TaskGetStatus` reports for a `task_id` that does not exist.
 | `TaskGetStatus(task_id...)` | Return the state of each requested task, in request order. An unknown `task_id` reports `Undefined` rather than being an error. |
 | `TaskGetOutput(task_id)` | Return a single task's output. Returns `NOT_FOUND` if the task does not exist; a task that has not completed yet has empty output. |
 | `TaskGetCountByState()` | Return how many tasks are currently in each of the `Ready`, `Running`, and `Complete` states. Takes no arguments. |
-| `Requeue(timeout_s)` | Reset any task that has been `Running` longer than `timeout_s` back to `Ready` and re-enqueue it. |
+| `TaskRequeue(timeout_s)` | Reset any task that has been `Running` longer than `timeout_s` back to `Ready` and re-enqueue it. |
 
 Within a queue, higher `priority` values are dispatched first.
 A worker polls using `TaskGet` across the queues it cares about,
 runs the work, and reports back with `TaskDone`.
-`Requeue` provides fault tolerance:
+`TaskRequeue` provides fault tolerance:
 if a worker crashes without completing its task,
-a periodic `Requeue` call can be used to make it available to another worker.
-`Requeue` is not automatic,
-the user is responsibile for periodically calling `Requeue`.
+a periodic `TaskRequeue` call can be used to make it available to another worker.
+`TaskRequeue` is not automatic,
+the user is responsibile for periodically calling `TaskRequeue`.
 
 ## The journal store
 
