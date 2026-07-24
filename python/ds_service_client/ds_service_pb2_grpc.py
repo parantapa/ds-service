@@ -54,10 +54,15 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.TaskAddRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
                 _registered_method=True)
-        self.TaskStatus = channel.unary_unary(
-                '/DsService/TaskStatus',
-                request_serializer=ds__service__client_dot_ds__service__pb2.TaskStatusRequest.SerializeToString,
-                response_deserializer=ds__service__client_dot_ds__service__pb2.TaskStatusResponse.FromString,
+        self.TaskGetStatus = channel.unary_unary(
+                '/DsService/TaskGetStatus',
+                request_serializer=ds__service__client_dot_ds__service__pb2.TaskGetStatusRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetStatusResponse.FromString,
+                _registered_method=True)
+        self.TaskGetOutput = channel.unary_unary(
+                '/DsService/TaskGetOutput',
+                request_serializer=ds__service__client_dot_ds__service__pb2.TaskGetOutputRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetOutputResponse.FromString,
                 _registered_method=True)
         self.TaskGet = channel.unary_unary(
                 '/DsService/TaskGet',
@@ -168,7 +173,13 @@ class DsServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def TaskStatus(self, request, context):
+    def TaskGetStatus(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def TaskGetOutput(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -293,10 +304,15 @@ def add_DsServiceServicer_to_server(servicer, server):
                     request_deserializer=ds__service__client_dot_ds__service__pb2.TaskAddRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
             ),
-            'TaskStatus': grpc.unary_unary_rpc_method_handler(
-                    servicer.TaskStatus,
-                    request_deserializer=ds__service__client_dot_ds__service__pb2.TaskStatusRequest.FromString,
-                    response_serializer=ds__service__client_dot_ds__service__pb2.TaskStatusResponse.SerializeToString,
+            'TaskGetStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.TaskGetStatus,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetStatusRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.TaskGetStatusResponse.SerializeToString,
+            ),
+            'TaskGetOutput': grpc.unary_unary_rpc_method_handler(
+                    servicer.TaskGetOutput,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetOutputRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.TaskGetOutputResponse.SerializeToString,
             ),
             'TaskGet': grpc.unary_unary_rpc_method_handler(
                     servicer.TaskGet,
@@ -498,7 +514,7 @@ class DsService(object):
             _registered_method=True)
 
     @staticmethod
-    def TaskStatus(request,
+    def TaskGetStatus(request,
             target,
             options=(),
             channel_credentials=None,
@@ -511,9 +527,36 @@ class DsService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/DsService/TaskStatus',
-            ds__service__client_dot_ds__service__pb2.TaskStatusRequest.SerializeToString,
-            ds__service__client_dot_ds__service__pb2.TaskStatusResponse.FromString,
+            '/DsService/TaskGetStatus',
+            ds__service__client_dot_ds__service__pb2.TaskGetStatusRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.TaskGetStatusResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def TaskGetOutput(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/TaskGetOutput',
+            ds__service__client_dot_ds__service__pb2.TaskGetOutputRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.TaskGetOutputResponse.FromString,
             options,
             channel_credentials,
             insecure,

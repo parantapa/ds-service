@@ -88,9 +88,25 @@ class Client:
                 )
             )
 
-    def task_status(self, task_id: str) -> TaskStatusResponse:
+    def task_get_status(self, task_id: str | list[str]) -> TaskState | list[TaskState]:
+        # A single string returns a single state; a list returns a list of
+        # states, one per id in the same order.
+        single = isinstance(task_id, str)
+        task_ids = [task_id] if single else task_id
+
         with translate_grpc_error():
-            return self.stub.TaskStatus(TaskStatusRequest(task_id=task_id))
+            response: TaskGetStatusResponse = self.stub.TaskGetStatus(
+                TaskGetStatusRequest(task_id=task_ids)
+            )
+            states = list(response.state)
+            return states[0] if single else states
+
+    def task_get_output(self, task_id: str) -> bytes:
+        with translate_grpc_error():
+            response: TaskGetOutputResponse = self.stub.TaskGetOutput(
+                TaskGetOutputRequest(task_id=task_id)
+            )
+            return response.output
 
     def task_get(self, worker_id: str, queue: str | list[str]) -> TaskGetResponse:
         if isinstance(queue, str):
@@ -215,10 +231,8 @@ class Client:
 
     def counter_get_current_value(self, key: str) -> int:
         with translate_grpc_error():
-            response: CounterGetCurrentValueResponse = (
-                self.stub.CounterGetCurrentValue(
-                    CounterGetCurrentValueRequest(key=key)
-                )
+            response: CounterGetCurrentValueResponse = self.stub.CounterGetCurrentValue(
+                CounterGetCurrentValueRequest(key=key)
             )
             return response.value
 

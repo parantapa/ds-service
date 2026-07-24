@@ -170,8 +170,26 @@ struct DsServiceImpl final : public DsService::Service {
         }
     }
 
-    grpc::Status TaskStatus(grpc::ServerContext*, const TaskStatusRequest* request,
-                            TaskStatusResponse* response) override {
+    grpc::Status TaskGetStatus(grpc::ServerContext*, const TaskGetStatusRequest* request,
+                               TaskGetStatusResponse* response) override {
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
+
+        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
+        for (const auto& task_id : request->task_id()) {
+            auto it = task_manager.task_index.find(task_id);
+            // An unknown task_id reports Undefined rather than being an error.
+            if (it == task_manager.task_index.end()) {
+                response->add_state(TaskState::Undefined);
+            } else {
+                response->add_state(task_manager.tasks[it->second].state());
+            }
+        }
+
+        return grpc::Status::OK;
+    }
+
+    grpc::Status TaskGetOutput(grpc::ServerContext*, const TaskGetOutputRequest* request,
+                               TaskGetOutputResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
@@ -179,13 +197,10 @@ struct DsServiceImpl final : public DsService::Service {
         if (it == task_manager.task_index.end()) {
             return grpc::Status(grpc::StatusCode::NOT_FOUND,
                                 fmt::format("Task with ID = {} not found.", request->task_id()));
-        } else {
-            auto index = task_manager.task_index[request->task_id()];
-            const auto& task = task_manager.tasks[index];
-            response->set_state(task.state());
-            response->set_output(task.output());
-            return grpc::Status::OK;
         }
+
+        response->set_output(task_manager.tasks[it->second].output());
+        return grpc::Status::OK;
     }
 
     grpc::Status TaskGet(grpc::ServerContext*, const TaskGetRequest* request, TaskGetResponse* response) override {

@@ -77,13 +77,16 @@ Each task carries an opaque `function` and `input` payload,
 a floating-point `priority`,
 and one or more named queues it should be dispatched from.
 A task moves through three states: `Ready` → `Running` → `Complete`.
+A fourth state, `Undefined`, is never held by a live task;
+it is what `TaskGetStatus` reports for a `task_id` that does not exist.
 
 | RPC | Description |
 | --- | --- |
 | `TaskAdd(task_id, queue, priority, function, input)` | Register a new task and enqueue it on each named queue. Returns `ALREADY_EXISTS` if the id is already known. |
 | `TaskGet(worker_id, queue)` | Claim the highest-priority `Ready` task from the first non-empty queue, mark it `Running`, and return its payload. Returns `UNAVAILABLE` when no work is ready. |
 | `TaskDone(task_id, output)` | Mark a `Running` task `Complete` and store its output. |
-| `TaskStatus(task_id)` | Return a task's current state and, once complete, its output. |
+| `TaskGetStatus(task_id...)` | Return the state of each requested task, in request order. An unknown `task_id` reports `Undefined` rather than being an error. |
+| `TaskGetOutput(task_id)` | Return a single task's output. Returns `NOT_FOUND` if the task does not exist; a task that has not completed yet has empty output. |
 | `Requeue(timeout_s)` | Reset any task that has been `Running` longer than `timeout_s` back to `Ready` and re-enqueue it. |
 
 Within a queue, higher `priority` values are dispatched first.
@@ -244,8 +247,14 @@ task = client.task_get(worker_id="worker-a", queue="work")
 # ... do the work ...
 client.task_done(task.task_id, output=b"result")
 
-status = client.task_status("job-1")
-assert status.state == TaskState.Complete
+# Poll the state of one or more tasks; an unknown id reports Undefined.
+# A single string returns one state; a list returns a list of states.
+assert client.task_get_status("job-1") == TaskState.Complete
+assert client.task_get_status(["job-1", "ghost"]) == [
+    TaskState.Complete,
+    TaskState.Undefined,
+]
+assert client.task_get_output("job-1") == b"result"
 
 # Time series
 from datetime import datetime, timezone

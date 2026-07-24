@@ -6,7 +6,8 @@ service DsService {
     rpc MapSearchKey(SearchKeyRequest) returns (SearchKeyResponse) {}
 
     rpc TaskAdd(TaskAddRequest) returns (Empty) {}
-    rpc TaskStatus(TaskStatusRequest) returns (TaskStatusResponse) {}
+    rpc TaskGetStatus(TaskGetStatusRequest) returns (TaskGetStatusResponse) {}
+    rpc TaskGetOutput(TaskGetOutputRequest) returns (TaskGetOutputResponse) {}
 
     rpc TaskGet(TaskGetRequest) returns (TaskGetResponse) {}
     rpc TaskDone(TaskDoneRequest) returns (Empty) {}
@@ -62,19 +63,32 @@ message TaskAddRequest {
     bytes input = 5;
 }
 
+// Undefined is reported by TaskGetStatus for a task_id that does not exist;
+// a live task is always one of Ready, Running, or Complete.
 enum TaskState {
     Ready = 0;
     Running = 1;
     Complete = 2;
+    Undefined = 3;
 }
 
-message TaskStatusRequest {
+// TaskGetStatus reports the state of every requested task_id,
+// in the same order as the request.
+// A task_id that does not exist reports Undefined.
+message TaskGetStatusRequest {
+    repeated string task_id = 1;
+}
+
+message TaskGetStatusResponse {
+    repeated TaskState state = 1;
+}
+
+message TaskGetOutputRequest {
     string task_id = 1;
 }
 
-message TaskStatusResponse {
-    TaskState state = 1;
-    bytes output = 2;
+message TaskGetOutputResponse {
+    bytes output = 1;
 }
 
 message TaskGetRequest {

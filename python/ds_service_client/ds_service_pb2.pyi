@@ -12,9 +12,11 @@ class TaskState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     Ready: _ClassVar[TaskState]
     Running: _ClassVar[TaskState]
     Complete: _ClassVar[TaskState]
+    Undefined: _ClassVar[TaskState]
 Ready: TaskState
 Running: TaskState
 Complete: TaskState
+Undefined: TaskState
 
 class Empty(_message.Message):
     __slots__ = ()
@@ -66,19 +68,29 @@ class TaskAddRequest(_message.Message):
     input: bytes
     def __init__(self, task_id: _Optional[str] = ..., queue: _Optional[_Iterable[str]] = ..., priority: _Optional[float] = ..., function: _Optional[bytes] = ..., input: _Optional[bytes] = ...) -> None: ...
 
-class TaskStatusRequest(_message.Message):
+class TaskGetStatusRequest(_message.Message):
+    __slots__ = ("task_id",)
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    task_id: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, task_id: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class TaskGetStatusResponse(_message.Message):
+    __slots__ = ("state",)
+    STATE_FIELD_NUMBER: _ClassVar[int]
+    state: _containers.RepeatedScalarFieldContainer[TaskState]
+    def __init__(self, state: _Optional[_Iterable[_Union[TaskState, str]]] = ...) -> None: ...
+
+class TaskGetOutputRequest(_message.Message):
     __slots__ = ("task_id",)
     TASK_ID_FIELD_NUMBER: _ClassVar[int]
     task_id: str
     def __init__(self, task_id: _Optional[str] = ...) -> None: ...
 
-class TaskStatusResponse(_message.Message):
-    __slots__ = ("state", "output")
-    STATE_FIELD_NUMBER: _ClassVar[int]
+class TaskGetOutputResponse(_message.Message):
+    __slots__ = ("output",)
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
-    state: TaskState
     output: bytes
-    def __init__(self, state: _Optional[_Union[TaskState, str]] = ..., output: _Optional[bytes] = ...) -> None: ...
+    def __init__(self, output: _Optional[bytes] = ...) -> None: ...
 
 class TaskGetRequest(_message.Message):
     __slots__ = ("worker_id", "queue")

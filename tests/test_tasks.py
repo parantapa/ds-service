@@ -10,18 +10,17 @@ from ds_service_client import TaskState
 def test_add_get_done_lifecycle(client):
     client.task_add("t1", queue="work", priority=1.0, function=b"fn", input=b"in")
 
-    assert client.task_status("t1").state == TaskState.Ready
+    assert client.task_get_status("t1") == TaskState.Ready
 
     task = client.task_get(worker_id="w1", queue="work")
     assert task.task_id == "t1"
     assert task.function == b"fn"
     assert task.input == b"in"
-    assert client.task_status("t1").state == TaskState.Running
+    assert client.task_get_status("t1") == TaskState.Running
 
     client.task_done("t1", output=b"result")
-    status = client.task_status("t1")
-    assert status.state == TaskState.Complete
-    assert status.output == b"result"
+    assert client.task_get_status("t1") == TaskState.Complete
+    assert client.task_get_output("t1") == b"result"
 
 
 def test_get_from_empty_queue_raises_timeout(client):
@@ -35,9 +34,46 @@ def test_duplicate_add_raises_valueerror(client):
         client.task_add("dup", queue="work", priority=1.0, function=b"", input=b"")
 
 
-def test_status_of_unknown_task_raises_keyerror(client):
+def test_status_of_unknown_task_is_undefined(client):
+    # An unknown task_id reports Undefined rather than raising.
+    assert client.task_get_status("ghost") == TaskState.Undefined
+
+
+def test_get_status_accepts_many_ids_in_order(client):
+    client.task_add("a", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add("b", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_get(worker_id="w1", queue="work")  # claims the higher/earlier one
+
+    # States come back positionally, and a missing id fills in Undefined.
+    states = client.task_get_status(["a", "ghost", "b"])
+    assert states[1] == TaskState.Undefined
+    assert {states[0], states[2]} == {TaskState.Ready, TaskState.Running}
+
+
+def test_get_status_of_empty_list_is_empty(client):
+    assert client.task_get_status([]) == []
+
+
+def test_get_status_return_shape_follows_input(client):
+    client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
+
+    # A single string returns a bare TaskState, not a list.
+    assert client.task_get_status("t") == TaskState.Ready
+    assert not isinstance(client.task_get_status("t"), list)
+
+    # A one-element list returns a one-element list.
+    assert client.task_get_status(["t"]) == [TaskState.Ready]
+
+
+def test_output_of_unknown_task_raises_keyerror(client):
     with pytest.raises(KeyError):
-        client.task_status("ghost")
+        client.task_get_output("ghost")
+
+
+def test_output_before_done_is_empty(client):
+    client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
+    # The task exists but has produced no output yet.
+    assert client.task_get_output("t") == b""
 
 
 def test_higher_priority_is_dispatched_first(client):
@@ -76,5 +112,5 @@ def test_requeue_returns_stalled_task(client):
     time.sleep(0.05)
     client.requeue(timeout_s=0.0)
 
-    assert client.task_status("t").state == TaskState.Ready
+    assert client.task_get_status("t") == TaskState.Ready
     assert client.task_get(worker_id="w2", queue="work").task_id == "t"
