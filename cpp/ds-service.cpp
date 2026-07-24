@@ -470,6 +470,19 @@ struct DsServiceImpl final : public DsService::Service {
         return grpc::Status::OK;
     }
 
+    grpc::Status CounterGetCurrentValue(grpc::ServerContext*, const CounterGetCurrentValueRequest* request,
+                                        CounterGetCurrentValueResponse* response) override {
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->counters_lock};
+
+        // Read-only: don't create a missing counter; report 0 for one that
+        // does not exist.
+        auto& counters = GLOBAL_SYSTEM_STATE->counters;
+        auto it = counters.find(request->key());
+        response->set_value(it == counters.end() ? 0 : it->second);
+
+        return grpc::Status::OK;
+    }
+
     grpc::Status CounterSearchKey(grpc::ServerContext*, const SearchKeyRequest* request,
                                   SearchKeyResponse* response) override {
         RE2 pattern{request->pattern()};

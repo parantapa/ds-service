@@ -48,3 +48,23 @@ def test_search_key_invalid_pattern_raises_valueerror(client):
 
     with pytest.raises(ValueError):
         client.counter_search_key("(unclosed")
+
+
+def test_current_value_of_missing_counter_is_zero(client):
+    # A read-only peek at a counter that was never used returns 0.
+    assert client.counter_get_current_value("never-seen") == 0
+
+
+def test_current_value_does_not_create_counter(client):
+    # Peeking must not create the counter: the first get_next still returns 1.
+    assert client.counter_get_current_value("c") == 0
+    assert client.counter_get_next_value("c") == 1
+
+
+def test_current_value_reflects_last_next_value(client):
+    client.counter_get_next_value("c")
+    client.counter_get_next_value("c")
+    assert client.counter_get_current_value("c") == 2
+    # Reading it again does not advance the counter.
+    assert client.counter_get_current_value("c") == 2
+    assert client.counter_get_next_value("c") == 3

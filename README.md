@@ -180,10 +180,14 @@ useful for generating unique ids or sequence numbers across workers.
 | RPC | Description |
 | --- | --- |
 | `CounterGetNextValue(key)` | Return the next value of the counter, creating it if it does not exist. The first call for a key returns `1`, and each subsequent call returns the previous value plus one. |
+| `CounterGetCurrentValue(key)` | Return the counter's current value without changing it, or `0` if it does not exist. Read-only: it never creates the counter. |
 | `CounterSearchKey(pattern)` | Return every counter key matching the regular expression `pattern`. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
 
-There is no separate create or read step.
+`CounterGetNextValue` both creates and advances a counter.
 The first `CounterGetNextValue` for a key creates the counter and returns `1`.
+`CounterGetCurrentValue` only reads:
+it returns the value the last `CounterGetNextValue` handed out
+(or `0` for a counter that has never been used) and leaves the counter untouched.
 Because counter operations are serialized under the counters' lock,
 concurrent callers always receive distinct, gap-free values.
 Counters are held in memory only, so a server restart resets every counter --
@@ -273,6 +277,9 @@ assert client.mutex_search_key("^resource-") == ["resource-a"]
 # Counter
 assert client.counter_get_next_value("ids") == 1
 assert client.counter_get_next_value("ids") == 2
+
+assert client.counter_get_current_value("ids") == 2  # read-only peek
+assert client.counter_get_current_value("unused") == 0
 
 assert client.counter_search_key("^ids$") == ["ids"]
 ```

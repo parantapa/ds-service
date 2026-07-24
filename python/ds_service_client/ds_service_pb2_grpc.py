@@ -129,6 +129,11 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.CounterGetNextValueRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.CounterGetNextValueResponse.FromString,
                 _registered_method=True)
+        self.CounterGetCurrentValue = channel.unary_unary(
+                '/DsService/CounterGetCurrentValue',
+                request_serializer=ds__service__client_dot_ds__service__pb2.CounterGetCurrentValueRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.CounterGetCurrentValueResponse.FromString,
+                _registered_method=True)
         self.CounterSearchKey = channel.unary_unary(
                 '/DsService/CounterSearchKey',
                 request_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
@@ -253,6 +258,12 @@ class DsServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CounterGetCurrentValue(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def CounterSearchKey(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -356,6 +367,11 @@ def add_DsServiceServicer_to_server(servicer, server):
                     servicer.CounterGetNextValue,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.CounterGetNextValueRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.CounterGetNextValueResponse.SerializeToString,
+            ),
+            'CounterGetCurrentValue': grpc.unary_unary_rpc_method_handler(
+                    servicer.CounterGetCurrentValue,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.CounterGetCurrentValueRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.CounterGetCurrentValueResponse.SerializeToString,
             ),
             'CounterSearchKey': grpc.unary_unary_rpc_method_handler(
                     servicer.CounterSearchKey,
@@ -876,6 +892,33 @@ class DsService(object):
             '/DsService/CounterGetNextValue',
             ds__service__client_dot_ds__service__pb2.CounterGetNextValueRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.CounterGetNextValueResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CounterGetCurrentValue(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/CounterGetCurrentValue',
+            ds__service__client_dot_ds__service__pb2.CounterGetCurrentValueRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.CounterGetCurrentValueResponse.FromString,
             options,
             channel_credentials,
             insecure,

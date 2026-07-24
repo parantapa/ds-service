@@ -27,6 +27,7 @@ service DsService {
     rpc MutexSearchKey(SearchKeyRequest) returns (SearchKeyResponse) {}
 
     rpc CounterGetNextValue(CounterGetNextValueRequest) returns (CounterGetNextValueResponse) {}
+    rpc CounterGetCurrentValue(CounterGetCurrentValueRequest) returns (CounterGetCurrentValueResponse) {}
     rpc CounterSearchKey(SearchKeyRequest) returns (SearchKeyResponse) {}
 };
 
@@ -45,7 +46,6 @@ message MapGetResponse {
     bytes value = 1;
 }
 
-// Shared by every store's *SearchKey RPC.
 message SearchKeyRequest {
     string pattern = 1;
 }
@@ -175,5 +175,15 @@ message CounterGetNextValueRequest {
 }
 
 message CounterGetNextValueResponse {
+    uint64 value = 1;
+}
+
+// Read-only: returns the counter's current value without changing it,
+// or 0 if the counter does not exist (it is not created).
+message CounterGetCurrentValueRequest {
+    string key = 1;
+}
+
+message CounterGetCurrentValueResponse {
     uint64 value = 1;
 }

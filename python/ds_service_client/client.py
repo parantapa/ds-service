@@ -213,6 +213,15 @@ class Client:
             )
             return response.value
 
+    def counter_get_current_value(self, key: str) -> int:
+        with translate_grpc_error():
+            response: CounterGetCurrentValueResponse = (
+                self.stub.CounterGetCurrentValue(
+                    CounterGetCurrentValueRequest(key=key)
+                )
+            )
+            return response.value
+
     def counter_search_key(self, pattern: str) -> list[str]:
         with translate_grpc_error():
             response: SearchKeyResponse = self.stub.CounterSearchKey(
