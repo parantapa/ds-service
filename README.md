@@ -80,11 +80,13 @@ A task moves through three states: `Ready` → `Running` → `Complete`.
 | `Requeue(timeout_s)` | Reset any task that has been `Running` longer than `timeout_s` back to `Ready` and re-enqueue it. |
 
 Within a queue, higher `priority` values are dispatched first.
-A worker polls `TaskGet` across the queues it cares about, runs the work,
-and reports back with `TaskDone`.
+A worker polls using `TaskGet` across the queues it cares about,
+runs the work, and reports back with `TaskDone`.
 `Requeue` provides fault tolerance:
 if a worker crashes without completing its task,
-a periodic `Requeue` call makes that task available to another worker.
+a periodic `Requeue` call can be used to make it available to another worker.
+`Requeue` is not automatic,
+the user is responsibile for periodically calling `Requeue`.
 
 ## The journal store
 
