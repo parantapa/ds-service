@@ -49,17 +49,19 @@ A flat `string -> bytes` key-value store.
 | `MapGet(key)` | Return the value for `key`, or `NOT_FOUND` if it is missing. |
 | `MapSearchKey(pattern)` | Return every key matching the regular expression `pattern`. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
 
-Values are opaque bytes, so callers are free to store whatever serialization
+Values are binary blobs,
+so callers are free to store data using whatever serialization
 they like (JSON, pickle, protobuf, raw binary).
 
-`MapSearchKey` matches keys against an [RE2](https://github.com/google/re2)
-regular expression. The match is unanchored, so a key matches when any substring
-of it matches the pattern; anchor with `^` and `$` to match a whole key.
-Matching keys come back in unspecified order, so sort them if you need a stable
-one. The search walks every key in the map while holding the map's lock, which
-is fine for the map sizes this server is meant for but is worth keeping in mind
-if a map grows very large -- it blocks other map operations (though not
-operations on the other data structures) for its duration.
+`MapSearchKey` matches keys against a
+[RE2](https://github.com/google/re2) regular expression.
+The match is unanchored,
+so a key matches when any substring of it matches the pattern;
+`^` and `$` can be used to anchor the match to a whole key.
+Matching keys are returned in unspecified order.
+Searching for keys is **slow** as the search walks every key in the map
+while holding the map's lock.
+This blocks other map operations during this period.
 
 ## The task queue
 
