@@ -90,8 +90,8 @@ the user is responsibile for periodically calling `Requeue`.
 
 ## The journal store
 
-A key-to-journal store, where each journal is an append-only, ordered list of
-opaque binary entries identified by a `string` key.
+A key-to-journal store, where each journal is an append-only,
+ordered list of opaque binary entries identified by a `string` key.
 
 | RPC | Description |
 | --- | --- |
@@ -99,74 +99,84 @@ opaque binary entries identified by a `string` key.
 | `JournalRead(key, start, end)` | Return the entries in the half-open index range `[start, end)`. |
 | `JournalAppend(key, value)` | Append a single entry to the journal, creating it if it does not exist. |
 
-`JournalRead` uses half-open ranges, so `JournalRead(key, 0, JournalSize(key))`
-returns the whole journal. The range is clamped silently to the journal's
-bounds: reading past the end returns only the entries that exist, and a range
-with `start >= end` (or a journal that does not exist) returns an empty list --
+`JournalRead` uses half-open ranges,
+so `JournalRead(key, 0, JournalSize(key))` returns the whole journal.
+The range is clamped silently to the journal's bounds:
+reading past the end returns only the entries that exist,
+and a range with `start >= end` (or a journal that does not exist)
+returns an empty list --
 neither is an error.
 
 ## The time series store
 
-A key-to-series store, where each series is an append-only list of data points
-identified by a `string` key. Each point carries a floating-point `value`, a
-`datetime`, and an integer `step`.
+A key-to-series store, where each series is an append-only
+list of data points identified by a `string` key.
+Each point carries a floating-point `value`, a `datetime`,
+and an integer `step`.
 
 | RPC | Description |
 | --- | --- |
 | `TimeSeriesAppend(key, value, datetime, step)` | Append a point to the series, creating it if it does not exist. `step` is optional and defaults to `0`. Returns `INVALID_ARGUMENT` if `datetime` does not parse. |
 | `TimeSeriesGet(key, start_time, end_time, start_step, end_step)` | Return the points of a series, in append order, filtered by the given bounds. A key that does not exist returns an empty list. |
 
-`datetime` is an ISO 8601 UTC datetime string. Both the `Z` form
-(`2024-01-02T03:04:05Z`) and the offset form produced by Python's
-`datetime.isoformat()` (`2024-01-02T03:04:05+00:00`) are accepted, as is a
-non-UTC offset (converted to UTC) or a bare datetime (interpreted as UTC).
-Fractional seconds are preserved to microsecond resolution. Datetimes returned
-by `TimeSeriesGet` are normalized to the `Z` form.
+`datetime` is an ISO 8601 UTC datetime string.
+Both the `Z` form (`2024-01-02T03:04:05Z`)
+and the offset form produced by Python's `datetime.isoformat()`
+(`2024-01-02T03:04:05+00:00`) are accepted,
+as is a non-UTC offset (converted to UTC)
+or a bare datetime (interpreted as UTC).
+Fractional seconds are preserved to microsecond resolution.
+Datetimes returned by `TimeSeriesGet` are normalized to the `Z` form.
 
-All four bounds on `TimeSeriesGet` are optional. `start_time` and `start_step`
-are inclusive lower bounds; `end_time` and `end_step` are exclusive upper
-bounds. An unset bound imposes no restriction, and the bounds combine: a point
-is returned only if it satisfies every bound provided. Points always come back
-in the order they were appended, never sorted by time or step.
+All four bounds on `TimeSeriesGet` are optional.
+`start_time` and `start_step` are inclusive lower bounds;
+`end_time` and `end_step` are exclusive upper bounds.
+An unset bound imposes no restriction, and the bounds combine:
+a point is returned only if it satisfies every bound provided.
+Points always come back in the order they were appended,
+never sorted by `datetime` or `step`.
 
 ## Named mutexes
 
-A `string -> bool` map of named locks, for coordinating exclusive access to a
-resource across workers. A mutex is identified by a `string` key and is either
-held or free.
+A `string -> bool` map of named locks,
+for coordinating exclusive access to a resource across workers.
+A mutex is identified by a `string` key and is either held or free.
 
 | RPC | Description |
 | --- | --- |
 | `MutexTryAcquire(key)` | Try once to acquire the mutex, creating it if it does not exist. Returns `true` if it was acquired, `false` if it is already held. |
 | `MutexRelease(key)` | Release the mutex. Releasing a mutex that is already free, or one that does not exist, is a no-op. |
 
-These are **cooperative** locks, not owned ones: there is no notion of which
-client holds a mutex, so any client may release any key, and the lock is not
-reentrant. Because server state is not persisted and mutexes have no expiry, a
-worker that acquires a mutex and then dies leaves it held until some client
-releases it -- there is no automatic timeout (unlike the task queue's
-`Requeue`). Use them where a stuck lock is recoverable, not for correctness that
-depends on a crashed holder being cleaned up.
+These are **cooperative** locks, not owned ones:
+there is no notion of which client holds a mutex,
+so any client may release any key,
+and the lock is not reentrant.
+Because server state is not persisted and mutexes have no expiry,
+a worker that acquires a mutex and then dies leaves it held
+until some client releases it -- there is no automatic timeout.
 
-The Python client adds a blocking `mutex_acquire(key, timeout=None)` on top of
-these two RPCs: it retries `MutexTryAcquire` until it succeeds, sleeping between
-attempts, and raises `TimeoutError` if `timeout` seconds elapse first (it
-retries forever when `timeout` is `None`).
+The Python client adds a blocking `mutex_acquire(key, timeout=None)`
+on top of these two RPCs.
+It retries `MutexTryAcquire` until it succeeds,
+sleeping between attempts, and raises `TimeoutError`
+if `timeout` seconds elapse first (it retries forever when `timeout` is `None`).
 
 ## Counters
 
-A `string -> uint64` map of named counters that hand out successive integers --
+A `string -> uint64` map of named counters
+that hand out successive integers --
 useful for generating unique ids or sequence numbers across workers.
 
 | RPC | Description |
 | --- | --- |
 | `CounterGetNextValue(key)` | Return the next value of the counter, creating it if it does not exist. The first call for a key returns `1`, and each subsequent call returns the previous value plus one. |
 
-There is no separate create or read step: the first `CounterGetNextValue` for a
-key creates the counter and returns `1`. Because counter operations are
-serialized under the counters' lock, concurrent callers always receive distinct,
-gap-free values. Counters are held in memory only, so a server restart resets
-every counter (the next value is `1` again).
+There is no separate create or read step.
+The first `CounterGetNextValue` for a key creates the counter and returns `1`.
+Because counter operations are serialized under the counters' lock,
+concurrent callers always receive distinct, gap-free values.
+Counters are held in memory only, so a server restart resets every counter --
+the next value is `1` again.
 
 ## Building the server
 
@@ -195,7 +205,7 @@ Run `ds-service --help` for the full argument list.
 ## Python client
 
 ```sh
-pip install .  # installs the ds-service-client package
+pip install ds-service-client
 ```
 
 ```python
@@ -255,11 +265,12 @@ from the `DS_SERVER_ADDRESS` environment variable.
 
 ## Optuna storage backend
 
-[Optuna](https://optuna.org/)'s `JournalStorage` records a study as an
-append-only log and rebuilds state by replaying it -- a natural fit for the
-journal store. `ds_service_client.optuna_storage` provides a journal backend
-that keeps a study's log in a ds-service journal (and stores Optuna's snapshots
-in the key-value map), so many workers can share one distributed study by
+[Optuna](https://optuna.org/)'s `JournalStorage` records
+a study as an append-only log and rebuilds state by replaying it.
+`ds_service_client.optuna_storage` provides a journal backend
+that keeps a study's log in a ds-service journal
+(and stores Optuna's snapshots in the key-value map),
+so many workers can share one distributed study by
 pointing at the same server and `name`.
 
 ```sh
@@ -282,9 +293,9 @@ Other workers construct a storage with the same `name` and call
 ## Running the tests
 
 The test suite (`tests/`) is an integration suite driven by
-[pytest](https://pytest.org/): it starts a fresh `ds-service` process for each
-test and drives it through the Python client. Build the server first (the tests
-run the compiled binary), then:
+[pytest](https://pytest.org/): it starts a fresh `ds-service` process
+for each test and drives it through the Python client.
+Build the server first (the tests run the compiled binary), then:
 
 ```sh
 pip install -e ".[test]"   # pytest + the client package
