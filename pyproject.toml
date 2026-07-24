@@ -31,8 +31,16 @@ test = [
 [project.urls]
 Homepage = "https://github.com/parantapa/ds-service"
 
+# Package only the ds_service_client module.
+# setuptools_scm otherwise sweeps every tracked file
+# under the package into the wheel,
+# so drop the source .proto that lives beside the generated stubs.
 [tool.setuptools.packages.find]
 where = ["python"]
+include = ["ds_service_client*"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["*.proto"]
 
 [tool.setuptools_scm]
 fallback_version = "1.0.0-dev"
