@@ -263,33 +263,6 @@ assert client.counter_get_next_value("ids") == 2
 If `Client()` is constructed without an address, it reads the server address
 from the `DS_SERVER_ADDRESS` environment variable.
 
-## Optuna storage backend
-
-[Optuna](https://optuna.org/)'s `JournalStorage` records
-a study as an append-only log and rebuilds state by replaying it.
-`ds_service_client.optuna_storage` provides a journal backend
-that keeps a study's log in a ds-service journal
-(and stores Optuna's snapshots in the key-value map),
-so many workers can share one distributed study by
-pointing at the same server and `name`.
-
-```sh
-pip install ".[optuna]"
-```
-
-```python
-import optuna
-from ds_service_client.optuna_storage import create_journal_storage
-
-storage = create_journal_storage("127.0.0.1:5051", name="my-study")
-
-study = optuna.create_study(study_name="my-study", storage=storage)
-study.optimize(objective, n_trials=100)
-```
-
-Other workers construct a storage with the same `name` and call
-`optuna.load_study(study_name="my-study", storage=...)` to join the search.
-
 ## Running the tests
 
 The test suite (`tests/`) is an integration suite driven by

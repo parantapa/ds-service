@@ -24,12 +24,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-optuna = [
-    "optuna>=4.0",
-]
 test = [
     "pytest>=7",
-    "optuna>=4.0",
 ]
 
 [project.urls]

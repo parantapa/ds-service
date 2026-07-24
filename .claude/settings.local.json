@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(DS_SERVICE_BIN=__TRACKED_VAR__/build/Release/ds-service python -m pytest -q)"
+    ]
+  }
+}
