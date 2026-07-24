@@ -61,8 +61,8 @@ class Client:
 
     def map_search_key(self, pattern: str) -> list[str]:
         with translate_grpc_error():
-            response: MapSearchKeyResponse = self.stub.MapSearchKey(
-                MapSearchKeyRequest(pattern=pattern)
+            response: SearchKeyResponse = self.stub.MapSearchKey(
+                SearchKeyRequest(pattern=pattern)
             )
             return list(response.key)
 
@@ -125,6 +125,13 @@ class Client:
         with translate_grpc_error():
             self.stub.JournalAppend(JournalAppendRequest(key=key, value=value))
 
+    def journal_search_key(self, pattern: str) -> list[str]:
+        with translate_grpc_error():
+            response: SearchKeyResponse = self.stub.JournalSearchKey(
+                SearchKeyRequest(pattern=pattern)
+            )
+            return list(response.key)
+
     def time_series_append(
         self, key: str, value: float, datetime: str, step: int = 0
     ) -> None:
@@ -157,6 +164,13 @@ class Client:
             response: TimeSeriesGetResponse = self.stub.TimeSeriesGet(request)
             return list(response.point)
 
+    def time_series_search_key(self, pattern: str) -> list[str]:
+        with translate_grpc_error():
+            response: SearchKeyResponse = self.stub.TimeSeriesSearchKey(
+                SearchKeyRequest(pattern=pattern)
+            )
+            return list(response.key)
+
     def mutex_try_acquire(self, key: str) -> bool:
         with translate_grpc_error():
             response: MutexTryAcquireResponse = self.stub.MutexTryAcquire(
@@ -167,6 +181,13 @@ class Client:
     def mutex_release(self, key: str) -> None:
         with translate_grpc_error():
             self.stub.MutexRelease(MutexReleaseRequest(key=key))
+
+    def mutex_search_key(self, pattern: str) -> list[str]:
+        with translate_grpc_error():
+            response: SearchKeyResponse = self.stub.MutexSearchKey(
+                SearchKeyRequest(pattern=pattern)
+            )
+            return list(response.key)
 
     def mutex_acquire(self, key: str, timeout: float | None = None) -> None:
         deadline = None if timeout is None else time.monotonic() + timeout
@@ -191,3 +212,10 @@ class Client:
                 CounterGetNextValueRequest(key=key)
             )
             return response.value
+
+    def counter_search_key(self, pattern: str) -> list[str]:
+        with translate_grpc_error():
+            response: SearchKeyResponse = self.stub.CounterSearchKey(
+                SearchKeyRequest(pattern=pattern)
+            )
+            return list(response.key)

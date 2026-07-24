@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(DS_SERVICE_BIN=__TRACKED_VAR__/build/Release/ds-service python -m pytest -q)"
+      "Bash(DS_SERVICE_BIN=__TRACKED_VAR__/build/Release/ds-service python -m pytest -q)",
+      "Bash(bash scripts/gen_python_bindings.sh)"
     ]
   }
 }

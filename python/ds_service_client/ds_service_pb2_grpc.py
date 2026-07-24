@@ -46,8 +46,8 @@ class DsServiceStub(object):
                 _registered_method=True)
         self.MapSearchKey = channel.unary_unary(
                 '/DsService/MapSearchKey',
-                request_serializer=ds__service__client_dot_ds__service__pb2.MapSearchKeyRequest.SerializeToString,
-                response_deserializer=ds__service__client_dot_ds__service__pb2.MapSearchKeyResponse.FromString,
+                request_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
                 _registered_method=True)
         self.TaskAdd = channel.unary_unary(
                 '/DsService/TaskAdd',
@@ -89,6 +89,11 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.JournalAppendRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
                 _registered_method=True)
+        self.JournalSearchKey = channel.unary_unary(
+                '/DsService/JournalSearchKey',
+                request_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
+                _registered_method=True)
         self.TimeSeriesAppend = channel.unary_unary(
                 '/DsService/TimeSeriesAppend',
                 request_serializer=ds__service__client_dot_ds__service__pb2.TimeSeriesAppendRequest.SerializeToString,
@@ -98,6 +103,11 @@ class DsServiceStub(object):
                 '/DsService/TimeSeriesGet',
                 request_serializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetResponse.FromString,
+                _registered_method=True)
+        self.TimeSeriesSearchKey = channel.unary_unary(
+                '/DsService/TimeSeriesSearchKey',
+                request_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
                 _registered_method=True)
         self.MutexTryAcquire = channel.unary_unary(
                 '/DsService/MutexTryAcquire',
@@ -109,10 +119,20 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.MutexReleaseRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
                 _registered_method=True)
+        self.MutexSearchKey = channel.unary_unary(
+                '/DsService/MutexSearchKey',
+                request_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
+                _registered_method=True)
         self.CounterGetNextValue = channel.unary_unary(
                 '/DsService/CounterGetNextValue',
                 request_serializer=ds__service__client_dot_ds__service__pb2.CounterGetNextValueRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.CounterGetNextValueResponse.FromString,
+                _registered_method=True)
+        self.CounterSearchKey = channel.unary_unary(
+                '/DsService/CounterSearchKey',
+                request_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
                 _registered_method=True)
 
 
@@ -185,6 +205,12 @@ class DsServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def JournalSearchKey(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def TimeSeriesAppend(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -192,6 +218,12 @@ class DsServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def TimeSeriesGet(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def TimeSeriesSearchKey(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -209,7 +241,19 @@ class DsServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def MutexSearchKey(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def CounterGetNextValue(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CounterSearchKey(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -230,8 +274,8 @@ def add_DsServiceServicer_to_server(servicer, server):
             ),
             'MapSearchKey': grpc.unary_unary_rpc_method_handler(
                     servicer.MapSearchKey,
-                    request_deserializer=ds__service__client_dot_ds__service__pb2.MapSearchKeyRequest.FromString,
-                    response_serializer=ds__service__client_dot_ds__service__pb2.MapSearchKeyResponse.SerializeToString,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.SerializeToString,
             ),
             'TaskAdd': grpc.unary_unary_rpc_method_handler(
                     servicer.TaskAdd,
@@ -273,6 +317,11 @@ def add_DsServiceServicer_to_server(servicer, server):
                     request_deserializer=ds__service__client_dot_ds__service__pb2.JournalAppendRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
             ),
+            'JournalSearchKey': grpc.unary_unary_rpc_method_handler(
+                    servicer.JournalSearchKey,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.SerializeToString,
+            ),
             'TimeSeriesAppend': grpc.unary_unary_rpc_method_handler(
                     servicer.TimeSeriesAppend,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.TimeSeriesAppendRequest.FromString,
@@ -282,6 +331,11 @@ def add_DsServiceServicer_to_server(servicer, server):
                     servicer.TimeSeriesGet,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.TimeSeriesGetResponse.SerializeToString,
+            ),
+            'TimeSeriesSearchKey': grpc.unary_unary_rpc_method_handler(
+                    servicer.TimeSeriesSearchKey,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.SerializeToString,
             ),
             'MutexTryAcquire': grpc.unary_unary_rpc_method_handler(
                     servicer.MutexTryAcquire,
@@ -293,10 +347,20 @@ def add_DsServiceServicer_to_server(servicer, server):
                     request_deserializer=ds__service__client_dot_ds__service__pb2.MutexReleaseRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
             ),
+            'MutexSearchKey': grpc.unary_unary_rpc_method_handler(
+                    servicer.MutexSearchKey,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.SerializeToString,
+            ),
             'CounterGetNextValue': grpc.unary_unary_rpc_method_handler(
                     servicer.CounterGetNextValue,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.CounterGetNextValueRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.CounterGetNextValueResponse.SerializeToString,
+            ),
+            'CounterSearchKey': grpc.unary_unary_rpc_method_handler(
+                    servicer.CounterSearchKey,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -378,8 +442,8 @@ class DsService(object):
             request,
             target,
             '/DsService/MapSearchKey',
-            ds__service__client_dot_ds__service__pb2.MapSearchKeyRequest.SerializeToString,
-            ds__service__client_dot_ds__service__pb2.MapSearchKeyResponse.FromString,
+            ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -607,6 +671,33 @@ class DsService(object):
             _registered_method=True)
 
     @staticmethod
+    def JournalSearchKey(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/JournalSearchKey',
+            ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def TimeSeriesAppend(request,
             target,
             options=(),
@@ -650,6 +741,33 @@ class DsService(object):
             '/DsService/TimeSeriesGet',
             ds__service__client_dot_ds__service__pb2.TimeSeriesGetRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.TimeSeriesGetResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def TimeSeriesSearchKey(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/TimeSeriesSearchKey',
+            ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -715,6 +833,33 @@ class DsService(object):
             _registered_method=True)
 
     @staticmethod
+    def MutexSearchKey(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/MutexSearchKey',
+            ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def CounterGetNextValue(request,
             target,
             options=(),
@@ -731,6 +876,33 @@ class DsService(object):
             '/DsService/CounterGetNextValue',
             ds__service__client_dot_ds__service__pb2.CounterGetNextValueRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.CounterGetNextValueResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CounterSearchKey(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/CounterSearchKey',
+            ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
             options,
             channel_credentials,
             insecure,

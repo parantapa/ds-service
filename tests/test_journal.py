@@ -1,5 +1,7 @@
 """Tests for the key-to-journal store."""
 
+import pytest
+
 
 def test_size_of_missing_journal_is_zero(client):
     assert client.journal_size("nope") == 0
@@ -60,3 +62,28 @@ def test_journals_are_independent(client):
     assert client.journal_size("a") == 1
     assert client.journal_size("b") == 2
     assert client.journal_read("a", 0, 10) == [b"x"]
+
+
+def test_search_key_matches_subset(client):
+    for key in ["run/1", "run/2", "trial/1"]:
+        client.journal_append(key, b"v")
+
+    assert sorted(client.journal_search_key("^run/")) == ["run/1", "run/2"]
+
+
+def test_search_key_is_unanchored(client):
+    client.journal_append("study-alpha-1", b"v")
+    client.journal_append("study-beta-1", b"v")
+
+    assert client.journal_search_key("alpha") == ["study-alpha-1"]
+
+
+def test_search_key_on_empty_store(client):
+    assert client.journal_search_key(".*") == []
+
+
+def test_search_key_invalid_pattern_raises_valueerror(client):
+    client.journal_append("k", b"v")
+
+    with pytest.raises(ValueError):
+        client.journal_search_key("(unclosed")

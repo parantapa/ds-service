@@ -126,8 +126,8 @@ struct DsServiceImpl final : public DsService::Service {
         return grpc::Status::OK;
     }
 
-    grpc::Status MapSearchKey(grpc::ServerContext*, const MapSearchKeyRequest* request,
-                              MapSearchKeyResponse* response) override {
+    grpc::Status MapSearchKey(grpc::ServerContext*, const SearchKeyRequest* request,
+                              SearchKeyResponse* response) override {
         RE2 pattern{request->pattern()};
         if (!pattern.ok()) {
             return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
@@ -297,6 +297,25 @@ struct DsServiceImpl final : public DsService::Service {
         return grpc::Status::OK;
     }
 
+    grpc::Status JournalSearchKey(grpc::ServerContext*, const SearchKeyRequest* request,
+                                  SearchKeyResponse* response) override {
+        RE2 pattern{request->pattern()};
+        if (!pattern.ok()) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                fmt::format("Invalid regular expression: {}", pattern.error()));
+        }
+
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->journal_map_lock};
+
+        for (const auto& [key, _] : GLOBAL_SYSTEM_STATE->journal_map) {
+            if (RE2::PartialMatch(key, pattern)) {
+                response->add_key(key);
+            }
+        }
+
+        return grpc::Status::OK;
+    }
+
     grpc::Status TimeSeriesAppend(grpc::ServerContext*, const TimeSeriesAppendRequest* request, Empty*) override {
         auto tp = parse_iso8601_utc(request->datetime());
         if (!tp) {
@@ -370,6 +389,25 @@ struct DsServiceImpl final : public DsService::Service {
         return grpc::Status::OK;
     }
 
+    grpc::Status TimeSeriesSearchKey(grpc::ServerContext*, const SearchKeyRequest* request,
+                                     SearchKeyResponse* response) override {
+        RE2 pattern{request->pattern()};
+        if (!pattern.ok()) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                fmt::format("Invalid regular expression: {}", pattern.error()));
+        }
+
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->time_series_lock};
+
+        for (const auto& [key, _] : GLOBAL_SYSTEM_STATE->time_series) {
+            if (RE2::PartialMatch(key, pattern)) {
+                response->add_key(key);
+            }
+        }
+
+        return grpc::Status::OK;
+    }
+
     grpc::Status MutexTryAcquire(grpc::ServerContext*, const MutexTryAcquireRequest* request,
                                  MutexTryAcquireResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
@@ -400,6 +438,25 @@ struct DsServiceImpl final : public DsService::Service {
         return grpc::Status::OK;
     }
 
+    grpc::Status MutexSearchKey(grpc::ServerContext*, const SearchKeyRequest* request,
+                                SearchKeyResponse* response) override {
+        RE2 pattern{request->pattern()};
+        if (!pattern.ok()) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                fmt::format("Invalid regular expression: {}", pattern.error()));
+        }
+
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
+
+        for (const auto& [key, _] : GLOBAL_SYSTEM_STATE->mutexes) {
+            if (RE2::PartialMatch(key, pattern)) {
+                response->add_key(key);
+            }
+        }
+
+        return grpc::Status::OK;
+    }
+
     grpc::Status CounterGetNextValue(grpc::ServerContext*, const CounterGetNextValueRequest* request,
                                      CounterGetNextValueResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->counters_lock};
@@ -409,6 +466,25 @@ struct DsServiceImpl final : public DsService::Service {
         // and creates the counter.
         std::uint64_t& counter = GLOBAL_SYSTEM_STATE->counters[request->key()];
         response->set_value(++counter);
+
+        return grpc::Status::OK;
+    }
+
+    grpc::Status CounterSearchKey(grpc::ServerContext*, const SearchKeyRequest* request,
+                                  SearchKeyResponse* response) override {
+        RE2 pattern{request->pattern()};
+        if (!pattern.ok()) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                fmt::format("Invalid regular expression: {}", pattern.error()));
+        }
+
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->counters_lock};
+
+        for (const auto& [key, _] : GLOBAL_SYSTEM_STATE->counters) {
+            if (RE2::PartialMatch(key, pattern)) {
+                response->add_key(key);
+            }
+        }
 
         return grpc::Status::OK;
     }

@@ -68,3 +68,37 @@ def test_acquire_unblocks_after_release(client):
 def test_retry_constants_are_defined():
     assert client_module.MUTEX_ACQUIRE_SLEEP_S == 0.5
     assert client_module.MUTEX_ACQUIRE_JITTER_S == 0.1
+
+
+def test_search_key_matches_subset(client):
+    for key in ["run/1", "run/2", "trial/1"]:
+        client.mutex_try_acquire(key)
+
+    assert sorted(client.mutex_search_key("^run/")) == ["run/1", "run/2"]
+
+
+def test_search_key_is_unanchored(client):
+    client.mutex_try_acquire("study-alpha-1")
+    client.mutex_try_acquire("study-beta-1")
+
+    assert client.mutex_search_key("alpha") == ["study-alpha-1"]
+
+
+def test_search_key_finds_released_keys(client):
+    # A released mutex still exists as a (free) key.
+    client.mutex_try_acquire("held")
+    client.mutex_try_acquire("freed")
+    client.mutex_release("freed")
+
+    assert sorted(client.mutex_search_key(".*")) == ["freed", "held"]
+
+
+def test_search_key_on_empty_store(client):
+    assert client.mutex_search_key(".*") == []
+
+
+def test_search_key_invalid_pattern_raises_valueerror(client):
+    client.mutex_try_acquire("k")
+
+    with pytest.raises(ValueError):
+        client.mutex_search_key("(unclosed")

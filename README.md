@@ -63,6 +63,13 @@ Searching for keys is **slow** as the search walks every key in the map
 while holding the map's lock.
 This blocks other map operations during this period.
 
+The journal, time series, mutex, and counter stores
+each expose the same operation over their own key space --
+`JournalSearchKey`, `TimeSeriesSearchKey`,
+`MutexSearchKey`, and `CounterSearchKey` --
+with identical RE2 semantics
+and the same walk-every-key cost under that store's lock.
+
 ## The task queue
 
 Tasks are units of work identified by a unique `task_id`.
@@ -98,6 +105,7 @@ ordered list of opaque binary entries identified by a `string` key.
 | `JournalSize(key)` | Return the number of entries in the journal. A journal that does not exist has size `0`. |
 | `JournalRead(key, start, end)` | Return the entries in the half-open index range `[start, end)`. |
 | `JournalAppend(key, value)` | Append a single entry to the journal, creating it if it does not exist. |
+| `JournalSearchKey(pattern)` | Return every journal key matching the regular expression `pattern`. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
 
 `JournalRead` uses half-open ranges,
 so `JournalRead(key, 0, JournalSize(key))` returns the whole journal.
@@ -118,6 +126,7 @@ and an integer `step`.
 | --- | --- |
 | `TimeSeriesAppend(key, value, datetime, step)` | Append a point to the series, creating it if it does not exist. `step` is optional and defaults to `0`. Returns `INVALID_ARGUMENT` if `datetime` does not parse. |
 | `TimeSeriesGet(key, start_time, end_time, start_step, end_step)` | Return the points of a series, in append order, filtered by the given bounds. A key that does not exist returns an empty list. |
+| `TimeSeriesSearchKey(pattern)` | Return every series key matching the regular expression `pattern`. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
 
 `datetime` is an ISO 8601 UTC datetime string.
 Both the `Z` form (`2024-01-02T03:04:05Z`)
@@ -146,6 +155,7 @@ A mutex is identified by a `string` key and is either held or free.
 | --- | --- |
 | `MutexTryAcquire(key)` | Try once to acquire the mutex, creating it if it does not exist. Returns `true` if it was acquired, `false` if it is already held. |
 | `MutexRelease(key)` | Release the mutex. Releasing a mutex that is already free, or one that does not exist, is a no-op. |
+| `MutexSearchKey(pattern)` | Return every mutex key matching the regular expression `pattern`. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
 
 These are **cooperative** locks, not owned ones:
 there is no notion of which client holds a mutex,
@@ -170,6 +180,7 @@ useful for generating unique ids or sequence numbers across workers.
 | RPC | Description |
 | --- | --- |
 | `CounterGetNextValue(key)` | Return the next value of the counter, creating it if it does not exist. The first call for a key returns `1`, and each subsequent call returns the previous value plus one. |
+| `CounterSearchKey(pattern)` | Return every counter key matching the regular expression `pattern`. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
 
 There is no separate create or read step.
 The first `CounterGetNextValue` for a key creates the counter and returns `1`.
@@ -241,6 +252,8 @@ client.time_series_append("loss", 0.5, datetime.now(timezone.utc).isoformat(), s
 points = client.time_series_get("loss", start_step=1)  # points with step >= 1
 assert [p.value for p in points] == [0.5]
 
+assert client.time_series_search_key("^loss$") == ["loss"]
+
 # Named mutex
 if client.mutex_try_acquire("resource-a"):
     try:
@@ -255,9 +268,13 @@ try:
 finally:
     client.mutex_release("resource-a")
 
+assert client.mutex_search_key("^resource-") == ["resource-a"]
+
 # Counter
 assert client.counter_get_next_value("ids") == 1
 assert client.counter_get_next_value("ids") == 2
+
+assert client.counter_search_key("^ids$") == ["ids"]
 ```
 
 If `Client()` is constructed without an address, it reads the server address

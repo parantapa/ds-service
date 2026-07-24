@@ -133,3 +133,28 @@ def test_empty_window_returns_empty(stepped_series):
 def test_invalid_start_time_on_get_raises(stepped_series):
     with pytest.raises(ValueError):
         stepped_series.time_series_get("m", start_time="nonsense")
+
+
+def test_search_key_matches_subset(client):
+    for key in ["run/1", "run/2", "trial/1"]:
+        client.time_series_append(key, 1.0, "2024-01-01T00:00:00Z")
+
+    assert sorted(client.time_series_search_key("^run/")) == ["run/1", "run/2"]
+
+
+def test_search_key_is_unanchored(client):
+    client.time_series_append("study-alpha-1", 1.0, "2024-01-01T00:00:00Z")
+    client.time_series_append("study-beta-1", 1.0, "2024-01-01T00:00:00Z")
+
+    assert client.time_series_search_key("alpha") == ["study-alpha-1"]
+
+
+def test_search_key_on_empty_store(client):
+    assert client.time_series_search_key(".*") == []
+
+
+def test_search_key_invalid_pattern_raises_valueerror(client):
+    client.time_series_append("k", 1.0, "2024-01-01T00:00:00Z")
+
+    with pytest.raises(ValueError):
+        client.time_series_search_key("(unclosed")

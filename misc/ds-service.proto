@@ -3,7 +3,7 @@ edition = "2023";
 service DsService {
     rpc MapSet(MapSetRequest) returns (Empty) {}
     rpc MapGet(MapGetRequest) returns (MapGetResponse) {}
-    rpc MapSearchKey(MapSearchKeyRequest) returns (MapSearchKeyResponse) {}
+    rpc MapSearchKey(SearchKeyRequest) returns (SearchKeyResponse) {}
 
     rpc TaskAdd(TaskAddRequest) returns (Empty) {}
     rpc TaskStatus(TaskStatusRequest) returns (TaskStatusResponse) {}
@@ -16,14 +16,18 @@ service DsService {
     rpc JournalSize(JournalSizeRequest) returns (JournalSizeResponse) {}
     rpc JournalRead(JournalReadRequest) returns (JournalReadResponse) {}
     rpc JournalAppend(JournalAppendRequest) returns (Empty) {}
+    rpc JournalSearchKey(SearchKeyRequest) returns (SearchKeyResponse) {}
 
     rpc TimeSeriesAppend(TimeSeriesAppendRequest) returns (Empty) {}
     rpc TimeSeriesGet(TimeSeriesGetRequest) returns (TimeSeriesGetResponse) {}
+    rpc TimeSeriesSearchKey(SearchKeyRequest) returns (SearchKeyResponse) {}
 
     rpc MutexTryAcquire(MutexTryAcquireRequest) returns (MutexTryAcquireResponse) {}
     rpc MutexRelease(MutexReleaseRequest) returns (Empty) {}
+    rpc MutexSearchKey(SearchKeyRequest) returns (SearchKeyResponse) {}
 
     rpc CounterGetNextValue(CounterGetNextValueRequest) returns (CounterGetNextValueResponse) {}
+    rpc CounterSearchKey(SearchKeyRequest) returns (SearchKeyResponse) {}
 };
 
 message Empty {}
@@ -41,11 +45,11 @@ message MapGetResponse {
     bytes value = 1;
 }
 
-message MapSearchKeyRequest {
+message SearchKeyRequest {
     string pattern = 1;
 }
 
-message MapSearchKeyResponse {
+message SearchKeyResponse {
     repeated string key = 1;
 }
 

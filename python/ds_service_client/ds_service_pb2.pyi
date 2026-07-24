@@ -40,13 +40,13 @@ class MapGetResponse(_message.Message):
     value: bytes
     def __init__(self, value: _Optional[bytes] = ...) -> None: ...
 
-class MapSearchKeyRequest(_message.Message):
+class SearchKeyRequest(_message.Message):
     __slots__ = ("pattern",)
     PATTERN_FIELD_NUMBER: _ClassVar[int]
     pattern: str
     def __init__(self, pattern: _Optional[str] = ...) -> None: ...
 
-class MapSearchKeyResponse(_message.Message):
+class SearchKeyResponse(_message.Message):
     __slots__ = ("key",)
     KEY_FIELD_NUMBER: _ClassVar[int]
     key: _containers.RepeatedScalarFieldContainer[str]
