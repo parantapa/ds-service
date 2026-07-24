@@ -24,15 +24,15 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"ds_service_client/ds-service.proto\"\x07\n\x05\x45mpty\"+\n\rMapSetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c\"\x1c\n\rMapGetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"\x1f\n\x0eMapGetResponse\x12\r\n\x05value\x18\x01 \x01(\x0c\"#\n\x10SearchKeyRequest\x12\x0f\n\x07pattern\x18\x01 \x01(\t\" \n\x11SearchKeyResponse\x12\x0b\n\x03key\x18\x01 \x03(\t\"c\n\x0eTaskAddRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\r\n\x05queue\x18\x02 \x03(\t\x12\x10\n\x08priority\x18\x03 \x01(\x01\x12\x10\n\x08\x66unction\x18\x04 \x01(\x0c\x12\r\n\x05input\x18\x05 \x01(\x0c\"\'\n\x14TaskGetStatusRequest\x12\x0f\n\x07task_id\x18\x01 \x03(\t\"2\n\x15TaskGetStatusResponse\x12\x19\n\x05state\x18\x01 \x03(\x0e\x32\n.TaskState\"\'\n\x14TaskGetOutputRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\"\'\n\x15TaskGetOutputResponse\x12\x0e\n\x06output\x18\x01 \x01(\x0c\"2\n\x0eTaskGetRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\r\n\x05queue\x18\x02 \x03(\t\"C\n\x0fTaskGetResponse\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x10\n\x08\x66unction\x18\x02 \x01(\x0c\x12\r\n\x05input\x18\x03 \x01(\x0c\"2\n\x0fTaskDoneRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x0e\n\x06output\x18\x02 \x01(\x0c\"#\n\x0eRequeueRequest\x12\x11\n\ttimeout_s\x18\x01 \x01(\x01\"!\n\x12JournalSizeRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"#\n\x13JournalSizeResponse\x12\x0c\n\x04size\x18\x01 \x01(\x04\"=\n\x12JournalReadRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05start\x18\x02 \x01(\x04\x12\x0b\n\x03\x65nd\x18\x03 \x01(\x04\"$\n\x13JournalReadResponse\x12\r\n\x05\x65ntry\x18\x01 \x03(\x0c\"2\n\x14JournalAppendRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c\"U\n\x17TimeSeriesAppendRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01\x12\x10\n\x08\x64\x61tetime\x18\x03 \x01(\t\x12\x0c\n\x04step\x18\x04 \x01(\x03\"D\n\x13TimeSeriesDataPoint\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x10\n\x08\x64\x61tetime\x18\x02 \x01(\t\x12\x0c\n\x04step\x18\x03 \x01(\x03\"o\n\x14TimeSeriesGetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nstart_time\x18\x02 \x01(\t\x12\x10\n\x08\x65nd_time\x18\x03 \x01(\t\x12\x12\n\nstart_step\x18\x04 \x01(\x03\x12\x10\n\x08\x65nd_step\x18\x05 \x01(\x03\"<\n\x15TimeSeriesGetResponse\x12#\n\x05point\x18\x01 \x03(\x0b\x32\x14.TimeSeriesDataPoint\"%\n\x16MutexTryAcquireRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"+\n\x17MutexTryAcquireResponse\x12\x10\n\x08\x61\x63quired\x18\x01 \x01(\x08\"\"\n\x13MutexReleaseRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\")\n\x1a\x43ounterGetNextValueRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\",\n\x1b\x43ounterGetNextValueResponse\x12\r\n\x05value\x18\x01 \x01(\x04\",\n\x1d\x43ounterGetCurrentValueRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"/\n\x1e\x43ounterGetCurrentValueResponse\x12\r\n\x05value\x18\x01 \x01(\x04*@\n\tTaskState\x12\t\n\x05Ready\x10\x00\x12\x0b\n\x07Running\x10\x01\x12\x0c\n\x08\x43omplete\x10\x02\x12\r\n\tUndefined\x10\x03\x32\xff\t\n\tDsService\x12\"\n\x06MapSet\x12\x0e.MapSetRequest\x1a\x06.Empty\"\x00\x12+\n\x06MapGet\x12\x0e.MapGetRequest\x1a\x0f.MapGetResponse\"\x00\x12\x37\n\x0cMapSearchKey\x12\x11.SearchKeyRequest\x1a\x12.SearchKeyResponse\"\x00\x12$\n\x07TaskAdd\x12\x0f.TaskAddRequest\x1a\x06.Empty\"\x00\x12@\n\rTaskGetStatus\x12\x15.TaskGetStatusRequest\x1a\x16.TaskGetStatusResponse\"\x00\x12@\n\rTaskGetOutput\x12\x15.TaskGetOutputRequest\x1a\x16.TaskGetOutputResponse\"\x00\x12.\n\x07TaskGet\x12\x0f.TaskGetRequest\x1a\x10.TaskGetResponse\"\x00\x12&\n\x08TaskDone\x12\x10.TaskDoneRequest\x1a\x06.Empty\"\x00\x12$\n\x07Requeue\x12\x0f.RequeueRequest\x1a\x06.Empty\"\x00\x12:\n\x0bJournalSize\x12\x13.JournalSizeRequest\x1a\x14.JournalSizeResponse\"\x00\x12:\n\x0bJournalRead\x12\x13.JournalReadRequest\x1a\x14.JournalReadResponse\"\x00\x12\x30\n\rJournalAppend\x12\x15.JournalAppendRequest\x1a\x06.Empty\"\x00\x12;\n\x10JournalSearchKey\x12\x11.SearchKeyRequest\x1a\x12.SearchKeyResponse\"\x00\x12\x36\n\x10TimeSeriesAppend\x12\x18.TimeSeriesAppendRequest\x1a\x06.Empty\"\x00\x12@\n\rTimeSeriesGet\x12\x15.TimeSeriesGetRequest\x1a\x16.TimeSeriesGetResponse\"\x00\x12>\n\x13TimeSeriesSearchKey\x12\x11.SearchKeyRequest\x1a\x12.SearchKeyResponse\"\x00\x12\x46\n\x0fMutexTryAcquire\x12\x17.MutexTryAcquireRequest\x1a\x18.MutexTryAcquireResponse\"\x00\x12.\n\x0cMutexRelease\x12\x14.MutexReleaseRequest\x1a\x06.Empty\"\x00\x12\x39\n\x0eMutexSearchKey\x12\x11.SearchKeyRequest\x1a\x12.SearchKeyResponse\"\x00\x12R\n\x13\x43ounterGetNextValue\x12\x1b.CounterGetNextValueRequest\x1a\x1c.CounterGetNextValueResponse\"\x00\x12[\n\x16\x43ounterGetCurrentValue\x12\x1e.CounterGetCurrentValueRequest\x1a\x1f.CounterGetCurrentValueResponse\"\x00\x12;\n\x10\x43ounterSearchKey\x12\x11.SearchKeyRequest\x1a\x12.SearchKeyResponse\"\x00\x62\x08\x65\x64itionsp\xe8\x07')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\"ds_service_client/ds-service.proto\"\x07\n\x05\x45mpty\"+\n\rMapSetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c\"\x1c\n\rMapGetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"\x1f\n\x0eMapGetResponse\x12\r\n\x05value\x18\x01 \x01(\x0c\"#\n\x10SearchKeyRequest\x12\x0f\n\x07pattern\x18\x01 \x01(\t\" \n\x11SearchKeyResponse\x12\x0b\n\x03key\x18\x01 \x03(\t\"c\n\x0eTaskAddRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\r\n\x05queue\x18\x02 \x03(\t\x12\x10\n\x08priority\x18\x03 \x01(\x01\x12\x10\n\x08\x66unction\x18\x04 \x01(\x0c\x12\r\n\x05input\x18\x05 \x01(\x0c\"\'\n\x14TaskGetStatusRequest\x12\x0f\n\x07task_id\x18\x01 \x03(\t\"2\n\x15TaskGetStatusResponse\x12\x19\n\x05state\x18\x01 \x03(\x0e\x32\n.TaskState\"\'\n\x14TaskGetOutputRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\"\'\n\x15TaskGetOutputResponse\x12\x0e\n\x06output\x18\x01 \x01(\x0c\"O\n\x1bTaskGetCountByStateResponse\x12\r\n\x05ready\x18\x01 \x01(\x04\x12\x0f\n\x07running\x18\x02 \x01(\x04\x12\x10\n\x08\x63omplete\x18\x03 \x01(\x04\"2\n\x0eTaskGetRequest\x12\x11\n\tworker_id\x18\x01 \x01(\t\x12\r\n\x05queue\x18\x02 \x03(\t\"C\n\x0fTaskGetResponse\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x10\n\x08\x66unction\x18\x02 \x01(\x0c\x12\r\n\x05input\x18\x03 \x01(\x0c\"2\n\x0fTaskDoneRequest\x12\x0f\n\x07task_id\x18\x01 \x01(\t\x12\x0e\n\x06output\x18\x02 \x01(\x0c\"#\n\x0eRequeueRequest\x12\x11\n\ttimeout_s\x18\x01 \x01(\x01\"!\n\x12JournalSizeRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"#\n\x13JournalSizeResponse\x12\x0c\n\x04size\x18\x01 \x01(\x04\"=\n\x12JournalReadRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05start\x18\x02 \x01(\x04\x12\x0b\n\x03\x65nd\x18\x03 \x01(\x04\"$\n\x13JournalReadResponse\x12\r\n\x05\x65ntry\x18\x01 \x03(\x0c\"2\n\x14JournalAppendRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x0c\"U\n\x17TimeSeriesAppendRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x01\x12\x10\n\x08\x64\x61tetime\x18\x03 \x01(\t\x12\x0c\n\x04step\x18\x04 \x01(\x03\"D\n\x13TimeSeriesDataPoint\x12\r\n\x05value\x18\x01 \x01(\x01\x12\x10\n\x08\x64\x61tetime\x18\x02 \x01(\t\x12\x0c\n\x04step\x18\x03 \x01(\x03\"o\n\x14TimeSeriesGetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nstart_time\x18\x02 \x01(\t\x12\x10\n\x08\x65nd_time\x18\x03 \x01(\t\x12\x12\n\nstart_step\x18\x04 \x01(\x03\x12\x10\n\x08\x65nd_step\x18\x05 \x01(\x03\"<\n\x15TimeSeriesGetResponse\x12#\n\x05point\x18\x01 \x03(\x0b\x32\x14.TimeSeriesDataPoint\"%\n\x16MutexTryAcquireRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"+\n\x17MutexTryAcquireResponse\x12\x10\n\x08\x61\x63quired\x18\x01 \x01(\x08\"\"\n\x13MutexReleaseRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\")\n\x1a\x43ounterGetNextValueRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\",\n\x1b\x43ounterGetNextValueResponse\x12\r\n\x05value\x18\x01 \x01(\x04\",\n\x1d\x43ounterGetCurrentValueRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"/\n\x1e\x43ounterGetCurrentValueResponse\x12\r\n\x05value\x18\x01 \x01(\x04*@\n\tTaskState\x12\t\n\x05Ready\x10\x00\x12\x0b\n\x07Running\x10\x01\x12\x0c\n\x08\x43omplete\x10\x02\x12\r\n\tUndefined\x10\x03\x32\xbe\n\n\tDsService\x12\"\n\x06MapSet\x12\x0e.MapSetRequest\x1a\x06.Empty\"\x00\x12+\n\x06MapGet\x12\x0e.MapGetRequest\x1a\x0f.MapGetResponse\"\x00\x12\x37\n\x0cMapSearchKey\x12\x11.SearchKeyRequest\x1a\x12.SearchKeyResponse\"\x00\x12$\n\x07TaskAdd\x12\x0f.TaskAddRequest\x1a\x06.Empty\"\x00\x12@\n\rTaskGetStatus\x12\x15.TaskGetStatusRequest\x1a\x16.TaskGetStatusResponse\"\x00\x12@\n\rTaskGetOutput\x12\x15.TaskGetOutputRequest\x1a\x16.TaskGetOutputResponse\"\x00\x12=\n\x13TaskGetCountByState\x12\x06.Empty\x1a\x1c.TaskGetCountByStateResponse\"\x00\x12.\n\x07TaskGet\x12\x0f.TaskGetRequest\x1a\x10.TaskGetResponse\"\x00\x12&\n\x08TaskDone\x12\x10.TaskDoneRequest\x1a\x06.Empty\"\x00\x12$\n\x07Requeue\x12\x0f.RequeueRequest\x1a\x06.Empty\"\x00\x12:\n\x0bJournalSize\x12\x13.JournalSizeRequest\x1a\x14.JournalSizeResponse\"\x00\x12:\n\x0bJournalRead\x12\x13.JournalReadRequest\x1a\x14.JournalReadResponse\"\x00\x12\x30\n\rJournalAppend\x12\x15.JournalAppendRequest\x1a\x06.Empty\"\x00\x12;\n\x10JournalSearchKey\x12\x11.SearchKeyRequest\x1a\x12.SearchKeyResponse\"\x00\x12\x36\n\x10TimeSeriesAppend\x12\x18.TimeSeriesAppendRequest\x1a\x06.Empty\"\x00\x12@\n\rTimeSeriesGet\x12\x15.TimeSeriesGetRequest\x1a\x16.TimeSeriesGetResponse\"\x00\x12>\n\x13TimeSeriesSearchKey\x12\x11.SearchKeyRequest\x1a\x12.SearchKeyResponse\"\x00\x12\x46\n\x0fMutexTryAcquire\x12\x17.MutexTryAcquireRequest\x1a\x18.MutexTryAcquireResponse\"\x00\x12.\n\x0cMutexRelease\x12\x14.MutexReleaseRequest\x1a\x06.Empty\"\x00\x12\x39\n\x0eMutexSearchKey\x12\x11.SearchKeyRequest\x1a\x12.SearchKeyResponse\"\x00\x12R\n\x13\x43ounterGetNextValue\x12\x1b.CounterGetNextValueRequest\x1a\x1c.CounterGetNextValueResponse\"\x00\x12[\n\x16\x43ounterGetCurrentValue\x12\x1e.CounterGetCurrentValueRequest\x1a\x1f.CounterGetCurrentValueResponse\"\x00\x12;\n\x10\x43ounterSearchKey\x12\x11.SearchKeyRequest\x1a\x12.SearchKeyResponse\"\x00\x62\x08\x65\x64itionsp\xe8\x07')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'ds_service_client.ds_service_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_TASKSTATE']._serialized_start=1573
-  _globals['_TASKSTATE']._serialized_end=1637
+  _globals['_TASKSTATE']._serialized_start=1654
+  _globals['_TASKSTATE']._serialized_end=1718
   _globals['_EMPTY']._serialized_start=38
   _globals['_EMPTY']._serialized_end=45
   _globals['_MAPSETREQUEST']._serialized_start=47
@@ -55,46 +55,48 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_TASKGETOUTPUTREQUEST']._serialized_end=459
   _globals['_TASKGETOUTPUTRESPONSE']._serialized_start=461
   _globals['_TASKGETOUTPUTRESPONSE']._serialized_end=500
-  _globals['_TASKGETREQUEST']._serialized_start=502
-  _globals['_TASKGETREQUEST']._serialized_end=552
-  _globals['_TASKGETRESPONSE']._serialized_start=554
-  _globals['_TASKGETRESPONSE']._serialized_end=621
-  _globals['_TASKDONEREQUEST']._serialized_start=623
-  _globals['_TASKDONEREQUEST']._serialized_end=673
-  _globals['_REQUEUEREQUEST']._serialized_start=675
-  _globals['_REQUEUEREQUEST']._serialized_end=710
-  _globals['_JOURNALSIZEREQUEST']._serialized_start=712
-  _globals['_JOURNALSIZEREQUEST']._serialized_end=745
-  _globals['_JOURNALSIZERESPONSE']._serialized_start=747
-  _globals['_JOURNALSIZERESPONSE']._serialized_end=782
-  _globals['_JOURNALREADREQUEST']._serialized_start=784
-  _globals['_JOURNALREADREQUEST']._serialized_end=845
-  _globals['_JOURNALREADRESPONSE']._serialized_start=847
-  _globals['_JOURNALREADRESPONSE']._serialized_end=883
-  _globals['_JOURNALAPPENDREQUEST']._serialized_start=885
-  _globals['_JOURNALAPPENDREQUEST']._serialized_end=935
-  _globals['_TIMESERIESAPPENDREQUEST']._serialized_start=937
-  _globals['_TIMESERIESAPPENDREQUEST']._serialized_end=1022
-  _globals['_TIMESERIESDATAPOINT']._serialized_start=1024
-  _globals['_TIMESERIESDATAPOINT']._serialized_end=1092
-  _globals['_TIMESERIESGETREQUEST']._serialized_start=1094
-  _globals['_TIMESERIESGETREQUEST']._serialized_end=1205
-  _globals['_TIMESERIESGETRESPONSE']._serialized_start=1207
-  _globals['_TIMESERIESGETRESPONSE']._serialized_end=1267
-  _globals['_MUTEXTRYACQUIREREQUEST']._serialized_start=1269
-  _globals['_MUTEXTRYACQUIREREQUEST']._serialized_end=1306
-  _globals['_MUTEXTRYACQUIRERESPONSE']._serialized_start=1308
-  _globals['_MUTEXTRYACQUIRERESPONSE']._serialized_end=1351
-  _globals['_MUTEXRELEASEREQUEST']._serialized_start=1353
-  _globals['_MUTEXRELEASEREQUEST']._serialized_end=1387
-  _globals['_COUNTERGETNEXTVALUEREQUEST']._serialized_start=1389
-  _globals['_COUNTERGETNEXTVALUEREQUEST']._serialized_end=1430
-  _globals['_COUNTERGETNEXTVALUERESPONSE']._serialized_start=1432
-  _globals['_COUNTERGETNEXTVALUERESPONSE']._serialized_end=1476
-  _globals['_COUNTERGETCURRENTVALUEREQUEST']._serialized_start=1478
-  _globals['_COUNTERGETCURRENTVALUEREQUEST']._serialized_end=1522
-  _globals['_COUNTERGETCURRENTVALUERESPONSE']._serialized_start=1524
-  _globals['_COUNTERGETCURRENTVALUERESPONSE']._serialized_end=1571
-  _globals['_DSSERVICE']._serialized_start=1640
-  _globals['_DSSERVICE']._serialized_end=2919
+  _globals['_TASKGETCOUNTBYSTATERESPONSE']._serialized_start=502
+  _globals['_TASKGETCOUNTBYSTATERESPONSE']._serialized_end=581
+  _globals['_TASKGETREQUEST']._serialized_start=583
+  _globals['_TASKGETREQUEST']._serialized_end=633
+  _globals['_TASKGETRESPONSE']._serialized_start=635
+  _globals['_TASKGETRESPONSE']._serialized_end=702
+  _globals['_TASKDONEREQUEST']._serialized_start=704
+  _globals['_TASKDONEREQUEST']._serialized_end=754
+  _globals['_REQUEUEREQUEST']._serialized_start=756
+  _globals['_REQUEUEREQUEST']._serialized_end=791
+  _globals['_JOURNALSIZEREQUEST']._serialized_start=793
+  _globals['_JOURNALSIZEREQUEST']._serialized_end=826
+  _globals['_JOURNALSIZERESPONSE']._serialized_start=828
+  _globals['_JOURNALSIZERESPONSE']._serialized_end=863
+  _globals['_JOURNALREADREQUEST']._serialized_start=865
+  _globals['_JOURNALREADREQUEST']._serialized_end=926
+  _globals['_JOURNALREADRESPONSE']._serialized_start=928
+  _globals['_JOURNALREADRESPONSE']._serialized_end=964
+  _globals['_JOURNALAPPENDREQUEST']._serialized_start=966
+  _globals['_JOURNALAPPENDREQUEST']._serialized_end=1016
+  _globals['_TIMESERIESAPPENDREQUEST']._serialized_start=1018
+  _globals['_TIMESERIESAPPENDREQUEST']._serialized_end=1103
+  _globals['_TIMESERIESDATAPOINT']._serialized_start=1105
+  _globals['_TIMESERIESDATAPOINT']._serialized_end=1173
+  _globals['_TIMESERIESGETREQUEST']._serialized_start=1175
+  _globals['_TIMESERIESGETREQUEST']._serialized_end=1286
+  _globals['_TIMESERIESGETRESPONSE']._serialized_start=1288
+  _globals['_TIMESERIESGETRESPONSE']._serialized_end=1348
+  _globals['_MUTEXTRYACQUIREREQUEST']._serialized_start=1350
+  _globals['_MUTEXTRYACQUIREREQUEST']._serialized_end=1387
+  _globals['_MUTEXTRYACQUIRERESPONSE']._serialized_start=1389
+  _globals['_MUTEXTRYACQUIRERESPONSE']._serialized_end=1432
+  _globals['_MUTEXRELEASEREQUEST']._serialized_start=1434
+  _globals['_MUTEXRELEASEREQUEST']._serialized_end=1468
+  _globals['_COUNTERGETNEXTVALUEREQUEST']._serialized_start=1470
+  _globals['_COUNTERGETNEXTVALUEREQUEST']._serialized_end=1511
+  _globals['_COUNTERGETNEXTVALUERESPONSE']._serialized_start=1513
+  _globals['_COUNTERGETNEXTVALUERESPONSE']._serialized_end=1557
+  _globals['_COUNTERGETCURRENTVALUEREQUEST']._serialized_start=1559
+  _globals['_COUNTERGETCURRENTVALUEREQUEST']._serialized_end=1603
+  _globals['_COUNTERGETCURRENTVALUERESPONSE']._serialized_start=1605
+  _globals['_COUNTERGETCURRENTVALUERESPONSE']._serialized_end=1652
+  _globals['_DSSERVICE']._serialized_start=1721
+  _globals['_DSSERVICE']._serialized_end=3063
 # @@protoc_insertion_point(module_scope)

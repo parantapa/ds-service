@@ -203,6 +203,36 @@ struct DsServiceImpl final : public DsService::Service {
         return grpc::Status::OK;
     }
 
+    grpc::Status TaskGetCountByState(grpc::ServerContext*, const Empty*,
+                                     TaskGetCountByStateResponse* response) override {
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
+
+        // Every task occupies exactly one row in the SOA, so tallying the
+        // state column gives the count per state.
+        auto& tasks = GLOBAL_SYSTEM_STATE->task_manager.tasks;
+        std::uint64_t ready = 0, running = 0, complete = 0;
+        for (std::size_t index = 0; index < tasks.size(); index++) {
+            switch (tasks[index].state()) {
+            case TaskState::Ready:
+                ready++;
+                break;
+            case TaskState::Running:
+                running++;
+                break;
+            case TaskState::Complete:
+                complete++;
+                break;
+            default:
+                break;
+            }
+        }
+
+        response->set_ready(ready);
+        response->set_running(running);
+        response->set_complete(complete);
+        return grpc::Status::OK;
+    }
+
     grpc::Status TaskGet(grpc::ServerContext*, const TaskGetRequest* request, TaskGetResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 

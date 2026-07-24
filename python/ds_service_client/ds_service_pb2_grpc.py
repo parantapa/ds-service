@@ -64,6 +64,11 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.TaskGetOutputRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetOutputResponse.FromString,
                 _registered_method=True)
+        self.TaskGetCountByState = channel.unary_unary(
+                '/DsService/TaskGetCountByState',
+                request_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetCountByStateResponse.FromString,
+                _registered_method=True)
         self.TaskGet = channel.unary_unary(
                 '/DsService/TaskGet',
                 request_serializer=ds__service__client_dot_ds__service__pb2.TaskGetRequest.SerializeToString,
@@ -180,6 +185,12 @@ class DsServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def TaskGetOutput(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def TaskGetCountByState(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -313,6 +324,11 @@ def add_DsServiceServicer_to_server(servicer, server):
                     servicer.TaskGetOutput,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetOutputRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.TaskGetOutputResponse.SerializeToString,
+            ),
+            'TaskGetCountByState': grpc.unary_unary_rpc_method_handler(
+                    servicer.TaskGetCountByState,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.TaskGetCountByStateResponse.SerializeToString,
             ),
             'TaskGet': grpc.unary_unary_rpc_method_handler(
                     servicer.TaskGet,
@@ -557,6 +573,33 @@ class DsService(object):
             '/DsService/TaskGetOutput',
             ds__service__client_dot_ds__service__pb2.TaskGetOutputRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.TaskGetOutputResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def TaskGetCountByState(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/TaskGetCountByState',
+            ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.TaskGetCountByStateResponse.FromString,
             options,
             channel_credentials,
             insecure,

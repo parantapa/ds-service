@@ -92,6 +92,16 @@ class TaskGetOutputResponse(_message.Message):
     output: bytes
     def __init__(self, output: _Optional[bytes] = ...) -> None: ...
 
+class TaskGetCountByStateResponse(_message.Message):
+    __slots__ = ("ready", "running", "complete")
+    READY_FIELD_NUMBER: _ClassVar[int]
+    RUNNING_FIELD_NUMBER: _ClassVar[int]
+    COMPLETE_FIELD_NUMBER: _ClassVar[int]
+    ready: int
+    running: int
+    complete: int
+    def __init__(self, ready: _Optional[int] = ..., running: _Optional[int] = ..., complete: _Optional[int] = ...) -> None: ...
+
 class TaskGetRequest(_message.Message):
     __slots__ = ("worker_id", "queue")
     WORKER_ID_FIELD_NUMBER: _ClassVar[int]

@@ -8,6 +8,7 @@ service DsService {
     rpc TaskAdd(TaskAddRequest) returns (Empty) {}
     rpc TaskGetStatus(TaskGetStatusRequest) returns (TaskGetStatusResponse) {}
     rpc TaskGetOutput(TaskGetOutputRequest) returns (TaskGetOutputResponse) {}
+    rpc TaskGetCountByState(Empty) returns (TaskGetCountByStateResponse) {}
 
     rpc TaskGet(TaskGetRequest) returns (TaskGetResponse) {}
     rpc TaskDone(TaskDoneRequest) returns (Empty) {}
@@ -89,6 +90,15 @@ message TaskGetOutputRequest {
 
 message TaskGetOutputResponse {
     bytes output = 1;
+}
+
+// Counts of all tasks in the system by state.
+// Every task is in exactly one of these states, so the three
+// counts sum to the total number of tasks the server knows about.
+message TaskGetCountByStateResponse {
+    uint64 ready = 1;
+    uint64 running = 2;
+    uint64 complete = 3;
 }
 
 message TaskGetRequest {

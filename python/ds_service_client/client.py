@@ -108,6 +108,10 @@ class Client:
             )
             return response.output
 
+    def task_get_count_by_state(self) -> TaskGetCountByStateResponse:
+        with translate_grpc_error():
+            return self.stub.TaskGetCountByState(Empty())
+
     def task_get(self, worker_id: str, queue: str | list[str]) -> TaskGetResponse:
         if isinstance(queue, str):
             queue = [queue]

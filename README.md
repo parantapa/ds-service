@@ -87,6 +87,7 @@ it is what `TaskGetStatus` reports for a `task_id` that does not exist.
 | `TaskDone(task_id, output)` | Mark a `Running` task `Complete` and store its output. |
 | `TaskGetStatus(task_id...)` | Return the state of each requested task, in request order. An unknown `task_id` reports `Undefined` rather than being an error. |
 | `TaskGetOutput(task_id)` | Return a single task's output. Returns `NOT_FOUND` if the task does not exist; a task that has not completed yet has empty output. |
+| `TaskGetCountByState()` | Return how many tasks are currently in each of the `Ready`, `Running`, and `Complete` states. Takes no arguments. |
 | `Requeue(timeout_s)` | Reset any task that has been `Running` longer than `timeout_s` back to `Ready` and re-enqueue it. |
 
 Within a queue, higher `priority` values are dispatched first.
@@ -255,6 +256,10 @@ assert client.task_get_status(["job-1", "ghost"]) == [
     TaskState.Undefined,
 ]
 assert client.task_get_output("job-1") == b"result"
+
+# Aggregate counts across all tasks in the system.
+counts = client.task_get_count_by_state()
+assert (counts.ready, counts.running, counts.complete) == (0, 0, 1)
 
 # Time series
 from datetime import datetime, timezone

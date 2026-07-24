@@ -114,3 +114,28 @@ def test_requeue_returns_stalled_task(client):
 
     assert client.task_get_status("t") == TaskState.Ready
     assert client.task_get(worker_id="w2", queue="work").task_id == "t"
+
+
+def test_count_by_state_on_empty_system_is_zero(client):
+    counts = client.task_get_count_by_state()
+    assert (counts.ready, counts.running, counts.complete) == (0, 0, 0)
+
+
+def test_count_by_state_tracks_lifecycle(client):
+    client.task_add("a", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add("b", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add("c", queue="work", priority=1.0, function=b"", input=b"")
+
+    # All three start Ready.
+    counts = client.task_get_count_by_state()
+    assert (counts.ready, counts.running, counts.complete) == (3, 0, 0)
+
+    # Claim one (Ready -> Running) and complete another.
+    client.task_get(worker_id="w1", queue="work")
+    claimed = client.task_get(worker_id="w2", queue="work")
+    client.task_done(claimed.task_id, output=b"out")
+
+    counts = client.task_get_count_by_state()
+    assert (counts.ready, counts.running, counts.complete) == (1, 1, 1)
+    # The three counts always sum to the total number of tasks.
+    assert counts.ready + counts.running + counts.complete == 3
