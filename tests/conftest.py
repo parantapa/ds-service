@@ -7,14 +7,17 @@ import os
 import shutil
 import socket
 import subprocess
+import time
 from pathlib import Path
 
-import grpc
 import pytest
 
 from ds_service_client import Client
+from ds_service_client.ds_service_pb2 import Empty
 
 STARTUP_TIMEOUT_S = 15.0
+STARTUP_POLL_INTERVAL_S = 0.005
+GRPC_PROBE_TIMEOUT_S = 15.0
 SHUTDOWN_TIMEOUT_S = 5.0
 
 
@@ -49,6 +52,26 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
+def _wait_until_listening(host: str, port: int, proc: subprocess.Popen) -> bool:
+    """Poll the server's port until a TCP connection succeeds.
+
+    A plain TCP probe is much faster than ``grpc.channel_ready_future``:
+    gRPC applies exponential connection backoff after a failed attempt,
+    so a probe that starts before the server has bound its port
+    can sit idle in backoff long after the server is actually up.
+    """
+    deadline = time.monotonic() + STARTUP_TIMEOUT_S
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            return False
+        try:
+            with socket.create_connection((host, port), timeout=STARTUP_TIMEOUT_S):
+                return True
+        except OSError:
+            time.sleep(STARTUP_POLL_INTERVAL_S)
+    return False
+
+
 @pytest.fixture
 def server():
     """Start a ds-service process on a free port and yield its address.
@@ -57,7 +80,9 @@ def server():
     A fresh process per test keeps the (non-persistent) server state isolated.
     """
     binary = _find_binary()
-    address = f"127.0.0.1:{_free_port()}"
+    host = "127.0.0.1"
+    port = _free_port()
+    address = f"{host}:{port}"
 
     proc = subprocess.Popen(
         [str(binary), "--address", address],
@@ -66,17 +91,44 @@ def server():
         text=True,
     )
 
-    channel = grpc.insecure_channel(address)
-    try:
-        grpc.channel_ready_future(channel).result(timeout=STARTUP_TIMEOUT_S)
-    except grpc.FutureTimeoutError:
+    if not _wait_until_listening(host, port, proc):
         proc.terminate()
         output = proc.communicate()[0]
         raise RuntimeError(
-            f"ds-service did not become ready within {STARTUP_TIMEOUT_S}s.\n{output}"
+            f"ds-service did not start listening on {address} "
+            f"within {STARTUP_TIMEOUT_S}s.\n{output}"
         )
-    finally:
-        channel.close()
+
+    # The port accepts connections by now,
+    # so this first gRPC attempt connects immediately
+    # and never enters the exponential reconnect backoff
+    # that made a pre-listen probe so slow.
+    # A read-only RPC also confirms the service is registered and answering,
+    # which a bound port alone does not.
+    #
+    # Two deliberate choices here:
+    #   - Not grpc.channel_ready_future():
+    #     it registers a connectivity-state watcher
+    #     that makes the subsequent channel close block ~200ms per test.
+    #     An RPC round-trip proves more and costs ~1ms.
+    #   - Called on .stub rather than through the Client wrapper,
+    #     so the probe can carry a deadline;
+    #     Client methods set none,
+    #     and a port that accepts but never speaks gRPC
+    #     would otherwise hang the suite.
+    try:
+        probe = Client(address)
+        try:
+            probe.stub.TaskGetCountByState(Empty(), timeout=GRPC_PROBE_TIMEOUT_S)
+        finally:
+            probe.close()
+    except Exception as exc:
+        proc.terminate()
+        output = proc.communicate()[0]
+        raise RuntimeError(
+            f"ds-service is listening on {address} but did not answer a gRPC "
+            f"request within {GRPC_PROBE_TIMEOUT_S}s: {exc!r}\n{output}"
+        ) from exc
 
     try:
         yield address

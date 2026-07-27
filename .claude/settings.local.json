@@ -6,7 +6,9 @@
       "Bash(clang-format --dry-run --Werror cpp/ds-service.cpp)",
       "Bash(DS_SERVICE_BIN=__TRACKED_VAR__/build/Release/ds-service python -m pytest tests/test_tasks.py -q)",
       "Bash(python -c \"import build\")",
-      "Bash(python -m build --outdir /tmp/claude-1000/-home-appuser-workspace-ds-service/ecc6f0b5-3387-44fb-9567-d09890c8d9ea/scratchpad/pkgtest)"
+      "Bash(python -m build --outdir /tmp/claude-1000/-home-appuser-workspace-ds-service/ecc6f0b5-3387-44fb-9567-d09890c8d9ea/scratchpad/pkgtest)",
+      "Bash(DS_SERVICE_BIN=build/Release/ds-service timeout 600 python -m pytest -q)",
+      "Bash(git stash *)"
     ]
   }
 }

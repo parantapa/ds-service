@@ -10,7 +10,7 @@ from .ds_service_pb2_grpc import *
 
 GRPC_CLIENT_OPTIONS = [
     ("grpc.keepalive_time_ms", 120 * 1000),
-    ("grpc.keepalive_timeout_ms", 30 * 000),
+    ("grpc.keepalive_timeout_ms", 30 * 1000),
     ("grpc.http2.max_pings_without_data", 5),
     ("grpc.keepalive_permit_without_calls", 1),
 ]
