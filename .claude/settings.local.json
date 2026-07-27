@@ -8,7 +8,10 @@
       "Bash(python -c \"import build\")",
       "Bash(python -m build --outdir /tmp/claude-1000/-home-appuser-workspace-ds-service/ecc6f0b5-3387-44fb-9567-d09890c8d9ea/scratchpad/pkgtest)",
       "Bash(DS_SERVICE_BIN=build/Release/ds-service timeout 600 python -m pytest -q)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(DS_SERVICE_BIN=build/Release/ds-service timeout 300 python -m pytest -q tests/test_client_deadline.py)",
+      "Bash(DS_SERVICE_BIN=build/Release/ds-service timeout 300 python -m pytest -q tests/test_client_deadline.py --durations=10)",
+      "Bash(DS_SERVICE_BIN=build/Release/ds-service timeout 300 python -m pytest -q)"
     ]
   }
 }

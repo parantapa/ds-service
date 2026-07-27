@@ -13,7 +13,6 @@ from pathlib import Path
 import pytest
 
 from ds_service_client import Client
-from ds_service_client.ds_service_pb2 import Empty
 
 STARTUP_TIMEOUT_S = 15.0
 STARTUP_POLL_INTERVAL_S = 0.005
@@ -111,15 +110,13 @@ def server():
     #     it registers a connectivity-state watcher
     #     that makes the subsequent channel close block ~200ms per test.
     #     An RPC round-trip proves more and costs ~1ms.
-    #   - Called on .stub rather than through the Client wrapper,
-    #     so the probe can carry a deadline;
-    #     Client methods set none,
-    #     and a port that accepts but never speaks gRPC
-    #     would otherwise hang the suite.
+    #   - Given a short per-RPC deadline rather than the client default,
+    #     so a port that accepts but never speaks gRPC
+    #     fails the fixture promptly instead of stalling it for minutes.
     try:
-        probe = Client(address)
+        probe = Client(address, timeout=GRPC_PROBE_TIMEOUT_S)
         try:
-            probe.stub.TaskGetCountByState(Empty(), timeout=GRPC_PROBE_TIMEOUT_S)
+            probe.task_get_count_by_state()
         finally:
             probe.close()
     except Exception as exc:
