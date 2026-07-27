@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: debian:13.4-slim
+From: ubuntu:26.04
 Stage: build
 
 %files
@@ -7,35 +7,42 @@ Stage: build
 
 %post
     export LC_ALL=C
+    export DEBIAN_FRONTEND=noninteractive
     export CONAN_HOME=/opt/conan_home
 
-    apt -y update
-    apt -y upgrade
-    apt -y install libgomp1 build-essential git cmake python3 python3-pip
-    pip install --break-system-packages conan
+    apt-get -y update \
+        && apt-get install -y --no-install-recommends \
+            build-essential git cmake \
+            python3 python3-pip python-is-python3
+
+    pip install \
+        --root-user-action=ignore \
+        --break-system-packages \
+        --no-cache-dir \
+        conan
 
     cd /opt
     git clone https://github.com/parantapa/ds-service.git
     cd ds-service
+    git checkout v1.0.1
 
     conan install . --build=missing
+    BUILD_DIR="./build/Release"
 
-    . "build/Release/generators/conanbuild.sh"
-
-    cmake -S . -B "build/Release" \
+    cmake -S . -B "$BUILD_DIR" \
+        -DCMAKE_CXX_FLAGS="-Wall -Wextra" \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake"
 
-    cmake --build "build/Release" --parallel
+    cmake --build "$BUILD_DIR" --parallel
+    cmake --install "$BUILD_DIR" --prefix /usr
 
-    cp -a build/Release/ds-service /bin
+Bootstrap: docker
+From: ubuntu:26.04
+Stage: final
 
-    conan remove "*" --confirm
-    pip cache purge
-
-    apt -y remove build-essential git cmake python3 python3-pip
-    apt -y autoremove
-    apt -y autoclean
+%files from build
+    /usr/bin/ds-service /usr/bin/ds-service
 
 %environment
     export LC_ALL=C
