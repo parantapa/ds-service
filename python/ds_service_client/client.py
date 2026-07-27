@@ -8,11 +8,30 @@ from contextlib import contextmanager
 from .ds_service_pb2 import *
 from .ds_service_pb2_grpc import *
 
+# Largest single request or response accepted, in bytes.
+# Must match MAX_MESSAGE_SIZE_BYTES in cpp/ds-service.cpp:
+# if the two disagree, one side rejects what the other happily sends.
+MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024
+
 GRPC_CLIENT_OPTIONS = [
+    # This ping interval must stay above the server's
+    # GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS
+    # (10s in cpp/ds-service.cpp),
+    # or the server answers pings with GOAWAY/ENHANCE_YOUR_CALM
+    # and drops the connection.
     ("grpc.keepalive_time_ms", 120 * 1000),
     ("grpc.keepalive_timeout_ms", 30 * 1000),
-    ("grpc.http2.max_pings_without_data", 5),
+    # 0 means "unlimited".
+    # This caps the number of keepalive pings sent
+    # while no RPC is in flight -- it is a total, not a rate
+    # -- so any finite value makes the client stop pinging
+    # on a long-idle connection,
+    # which is exactly the connection keepalive_permit_without_calls
+    # is meant to protect.
+    ("grpc.http2.max_pings_without_data", 0),
     ("grpc.keepalive_permit_without_calls", 1),
+    ("grpc.max_receive_message_length", MAX_MESSAGE_SIZE_BYTES),
+    ("grpc.max_send_message_length", MAX_MESSAGE_SIZE_BYTES),
 ]
 
 # Default deadline applied to every RPC, in seconds.
@@ -40,6 +59,10 @@ def translate_grpc_error():
             raise TimeoutError(e.details())
         elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
             raise TimeoutError(e.details())
+        elif e.code() == grpc.StatusCode.RESOURCE_EXHAUSTED:
+            # In practice this is a message larger than MAX_MESSAGE_SIZE_BYTES,
+            # i.e. a caller-side size problem, so it reads as a ValueError.
+            raise ValueError(e.details())
         else:
             raise
 

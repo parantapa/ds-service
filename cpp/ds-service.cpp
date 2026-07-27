@@ -548,6 +548,15 @@ struct DsServiceImpl final : public DsService::Service {
     }
 };
 
+// Largest single request or response accepted, in bytes.
+// gRPC's own default is 4 MiB on receive,
+// which is easy to hit with binary map values,
+// journal entries, or task payloads.
+// The Python client sets the same limit;
+// the two must be changed together,
+// or one side rejects what the other happily sends.
+constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
+
 int main(int argc, char* argv[]) {
     argparse::ArgumentParser program(argv[0]);
     program.add_description("A data structure server.");
@@ -587,7 +596,25 @@ int main(int argc, char* argv[]) {
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
     builder.AddChannelArgument(GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS, 10 * 1000 /*10 sec*/);
 
+    // Refuse to share the port.
+    // gRPC enables SO_REUSEPORT by default,
+    // so without this a second ds-service started on an occupied address
+    // binds silently alongside the first.
+    // State is in-memory and non-persistent,
+    // so that splits clients across two divergent instances
+    // instead of failing.
+    builder.AddChannelArgument(GRPC_ARG_ALLOW_REUSEPORT, 0);
+
+    builder.SetMaxReceiveMessageSize(MAX_MESSAGE_SIZE_BYTES);
+    builder.SetMaxSendMessageSize(MAX_MESSAGE_SIZE_BYTES);
+
     std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+    if (!server) {
+        // BuildAndStart returns null when the port cannot be bound.
+        // Report it instead of dereferencing null below.
+        spdlog::error("Failed to bind {}; is another ds-service already running there?", server_address);
+        return 1;
+    }
     GLOBAL_SYSTEM_STATE->server = server.get();
 
     spdlog::info("starting server ...");

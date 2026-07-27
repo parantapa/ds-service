@@ -11,7 +11,10 @@
       "Bash(git stash *)",
       "Bash(DS_SERVICE_BIN=build/Release/ds-service timeout 300 python -m pytest -q tests/test_client_deadline.py)",
       "Bash(DS_SERVICE_BIN=build/Release/ds-service timeout 300 python -m pytest -q tests/test_client_deadline.py --durations=10)",
-      "Bash(DS_SERVICE_BIN=build/Release/ds-service timeout 300 python -m pytest -q)"
+      "Bash(DS_SERVICE_BIN=build/Release/ds-service timeout 300 python -m pytest -q)",
+      "Bash(timeout 900 cmake --build build/Release --parallel)",
+      "Bash(DS_SERVICE_BIN=build/Release/ds-service timeout 300 python -m pytest -q tests/test_grpc_options.py --durations=5)",
+      "Bash(command -v clang-format)"
     ]
   }
 }

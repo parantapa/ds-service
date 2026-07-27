@@ -72,6 +72,12 @@ def _wait_until_listening(host: str, port: int, proc: subprocess.Popen) -> bool:
 
 
 @pytest.fixture
+def server_binary() -> Path:
+    """Path to the ds-service binary under test."""
+    return _find_binary()
+
+
+@pytest.fixture
 def server():
     """Start a ds-service process on a free port and yield its address.
 
