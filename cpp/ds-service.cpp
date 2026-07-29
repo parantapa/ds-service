@@ -557,8 +557,10 @@ struct DsServiceImpl final : public DsService::Service {
 // or one side rejects what the other happily sends.
 constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
 
+const char* VERSION = "1.0.3.dev1+g3e52956bd.d20260729";
+
 int main(int argc, char* argv[]) {
-    argparse::ArgumentParser program(argv[0]);
+    argparse::ArgumentParser program(argv[0], VERSION);
     program.add_description("A data structure server.");
 
     std::string server_address{};

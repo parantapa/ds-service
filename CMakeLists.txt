@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 4.0)
 
 project(
   ds-service
-  VERSION 0.0.1
+  VERSION 1.0.3
   LANGUAGES CXX)
 
 find_package(spdlog REQUIRED)
