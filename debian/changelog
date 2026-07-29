@@ -1,5 +1,5 @@
-ds-service (1.0.3) unstable; urgency=medium
+ds-service (1.0.4) unstable; urgency=medium
 
   * Initial Debian packaging of the ds-service server binary.
 
- -- Parantapa Bhattacharya <pb@parantapa.net>  Wed, 29 Jul 2026 14:07:12 -0400
+ -- Parantapa Bhattacharya <pb@parantapa.net>  Wed, 29 Jul 2026 14:52:53 -0400
