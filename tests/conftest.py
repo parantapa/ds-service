@@ -78,11 +78,11 @@ def server_binary() -> Path:
 
 
 @pytest.fixture
-def server():
-    """Start a ds-service process on a free port and yield its address.
+def server_process():
+    """Start a ds-service process on a free port and yield (proc, address).
 
-    The server is torn down at the end of the test.
-    A fresh process per test keeps the (non-persistent) server state isolated.
+    Most tests want just the address and use the ``server`` fixture;
+    this one is for tests that drive the process itself, such as signalling it.
     """
     binary = _find_binary()
     host = "127.0.0.1"
@@ -134,7 +134,7 @@ def server():
         ) from exc
 
     try:
-        yield address
+        yield proc, address
     finally:
         proc.terminate()
         try:
@@ -142,6 +142,16 @@ def server():
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+
+
+@pytest.fixture
+def server(server_process):
+    """The address of a running ds-service process.
+
+    A fresh process per test keeps the (non-persistent) server state isolated.
+    """
+    _, address = server_process
+    return address
 
 
 @pytest.fixture

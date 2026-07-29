@@ -1,5 +1,7 @@
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <csignal>
 #include <cstddef>
 #include <cstdint>
 #include <format>
@@ -8,6 +10,7 @@
 #include <queue>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 #include <experimental/scope>
@@ -58,7 +61,9 @@ struct SystemState {
     TaskManager task_manager{};
 
     grpc::Server* server{nullptr};
-    bool shutdown{false};
+
+    // Written by the shutdown thread, so not a plain bool.
+    std::atomic<bool> shutdown{false};
 };
 
 // Parse an ISO 8601 UTC datetime string into a system_clock time_point.
@@ -549,15 +554,45 @@ struct DsServiceImpl final : public DsService::Service {
 };
 
 // Largest single request or response accepted, in bytes.
-// gRPC's own default is 4 MiB on receive,
-// which is easy to hit with binary map values,
-// journal entries, or task payloads.
+// gRPC's default is 4 MiB.
 // The Python client sets the same limit;
-// the two must be changed together,
-// or one side rejects what the other happily sends.
+// the two must be changed together.
 constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
 
+// How long in-flight RPCs are given to finish once shutdown starts.
+// Anything still running when the deadline passes is cancelled.
+constexpr int SHUTDOWN_GRACE_S = 5;
+
 const char* VERSION = "1.0.3";
+
+// How often the thread below looks for a delivered signal.
+// It bounds how long shutdown takes to start, so keep it short.
+constexpr auto SHUTDOWN_POLL_INTERVAL = std::chrono::milliseconds(100);
+
+// Set by the signal handler, read by the shutdown thread.
+volatile std::sig_atomic_t SHUTDOWN_SIGNAL = 0;
+
+// A signal handler may touch nothing but a volatile sig_atomic_t.
+// It records the signal and leaves the work to the thread below.
+// Calling Shutdown(), or logging, from here would be undefined behaviour.
+extern "C" void handle_shutdown_signal(int signum) {
+    SHUTDOWN_SIGNAL = signum;
+}
+
+// Wait for SIGINT or SIGTERM, then shut the server down gracefully.
+//
+// Shutdown() refuses new calls, lets in-flight ones finish until the deadline,
+// and makes the Wait() in main return.
+void await_shutdown_signal() {
+    while (SHUTDOWN_SIGNAL == 0) {
+        std::this_thread::sleep_for(SHUTDOWN_POLL_INTERVAL);
+    }
+
+    spdlog::info("received signal {}; shutting down ...", static_cast<int>(SHUTDOWN_SIGNAL));
+
+    GLOBAL_SYSTEM_STATE->shutdown = true;
+    GLOBAL_SYSTEM_STATE->server->Shutdown(std::chrono::system_clock::now() + std::chrono::seconds(SHUTDOWN_GRACE_S));
+}
 
 int main(int argc, char* argv[]) {
     argparse::ArgumentParser program(argv[0], VERSION);
@@ -580,6 +615,15 @@ int main(int argc, char* argv[]) {
     }
 
     spdlog::info("server_address = {}", server_address);
+
+    // Installed before the server starts,
+    // so a signal arriving during startup is recorded
+    // and acted on as soon as the shutdown thread runs.
+    if (std::signal(SIGINT, handle_shutdown_signal) == SIG_ERR ||
+        std::signal(SIGTERM, handle_shutdown_signal) == SIG_ERR) {
+        spdlog::error("Failed to install shutdown signal handlers");
+        return 1;
+    }
 
     SystemState global_system_state{};
     GLOBAL_SYSTEM_STATE = &global_system_state;
@@ -619,8 +663,14 @@ int main(int argc, char* argv[]) {
     }
     GLOBAL_SYSTEM_STATE->server = server.get();
 
+    // Started only once the server pointer is published,
+    // which is what this thread calls Shutdown() on.
+    std::thread shutdown_thread{await_shutdown_signal};
+
     spdlog::info("starting server ...");
     server->Wait();
+    shutdown_thread.join();
+    spdlog::info("server stopped");
 
     return 0;
 }
