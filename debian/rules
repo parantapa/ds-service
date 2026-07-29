@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+
+CONAN ?= conan
+CONAN_INSTALL_ARGS ?= --build=missing -s build_type=Release
+CONAN_GEN_DIR = $(CURDIR)/build/Release/generators
+
+CONAN_ENV = . $(CONAN_GEN_DIR)/conanbuild.sh
+
+%:
+	dh $@ --buildsystem=cmake
+
+override_dh_auto_configure:
+	$(CONAN) profile detect --exist-ok
+	$(CONAN) install $(CURDIR) $(CONAN_INSTALL_ARGS)
+	$(CONAN_ENV) && dh_auto_configure -- \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_TOOLCHAIN_FILE=$(CONAN_GEN_DIR)/conan_toolchain.cmake
+
+override_dh_auto_build:
+	$(CONAN_ENV) && dh_auto_build
+
+override_dh_auto_test:
+
+override_dh_auto_clean:
+	dh_auto_clean
+	rm -rf $(CURDIR)/build

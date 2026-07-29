@@ -1,0 +1,21 @@
+Source: ds-service
+Section: utils
+Priority: optional
+Maintainer: Parantapa Bhattacharya <pb@parantapa.net>
+Build-Depends:
+ debhelper-compat (= 13),
+ cmake (>= 4.0),
+ g++ (>= 14),
+ git,
+ python3,
+Standards-Version: 4.7.0
+Homepage: https://github.com/parantapa/ds-service
+Rules-Requires-Root: no
+
+Package: ds-service
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Description: ds-service is a in-memory data structure server accessible over gRPC.
+ This package only provides the server binary.
