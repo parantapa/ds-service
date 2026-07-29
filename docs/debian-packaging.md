@@ -9,9 +9,6 @@ The Python client is not packaged here.
 - `build-essential`, `debhelper` (>= 13), `cmake` (>= 4.0), `g++` (>= 14), `git`
 - [Conan](https://conan.io/) 2.x on `PATH` (`pip install conan`) —
     the C++ dependencies come from Conan.
-- `setuptools_scm` (`pip install setuptools_scm`),
-    which supplies the package version;
-    only needed when the version is not passed with `-v`.
 
 ## Building
 
@@ -27,12 +24,18 @@ so commit before building and so the repo stays clean.
 
 ## Versioning
 
-`build-deb.sh` takes the version from `setuptools_scm`,
-i.e. from the git tags,
-and writes it into the changelog of the staged tree before building.
-The version in the committed `debian/changelog` is therefore
-only what a plain `dpkg-buildpackage` run in the repo root would use;
-the script overwrites it.
+The package version is the one in the top entry of `debian/changelog`,
+which is where `dpkg-buildpackage` reads it from as well.
+
+`scripts/update-version.sh 1.0.4` sets that entry,
+along with `project(VERSION ...)` in `CMakeLists.txt`
+and the `VERSION` string in `cpp/ds-service.cpp`,
+so run it before building to change the version.
+It rewrites the top entry rather than adding one,
+so add a new entry by hand (or with `dch`) when the change deserves one.
+
+`build-deb.sh -v` overrides the version for a single build
+by rewriting the changelog of the staged tree; the repo is not touched.
 
 ## Installing
 
