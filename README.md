@@ -22,8 +22,6 @@ Presently, it provides six data structures:
     that hand out successive integers.
 
 Each of these is a separate key space with its own set of RPCs.
-See [docs/data-structure-reference.md](docs/data-structure-reference.md)
-for what every RPC does and the exact semantics of each structure.
 
 ## Architecture
 
@@ -43,65 +41,12 @@ for what every RPC does and the exact semantics of each structure.
 - **Interface** (`misc/ds-service.proto`) -- the protobuf/gRPC contract
     shared by both sides.
 
-## Building and running the server
+## Additional Information
 
-Dependencies are managed with [Conan](https://conan.io/)
-and the build is driven by CMake:
-
-```sh
-conan install . --build=missing
-. build/Release/generators/conanbuild.sh
-cmake -S . -B build/Release \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_TOOLCHAIN_FILE=generators/conan_toolchain.cmake
-cmake --build build/Release --parallel
-
-build/Release/ds-service --address 0.0.0.0:5051
-```
-
-See [docs/howto-build-the-server.md](docs/howto-build-the-server.md)
-for the requirements, what each step does, installing,
-and the container build.
-A Debian package can be built as well --
-see [docs/debian-packaging.md](docs/debian-packaging.md).
-
-## Python client
-
-```sh
-pip install ds-service-client
-```
-
-```python
-from ds_service_client import Client
-
-client = Client("127.0.0.1:5051")  # or set DS_SERVER_ADDRESS and call Client()
-
-client.map_set("greeting", b"hello")
-assert client.map_get("greeting") == b"hello"
-```
-
-See [docs/howto-use-the-python-client.md](docs/howto-use-the-python-client.md)
-for connecting, the gRPC-status-to-exception mapping,
-and worked examples of every data structure.
-
-## Running the tests
-
-The test suite (`tests/`) is an integration suite driven by
-[pytest](https://pytest.org/): it starts a fresh `ds-service` process
-for each test and drives it through the Python client.
-[Build the server](docs/howto-build-the-server.md) first
-(the tests run the compiled binary), then:
-
-```sh
-pip install -e ".[test]"                      # pytest + the client package
-export DS_SERVICE_BIN=build/Release/ds-service
-python -m pytest
-```
-
-See [docs/howto-run-the-tests.md](docs/howto-run-the-tests.md) for
-running individual tests, how the binary is located,
-and what the fixtures provide.
-
-## License
-
-MIT -- see [LICENSE](LICENSE).
+| Document | What it covers |
+| --- | --- |
+| [Data structure reference](docs/data-structure-reference.md) | Every RPC, its arguments and error statuses, and the exact semantics of each data structure. |
+| [How to build the server](docs/howto-build-the-server.md) | Requirements, the Conan + CMake build, installing, running, and the container build. |
+| [How to use the Python client](docs/howto-use-the-python-client.md) | Installing, connecting, the gRPC-status-to-exception mapping, and usage examples. |
+| [How to run the tests](docs/howto-run-the-tests.md) | The pytest integration suite, pointing it at the binary, and what the fixtures provide. |
+| [Debian packaging](docs/debian-packaging.md) | Building the `.deb` and setting the package version. |
