@@ -22,15 +22,29 @@
 #include <grpcpp/grpcpp.h>
 
 #include <ds-service.grpc.pb.h>
-#include <task_table.hpp>
 
 template <typename K, typename V>
 using Map = phmap::parallel_flat_hash_map<K, V>;
 
 using TaskQueueEntry = std::priority_queue<std::pair<double, std::size_t>>;
 
+// Tasks are stored struct-of-arrays: a task is a row index shared across
+// these parallel vectors, which are always the same length.
+// Add a task by pushing onto every column, and read a field as
+// `tasks.<column>[index]`.
+struct TaskTable {
+    std::vector<std::string> task_id;
+    std::vector<double> priority;
+    std::vector<std::string> function;
+    std::vector<std::string> input;
+    std::vector<std::string> output;
+    std::vector<TaskState> state;
+    std::vector<double> start_time;
+    std::vector<std::vector<std::string>> queues;
+};
+
 struct TaskManager {
-    task_table::TaskTable tasks;
+    TaskTable tasks;
     Map<std::string, std::size_t> task_index;
     Map<std::string, TaskQueueEntry> queue;
 };
@@ -156,15 +170,21 @@ struct DsServiceImpl final : public DsService::Service {
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto it = task_manager.task_index.find(request->task_id());
         if (it == task_manager.task_index.end()) {
-            task_manager.tasks.push_back(request->task_id(), request->priority(), request->function(), request->input(),
-                                         "", TaskState::Ready, -1.0, {});
+            auto& tasks = task_manager.tasks;
+            tasks.task_id.push_back(request->task_id());
+            tasks.priority.push_back(request->priority());
+            tasks.function.push_back(request->function());
+            tasks.input.push_back(request->input());
+            tasks.output.push_back("");
+            tasks.state.push_back(TaskState::Ready);
+            tasks.start_time.push_back(-1.0);
+            tasks.queues.push_back({});
 
-            auto index = task_manager.tasks.size() - 1;
-            auto task = task_manager.tasks[index];
+            auto index = tasks.task_id.size() - 1;
 
             task_manager.task_index[request->task_id()] = index;
             for (const auto& qname : request->queue()) {
-                task.queues().push_back(qname);
+                tasks.queues[index].push_back(qname);
                 task_manager.queue[qname].push(std::make_pair(request->priority(), index));
             }
 
@@ -186,7 +206,7 @@ struct DsServiceImpl final : public DsService::Service {
             if (it == task_manager.task_index.end()) {
                 response->add_state(TaskState::Undefined);
             } else {
-                response->add_state(task_manager.tasks[it->second].state());
+                response->add_state(task_manager.tasks.state[it->second]);
             }
         }
 
@@ -204,7 +224,7 @@ struct DsServiceImpl final : public DsService::Service {
                                 fmt::format("Task with ID = {} not found.", request->task_id()));
         }
 
-        response->set_output(task_manager.tasks[it->second].output());
+        response->set_output(task_manager.tasks.output[it->second]);
         return grpc::Status::OK;
     }
 
@@ -216,8 +236,8 @@ struct DsServiceImpl final : public DsService::Service {
         // state column gives the count per state.
         auto& tasks = GLOBAL_SYSTEM_STATE->task_manager.tasks;
         std::uint64_t ready = 0, running = 0, complete = 0;
-        for (std::size_t index = 0; index < tasks.size(); index++) {
-            switch (tasks[index].state()) {
+        for (const auto& state : tasks.state) {
+            switch (state) {
             case TaskState::Ready:
                 ready++;
                 break;
@@ -242,18 +262,18 @@ struct DsServiceImpl final : public DsService::Service {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
+        auto& tasks = task_manager.tasks;
         for (const auto& qname : request->queue()) {
             auto& queue = task_manager.queue[qname];
             while (!queue.empty()) {
                 const auto& [_, index] = queue.top();
-                auto task = task_manager.tasks[index];
-                if (task.state() == TaskState::Ready) {
-                    task.state() = TaskState::Running;
-                    task.start_time() = now_seconds();
+                if (tasks.state[index] == TaskState::Ready) {
+                    tasks.state[index] = TaskState::Running;
+                    tasks.start_time[index] = now_seconds();
 
-                    response->set_task_id(task.task_id());
-                    response->set_function(task.function());
-                    response->set_input(task.input());
+                    response->set_task_id(tasks.task_id[index]);
+                    response->set_function(tasks.function[index]);
+                    response->set_input(tasks.input[index]);
 
                     queue.pop();
                     return grpc::Status::OK;
@@ -275,11 +295,11 @@ struct DsServiceImpl final : public DsService::Service {
             return grpc::Status(grpc::StatusCode::NOT_FOUND,
                                 fmt::format("Task with ID = {} not found.", request->task_id()));
         } else {
-            auto index = task_manager.task_index[request->task_id()];
-            auto task = task_manager.tasks[index];
-            if (task.state() == TaskState::Running) {
-                task.state() = TaskState::Complete;
-                task.output() = request->output();
+            auto index = it->second;
+            auto& tasks = task_manager.tasks;
+            if (tasks.state[index] == TaskState::Running) {
+                tasks.state[index] = TaskState::Complete;
+                tasks.output[index] = request->output();
             }
             return grpc::Status::OK;
         }
@@ -291,14 +311,14 @@ struct DsServiceImpl final : public DsService::Service {
         double max_start_time = now_seconds() - request->timeout_s();
 
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
-        for (std::size_t index = 0; index < std::size(task_manager.tasks); index++) {
-            auto task = task_manager.tasks[index];
-            if (task.state() == TaskState::Running && task.start_time() < max_start_time) {
-                task.state() = TaskState::Ready;
-                task.start_time() = -1;
+        auto& tasks = task_manager.tasks;
+        for (std::size_t index = 0; index < tasks.task_id.size(); index++) {
+            if (tasks.state[index] == TaskState::Running && tasks.start_time[index] < max_start_time) {
+                tasks.state[index] = TaskState::Ready;
+                tasks.start_time[index] = -1;
 
-                for (const auto& qname : task.queues()) {
-                    task_manager.queue[qname].push(std::make_pair(task.priority(), index));
+                for (const auto& qname : tasks.queues[index]) {
+                    task_manager.queue[qname].push(std::make_pair(tasks.priority[index], index));
                 }
             }
         }
