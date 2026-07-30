@@ -40,46 +40,6 @@ A proto change is a four-step job, and only the first two are automatic:
 4. Hand-update `cpp/ds-service.cpp` and
     `python/ds_service_client/client.py` to implement and expose the change.
 
-## Server internals
-
-These are implementation details of `cpp/ds-service.cpp`, not covered by
-the docs:
-
-- All state lives in one file-scope `GLOBAL_SYSTEM_STATE` (a
-    `SystemState`) that pairs each structure with its own `std::mutex`:
-    `map`/`map_lock`, `journal_map`/`journal_map_lock`,
-    `time_series`/`time_series_lock`, `mutexes`/`mutexes_lock`,
-    `counters`/`counters_lock`, `task_manager`/`task_manager_lock`.
-    Each RPC takes a `std::scoped_lock` on the one structure it touches;
-    there is no per-key or per-queue locking within a structure.
-- The task table is **struct-of-arrays**: `TaskTable` is a plain struct of
-    parallel vectors defined in `cpp/ds-service.cpp`, and a task is a row
-    index into all of them, read as `tasks.state[index]` — there is no
-    task struct and no proxy type. Adding a task means pushing onto every
-    column, so keep them the same length. `task_index` maps
-    `task_id → row`; `queue` maps queue name to a `std::priority_queue`
-    of `(priority, index)`.
-- `TaskGet` lazily discards non-`Ready` entries as it pops them.
-    `TaskRequeue` scans every task rather than using an index. Timing
-    uses `now_seconds()`, a `std::chrono::high_resolution_clock` reading.
-- OpenMP was removed; there are no OMP locks or `omp_get_wtime()` calls
-    anywhere. Don't reintroduce them.
-- **Some gRPC channel options are only correct as a matched pair across
-    the two languages**, and `tests/test_grpc_options.py` is what holds
-    them together:
-  - The client's `keepalive_time_ms` (120 s) must stay **above** the
-      server's `GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS`
-      (10 s). Ping faster than the floor and the server replies
-      `GOAWAY`/`ENHANCE_YOUR_CALM`, killing every long-lived connection —
-      which surfaces to callers as `TimeoutError`, not as anything
-      mentioning pings.
-  - `MAX_MESSAGE_SIZE_BYTES` (64 MiB) is defined once per side
-      (`cpp/ds-service.cpp`, `client.py`) and the two must agree, or one
-      side rejects what the other sends. gRPC's own default is 4 MiB.
-  - `max_pings_without_data` is `0` (unlimited) deliberately: it is a
-      *total*, not a rate, so any finite value makes an idle client stop
-      sending keepalives entirely.
-
 ## Conventions
 
 - C++ formatting is enforced by `.clang-format` (LLVM base, 4-space

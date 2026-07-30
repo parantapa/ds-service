@@ -45,7 +45,16 @@ struct TaskTable {
 
 struct TaskManager {
     TaskTable tasks;
+
+    // task_id -> the row in `tasks` holding it.
     Map<std::string, std::size_t> task_index;
+
+    // Queue name -> the rows waiting on it, ordered by priority.
+    // std::priority_queue is a max-heap, so the highest priority
+    // is dispatched first.
+    // A row may sit in several queues at once, and entries are never
+    // removed on a state change -- TaskGet drops the stale ones as it
+    // pops them.
     Map<std::string, TaskQueueEntry> queue;
 };
 
@@ -55,6 +64,21 @@ struct TimeSeries {
     std::vector<std::int64_t> step;
 };
 
+// All server state, and the locks guarding it.
+//
+// Locking is per top-level data structure rather than one global lock:
+// each structure is paired with its own mutex, so operations on one are
+// serialized while operations on different ones run concurrently.
+// Every RPC takes a std::scoped_lock on the single structure it touches,
+// so no request ever holds more than one lock and the ordering between
+// them cannot deadlock. Keep it that way: an RPC spanning two structures
+// would need a lock order defined for the whole file.
+// There is no finer-grained locking within a structure -- no per-key or
+// per-queue locks -- so a slow whole-structure scan (any SearchKey,
+// TaskRequeue) blocks every other operation on that structure.
+//
+// This used to use OpenMP locks; it does not any more.
+// Don't reintroduce OpenMP here.
 struct SystemState {
     std::mutex map_lock{};
     Map<std::string, std::string> map{};
@@ -116,6 +140,9 @@ std::string format_iso8601_utc(const std::chrono::system_clock::time_point& tp) 
 
 // Current time in seconds as a double.
 // Only differences between two readings are meaningful; the epoch is arbitrary.
+// This is the only clock the task table uses: TaskGet stamps start_time
+// with it and TaskRequeue compares against it, so both must keep using
+// this function rather than any other clock.
 double now_seconds() {
     using namespace std::chrono;
     return duration<double>(high_resolution_clock::now().time_since_epoch()).count();
@@ -261,6 +288,14 @@ struct DsServiceImpl final : public DsService::Service {
     grpc::Status TaskGet(grpc::ServerContext*, const TaskGetRequest* request, TaskGetResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
+        // Queues are searched in the order the caller listed them:
+        // the first one holding a Ready task wins.
+        //
+        // A queue entry is never removed when its task leaves the Ready
+        // state, so entries for tasks that are already Running or
+        // Complete accumulate. They are discarded lazily here, as they
+        // reach the top of the heap -- which is why a popped entry that
+        // is not Ready is dropped rather than skipped.
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto& tasks = task_manager.tasks;
         for (const auto& qname : request->queue()) {
@@ -308,8 +343,16 @@ struct DsServiceImpl final : public DsService::Service {
     grpc::Status TaskRequeue(grpc::ServerContext*, const TaskRequeueRequest* request, Empty*) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
+        // The only fault tolerance the server has: a worker that dies
+        // mid-task leaves it Running for ever, so a client calls this
+        // periodically to hand stalled work to another worker.
+        // It is never called automatically.
         double max_start_time = now_seconds() - request->timeout_s();
 
+        // Stalled tasks are found by scanning every row -- there is no
+        // index by state or by start time -- while holding the task
+        // manager's lock, so this blocks all other task operations for
+        // as long as it runs.
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto& tasks = task_manager.tasks;
         for (std::size_t index = 0; index < tasks.task_id.size(); index++) {
@@ -576,7 +619,9 @@ struct DsServiceImpl final : public DsService::Service {
 // Largest single request or response accepted, in bytes.
 // gRPC's default is 4 MiB.
 // The Python client sets the same limit;
-// the two must be changed together.
+// the two must be changed together,
+// or one side rejects what the other sends.
+// tests/test_grpc_options.py checks that they still agree.
 constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
 
 // How long in-flight RPCs are given to finish once shutdown starts.
@@ -657,6 +702,13 @@ int main(int argc, char* argv[]) {
     // Server sends keepalive pings every 10 mins with 20 second timeout.
     // Pings will be sent even if there are no calls in flight.
     // Server with permit ping at an interval of 10 seconds.
+    //
+    // That last one is a floor on how often a *client* may ping:
+    // the client's keepalive_time_ms (120s in client.py) must stay above
+    // it, or the server answers the pings with GOAWAY/ENHANCE_YOUR_CALM
+    // and kills every long-lived connection -- which reaches callers as
+    // a TimeoutError that says nothing about pings.
+    // tests/test_grpc_options.py checks the two stay ordered.
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIME_MS, 10 * 60 * 1000 /*10 min*/);
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIMEOUT_MS, 20 * 1000 /*20 sec*/);
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);

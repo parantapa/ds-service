@@ -11,14 +11,19 @@ from .ds_service_pb2_grpc import *
 # Largest single request or response accepted, in bytes.
 # Must match MAX_MESSAGE_SIZE_BYTES in cpp/ds-service.cpp:
 # if the two disagree, one side rejects what the other happily sends.
+# gRPC's own default is 4 MiB.
 MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024
 
+# Several of these options are only correct as a matched pair with the
+# server's channel arguments in cpp/ds-service.cpp;
+# tests/test_grpc_options.py is what keeps the two sides in step.
 GRPC_CLIENT_OPTIONS = [
     # This ping interval must stay above the server's
     # GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS
     # (10s in cpp/ds-service.cpp),
     # or the server answers pings with GOAWAY/ENHANCE_YOUR_CALM
     # and drops the connection.
+    # Callers see that as a TimeoutError with no mention of pings.
     ("grpc.keepalive_time_ms", 120 * 1000),
     ("grpc.keepalive_timeout_ms", 30 * 1000),
     # 0 means "unlimited".
