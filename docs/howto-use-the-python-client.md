@@ -1,7 +1,8 @@
 # How to use the Python client
 
-`ds_service_client` is a Python 3.12+ library that wraps the generated
-gRPC stubs and presents the server's data structures as ordinary methods
+`ds_service_client` is a Python 3.12+ library
+that wraps the generated gRPC stubs
+and presents the server's data structures as ordinary methods
 on a `Client` object.
 
 ## Installing
@@ -16,8 +17,6 @@ Or, from a checkout of this repository:
 pip install .
 ```
 
-The only runtime dependency is `grpcio`.
-
 ## Connecting
 
 ```python
@@ -26,11 +25,11 @@ from ds_service_client import Client
 client = Client("127.0.0.1:5051")
 ```
 
-If `Client()` is constructed without an address, it reads the server
-address from the `DS_SERVER_ADDRESS` environment variable.
+If `Client()` is constructed without an address,
+it reads the server address from the `DS_SERVER_ADDRESS` environment variable.
 
-The constructor also takes a `timeout` (seconds, default 300), which is
-applied as the deadline of every RPC the client makes.
+The constructor also takes a `timeout` (seconds, default 300),
+which is applied as the deadline of every RPC the client makes.
 `client.close()` closes the underlying gRPC channel.
 
 ## Errors
@@ -46,9 +45,9 @@ The client translates gRPC status codes into ordinary Python exceptions:
 | `UNAVAILABLE` | `TimeoutError` |
 | `DEADLINE_EXCEEDED` | `TimeoutError` |
 
-So a missing key raises `KeyError`, a bad regular expression or an
-over-sized message raises `ValueError`, and `task_get` with no work
-ready raises `TimeoutError`.
+So a missing key raises `KeyError`,
+a bad regular expression or an over-sized message raises `ValueError`,
+and `task_get` with no work ready raises `TimeoutError`.
 Any other status reaches the caller as a raw `grpc.RpcError`.
 
 ## Usage
@@ -136,9 +135,11 @@ assert client.counter_get_current_value("unused") == 0
 assert client.counter_search_key("^ids$") == ["ids"]
 ```
 
-`mutex_acquire` is the one method with no RPC of its own: it retries
-`mutex_try_acquire` in a loop, sleeping between attempts, and raises
-`TimeoutError` once `timeout` seconds have elapsed.
+`mutex_acquire` is the one method with no RPC of its own:
+it retries `mutex_try_acquire` in a loop,
+sleeping between attempts,
+and raises `TimeoutError` once `timeout` seconds have elapsed.
 With `timeout=None` (the default) it retries forever.
 
-See the [README](../README.md) for what each data structure and RPC does.
+See the [data-structure-reference.md](data-structure-reference.md)
+for what each data structure and RPC does.

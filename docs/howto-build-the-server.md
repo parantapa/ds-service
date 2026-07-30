@@ -8,12 +8,10 @@ and the build is driven by CMake.
 
 - `build-essential` (or another C++23 toolchain — `g++` >= 14), `cmake` (>= 4.0), `git`
 - [Conan](https://conan.io/) 2.x on `PATH` (`pip install conan`) —
-    all the C++ dependencies (gRPC, protobuf, spdlog, argparse,
-    parallel-hashmap, re2) come from Conan, so nothing needs to be
-    installed system-wide.
+    all the C++ dependencies come from Conan.
 
 The first Conan run has to build a fair amount from source
-(gRPC and protobuf in particular), so expect it to take a while.
+so expect it to take a while.
 Subsequent builds reuse the Conan cache.
 
 ## Building
@@ -71,11 +69,6 @@ ds-service --address 0.0.0.0:5051
 The default address is `127.0.0.1:5051`.
 Run `ds-service --help` for the full argument list.
 
-Only one server may bind a given port: the server disables
-`SO_REUSEPORT`, so a second process started on an occupied port logs
-`Failed to bind` and exits with status 1 rather than silently splitting
-clients across two divergent in-memory states.
-
 ## Container build
 
 A reproducible container build is defined in
@@ -86,19 +79,12 @@ apptainer build ds-service.sif scripts/apptainer/ds-service.def
 ./ds-service.sif --address 0.0.0.0:5051
 ```
 
-It is a two-stage build — the first stage clones the repository and
-builds it as above, the second keeps only the resulting binary.
-The definition file checks out a pinned tag, so edit its `git checkout`
-line to build a different version.
+It is a two-stage build
+— the first stage clones the repository and builds it as above,
+the second keeps only the resulting binary.
+The definition file checks out a pinned tag,
+so edit its `git checkout` line to build a different version.
 
 ## Debian package
 
 To build a `.deb` instead, see [debian-packaging.md](debian-packaging.md).
-
-## Other scripts
-
-`scripts/pb-dev.sh` is the maintainer's convenience wrapper
-(`setup` / `build` / `server` / `install` subcommands).
-It sources `$HOME/default-env.sh` and uses `$SCRATCH_DIR`,
-so it only works in that personal environment —
-use the commands above everywhere else.

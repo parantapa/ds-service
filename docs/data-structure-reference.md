@@ -1,14 +1,16 @@
 # Data structure reference
 
-The six data structures `ds-service` provides, and the RPCs that operate
-on each of them.
-`misc/ds-service.proto` is the authoritative definition of the wire
-format; this document describes what each RPC does.
+The data structures `ds-service` provides,
+and the RPCs that operate on each of them.
 
-Every RPC touches a single data structure and takes that structure's
-lock for the duration of the call, so operations on one structure are
-serialized while operations on different structures may run
-concurrently.
+`misc/ds-service.proto` is the authoritative definition
+of the wire format;
+this document describes what each RPC does.
+
+Every RPC touches a single data structure
+and takes that structure's lock for the duration of the call,
+so operations on one structure are serialized
+while operations on different structures may run concurrently.
 No state is persisted -- when the server stops, all of it is lost.
 
 The Python names for these operations are the snake_case forms of the

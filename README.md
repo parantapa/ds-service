@@ -8,7 +8,7 @@
 that holds shared state in memory
 and lets many distributed clients and workers coordinate using it.
 
-Presently, it provides six things:
+Presently, it provides six data structures:
 - **A key-value store** -- a shared `string -> bytes` store
     for passing data between processes.
 - **A task queue** -- a priority-based work queue
