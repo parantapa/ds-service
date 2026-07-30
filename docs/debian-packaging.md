@@ -28,8 +28,9 @@ The package version is the one in the top entry of `debian/changelog`,
 which is where `dpkg-buildpackage` reads it from as well.
 
 `scripts/update-version.sh 1.0.4` sets that entry,
-along with `project(VERSION ...)` in `CMakeLists.txt`
-and the `VERSION` string in `cpp/ds-service.cpp`,
+along with `project(VERSION ...)` in `CMakeLists.txt`,
+the `VERSION` string in `cpp/ds-service.cpp`,
+and the package versions in `pyproject.toml` and `conanfile.py`,
 so run it before building to change the version.
 It rewrites the top entry rather than adding one,
 so add a new entry by hand (or with `dch`) when the change deserves one.

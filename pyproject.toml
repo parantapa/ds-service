@@ -1,10 +1,11 @@
 [build-system]
-requires = ["setuptools>=77", "setuptools_scm>=8"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ds-service-client"
-dynamic = ["version"]
+# Set by scripts/update-version.sh, along with the other version strings.
+version = "1.0.4"
 authors = [
   { name="Parantapa Bhattacharya", email="pb@parantapa.net" },
 ]
@@ -31,19 +32,15 @@ test = [
 [project.urls]
 Homepage = "https://github.com/parantapa/ds-service"
 
-# Package only the ds_service_client module.
-# setuptools_scm otherwise sweeps every tracked file
-# under the package into the wheel,
-# so drop the source .proto that lives beside the generated stubs.
+# Package only the ds_service_client module,
+# and keep the source .proto that lives beside the generated stubs
+# out of the wheel.
 [tool.setuptools.packages.find]
 where = ["python"]
 include = ["ds_service_client*"]
 
 [tool.setuptools.exclude-package-data]
 "*" = ["*.proto"]
-
-[tool.setuptools_scm]
-fallback_version = "1.0.0-dev"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

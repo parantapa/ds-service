@@ -85,9 +85,10 @@ the docs:
 - C++ formatting is enforced by `.clang-format` (LLVM base, 4-space
     indent, 120 columns, left pointer alignment, `SortIncludes: false` —
     include order is intentional).
-- `scripts/update-version.sh` sets the version in `cpp/ds-service.cpp`,
-    `CMakeLists.txt`, and `debian/changelog` together. Two other version
-    numbers are independent of it and of each other: `conanfile.py` is
-    pinned at `version = "main"`, and the Python package takes its
-    version from git tags via `setuptools_scm` (fallback in
-    `pyproject.toml`).
+- Every version string in the repo is set by
+    `scripts/update-version.sh <version>`: `cpp/ds-service.cpp`,
+    `CMakeLists.txt` (numeric part only — `project(VERSION)` rejects a
+    pre-release suffix), `pyproject.toml`, `conanfile.py`, and the top
+    entry of `debian/changelog`. Set them through the script rather than
+    by hand. The script greps for each line first and edits nothing
+    unless all of them are present.
