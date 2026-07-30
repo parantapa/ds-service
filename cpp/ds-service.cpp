@@ -76,9 +76,6 @@ struct TimeSeries {
 // There is no finer-grained locking within a structure -- no per-key or
 // per-queue locks -- so a slow whole-structure scan (any SearchKey,
 // TaskRequeue) blocks every other operation on that structure.
-//
-// This used to use OpenMP locks; it does not any more.
-// Don't reintroduce OpenMP here.
 struct SystemState {
     std::mutex map_lock{};
     Map<std::string, std::string> map{};
