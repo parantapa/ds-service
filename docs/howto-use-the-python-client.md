@@ -168,7 +168,7 @@ The constructor takes three optional arguments:
 | Argument | Default | Meaning |
 | --- | --- | --- |
 | `host` | `"0.0.0.0"` | IPv4 address the server binds. |
-| `port` | a free ephemeral port | Port the server binds. |
+| `port` | a free ephemeral port | Port the server binds; `0` means the same as leaving it out. |
 | `ds_service_bin` | `$DS_SERVICE_BIN`, else `ds-service` | How to start the server. |
 
 `ds_service_bin` and `DS_SERVICE_BIN` may hold a **whole command**,

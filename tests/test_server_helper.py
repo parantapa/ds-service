@@ -9,6 +9,20 @@ import pytest
 from ds_service_client import DsServiceClient, DsServiceServer
 
 
+def test_port_zero_means_an_ephemeral_port():
+    """0 is the usual way to ask the kernel for a port, as is None."""
+    with DsServiceServer(host="127.0.0.1", port=0) as ds_server:
+        assert ds_server.port != 0
+        ds_server.wait_until_ready(timeout=15)
+
+        ds_client = DsServiceClient(ds_server.address)
+        try:
+            ds_client.map_set("k", b"v")
+            assert ds_client.map_get("k") == b"v"
+        finally:
+            ds_client.close()
+
+
 def test_explicit_port_already_in_use_is_refused(server):
     """Starting on an occupied port must fail, not silently adopt it.
 

@@ -112,7 +112,10 @@ class DsServiceServer:
                 DS_SERVICE_BIN_ENV_VAR, DEFAULT_DS_SERVICE_BIN
             )
 
-        if port is None:
+
+        # Port 0 is how the kernel is asked for an ephemeral port,
+        # so it means the same here as passing port = None.
+        if not port:
             port = _free_port(host)
         else:
             _check_port_free(host, port)
