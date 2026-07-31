@@ -92,6 +92,12 @@ class DsServiceClient:
     def close(self):
         self.channel.close()
 
+    def __enter__(self) -> "DsServiceClient":
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self.close()
+
     def map_set(self, key: str, value: bytes) -> None:
         with translate_grpc_error():
             self.stub.MapSet(MapSetRequest(key=key, value=value), timeout=self.timeout)

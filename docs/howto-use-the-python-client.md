@@ -32,6 +32,15 @@ The constructor also takes a `timeout` (seconds, default 300),
 which is applied as the deadline of every RPC the client makes.
 `client.close()` closes the underlying gRPC channel.
 
+It is also a context manager,
+which closes the channel on the way out
+whether the block ends normally or raises:
+
+```python
+with DsServiceClient("127.0.0.1:5051") as client:
+    client.map_set("greeting", b"hello")
+```
+
 ## Errors
 
 The client translates gRPC status codes into ordinary Python exceptions:
@@ -153,9 +162,8 @@ from ds_service_client import DsServiceClient, DsServiceServer
 with DsServiceServer() as server:
     server.wait_until_ready()          # blocks until the port accepts connections
 
-    client = DsServiceClient(f"{server.connect_host}:{server.port}")
-    client.map_set("greeting", b"hello")
-    client.close()
+    with DsServiceClient(f"{server.connect_host}:{server.port}") as client:
+        client.map_set("greeting", b"hello")
 ```
 
 Leaving the `with` block calls `close()`,
