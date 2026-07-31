@@ -20,12 +20,12 @@ DS_SERVICE_BIN_ENV_VAR = "DS_SERVICE_BIN"
 # i.e. a ds-service on the PATH.
 DEFAULT_DS_SERVICE_BIN = "ds-service"
 
-# Address used to talk to the server when it listens on a wildcard
+# Address used to talk to the server when it listens on the wildcard
 # address, and when an interface lookup fails.
 LOOPBACK_IP = "127.0.0.1"
 
-# Wildcard addresses: bound on every interface, so not connectable as-is.
-WILDCARD_IPS = frozenset({"0.0.0.0", "::"})
+# Bound on every interface, so not connectable as-is.
+WILDCARD_IP = "0.0.0.0"
 
 # How long close() waits for a SIGTERM'd server to exit before SIGKILL.
 TERMINATE_TIMEOUT_S = 10.0
@@ -38,7 +38,7 @@ EXIT_POLL_INTERVAL_S = 0.01
 
 
 def _free_port(host: str) -> int:
-    """Reserve an ephemeral port on host and return it.
+    """Reserve an ephemeral IPv4 port on host and return it.
 
     The socket is closed before the server is started,
     so the port is only reserved in the sense that
@@ -86,14 +86,27 @@ class DsServiceServer:
     but shell syntax -- a pipeline, a redirection, a `FOO=bar` prefix
     -- is not.
     Wrap such a command in a script of your own if you need one.
+
+    IPv4 only: host must be a dotted-quad address or a name that
+    resolves to one, since the address is passed to the server as a
+    plain `host:port` string, which has no way to spell an IPv6 address.
     """
 
     def __init__(
         self,
-        host: str = "0.0.0.0",
+        host: str = WILDCARD_IP,
         port: int | None = None,
         ds_service_bin: str | None = None,
     ):
+        # An IPv6 literal would make a `host:port` string ambiguous
+        # ("::1:5051"), so reject it here rather than letting it fail
+        # deeper down as an unrelated-looking socket error.
+        if ":" in host:
+            raise ValueError(
+                f"IPv6 is not supported, and {host!r} looks like an IPv6 "
+                f"address; give an IPv4 address such as {WILDCARD_IP}."
+            )
+
         if ds_service_bin is None:
             ds_service_bin = os.environ.get(
                 DS_SERVICE_BIN_ENV_VAR, DEFAULT_DS_SERVICE_BIN
@@ -128,8 +141,8 @@ class DsServiceServer:
 
     @property
     def connect_host(self) -> str:
-        """Host to connect to, for a server listening on a wildcard address."""
-        if self.host in WILDCARD_IPS:
+        """Host to connect to, for a server listening on the wildcard address."""
+        if self.host == WILDCARD_IP:
             return LOOPBACK_IP
         return self.host
 
