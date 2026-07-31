@@ -23,10 +23,12 @@ and drives it through the Python client over gRPC.
 
 ## Pointing the tests at the binary
 
-The fixture locates the server binary in one of two ways, in order:
+The fixtures start the server through
+`DsServiceClient`'s own `DsServiceServer` helper,
+which locates it in one of two ways, in order:
 
-1. `DS_SERVICE_BIN`, if set, is used as an explicit path to the binary.
-    Pointing it at a missing file is an error, not a fallback.
+1. `DS_SERVICE_BIN`, if set. It may be a whole command
+    -- `apptainer run ds-service.sif` -- not just a path.
 2. Otherwise, a `ds-service` found on `PATH`.
 
 It does **not** search the build tree,
@@ -61,14 +63,16 @@ The fixtures live in `tests/conftest.py`:
 
 | Fixture | Yields |
 | --- | --- |
-| `server_binary` | The path to the binary under test. |
+| `server_binary` | How to start the server under test -- a path, or a whole command line. |
 | `server_process` | `(proc, address)` for a running server -- for tests that drive the process itself, such as signalling it. |
 | `server` | The address of a running server. |
-| `client` | A connected `Client`, closed at the end of the test. |
+| `client` | A connected `DsServiceClient`, closed at the end of the test. |
 
 Each test gets a **fresh server process on its own free port**,
 so the server's in-memory state is isolated between tests
 and the suite can run without a fixed port.
+Starting and stopping it is `DsServiceServer`'s job,
+so the harness cannot drift from the helper the client library ships.
 Startup waits for the port to accept a TCP connection
 and then makes one read-only RPC,
 which confirms the service is registered and answering;

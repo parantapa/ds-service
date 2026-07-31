@@ -1,1 +1,2 @@
-from .client import Client, TaskState
+from .client import DsServiceClient, TaskState
+from .server import DsServiceServer

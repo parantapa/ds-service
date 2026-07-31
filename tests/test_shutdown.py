@@ -4,7 +4,7 @@ import signal
 
 import pytest
 
-from ds_service_client import Client
+from ds_service_client import DsServiceClient
 
 # Generous next to the server's own grace period,
 # which only has an idle server to drain here.
@@ -29,7 +29,7 @@ def test_shutdown_serves_requests_until_signalled(server_process):
     """The server answers normally right up to the shutdown signal."""
     proc, address = server_process
 
-    client = Client(address)
+    client = DsServiceClient(address)
     try:
         client.map_set("key", b"value")
         assert client.map_get("key") == b"value"

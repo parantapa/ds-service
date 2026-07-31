@@ -3,7 +3,7 @@
 `ds_service_client` is a Python 3.12+ library
 that wraps the generated gRPC stubs
 and presents the server's data structures as ordinary methods
-on a `Client` object.
+on a `DsServiceClient` object.
 
 ## Installing
 
@@ -20,12 +20,12 @@ pip install .
 ## Connecting
 
 ```python
-from ds_service_client import Client
+from ds_service_client import DsServiceClient
 
-client = Client("127.0.0.1:5051")
+client = DsServiceClient("127.0.0.1:5051")
 ```
 
-If `Client()` is constructed without an address,
+If `DsServiceClient()` is constructed without an address,
 it reads the server address from the `DS_SERVER_ADDRESS` environment variable.
 
 The constructor also takes a `timeout` (seconds, default 300),
@@ -53,9 +53,9 @@ Any other status reaches the caller as a raw `grpc.RpcError`.
 ## Usage
 
 ```python
-from ds_service_client import Client, TaskState
+from ds_service_client import DsServiceClient, TaskState
 
-client = Client("127.0.0.1:5051")  # or set DS_SERVER_ADDRESS and call Client()
+client = DsServiceClient("127.0.0.1:5051")  # or set DS_SERVER_ADDRESS and call DsServiceClient()
 
 # Key-value map
 client.map_set("greeting", b"hello")
@@ -140,6 +140,65 @@ it retries `mutex_try_acquire` in a loop,
 sleeping between attempts,
 and raises `TimeoutError` once `timeout` seconds have elapsed.
 With `timeout=None` (the default) it retries forever.
+
+## Temporary servers
+
+`DsServiceServer` runs a private `ds-service` process
+for as long as the object lives.
+The process starts as soon as the object is constructed.
+
+```python
+from ds_service_client import DsServiceClient, DsServiceServer
+
+with DsServiceServer() as server:
+    server.wait_until_ready()          # blocks until the port accepts connections
+
+    client = DsServiceClient(f"{server.connect_host}:{server.port}")
+    client.map_set("greeting", b"hello")
+    client.close()
+```
+
+Leaving the `with` block calls `close()`,
+which sends `SIGTERM`, waits ten seconds,
+and then sends `SIGKILL`.
+Call `close()` directly when not using it as a context manager.
+
+The constructor takes three optional arguments:
+
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `host` | `"0.0.0.0"` | Address the server binds. |
+| `port` | a free ephemeral port | Port the server binds. |
+| `ds_service_bin` | `$DS_SERVICE_BIN`, else `ds-service` | How to start the server. |
+
+`ds_service_bin` and `DS_SERVICE_BIN` may hold a **whole command**,
+not just a path -- `apptainer run ds-service.sif` or
+`docker run --rm --network host ds-service` work as well as
+`/usr/bin/ds-service`.
+`--address <host>:<port>` is appended to whatever is given,
+and the result is split with `shlex.split`:
+quoting is understood, but shell syntax is not --
+put that in a script of your own and name the script here.
+
+`wait_until_ready(timeout=30)` polls until the port accepts a TCP connection.
+It raises `RuntimeError` if the process exits first,
+and `TimeoutError` if the server is not listening within `timeout` seconds.
+
+To hand the address to clients on other machines,
+use `get_address_by_interface`,
+which pairs the port with an interface's IPv4 address:
+
+```python
+server.get_address_by_interface("eth0")   # -> "172.17.0.2:45999"
+server.get_address_by_interface("ib0")    # -> the InfiniBand address, on a cluster node
+```
+
+An interface that does not exist on this machine 
+(or has no IPv4 address) produces a warning
+and falls back to `127.0.0.1`.
+For a server bound to a wildcard address,
+`server.connect_host` is the loopback address
+to use from the same machine.
 
 See the [data-structure-reference.md](data-structure-reference.md)
 for what each data structure and RPC does.

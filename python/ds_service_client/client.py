@@ -72,7 +72,7 @@ def translate_grpc_error():
             raise
 
 
-class Client:
+class DsServiceClient:
     def __init__(
         self,
         address: str | None = None,

@@ -6,6 +6,7 @@ and nothing but these tests ties the two together.
 """
 
 import re
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -107,8 +108,10 @@ def test_second_server_on_the_same_port_fails(server, server_binary):
     # so without ALLOW_REUSEPORT=0
     # this second process binds silently alongside the first
     # and clients get split across two divergent in-memory states.
+    # server_binary may be a whole command line, not just a path,
+    # so it is split the way DsServiceServer splits it.
     second = subprocess.run(
-        [str(server_binary), "--address", server],
+        shlex.split(f"{server_binary} --address {server}"),
         capture_output=True,
         text=True,
         timeout=30,

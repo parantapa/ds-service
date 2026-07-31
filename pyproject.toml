@@ -22,6 +22,7 @@ classifiers = [
 dependencies = [
     "grpcio>=1.60",
     "protobuf>=6.31",
+    "ifaddr>=0.2",
 ]
 
 [project.optional-dependencies]

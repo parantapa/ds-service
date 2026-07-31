@@ -6,7 +6,7 @@ import time
 import grpc
 import pytest
 
-from ds_service_client import Client
+from ds_service_client import DsServiceClient
 from ds_service_client.client import DEFAULT_RPC_TIMEOUT_S, translate_grpc_error
 
 
@@ -40,7 +40,7 @@ def mute_address():
 
 
 def test_client_deadline_is_overridable(server):
-    assert Client(server, timeout=1.5).timeout == 1.5
+    assert DsServiceClient(server, timeout=1.5).timeout == 1.5
 
 
 def test_deadline_exceeded_maps_to_timeout_error():
@@ -50,7 +50,7 @@ def test_deadline_exceeded_maps_to_timeout_error():
 
 
 def test_unresponsive_server_raises_timeout_error(mute_address):
-    client = Client(mute_address, timeout=0.5)
+    client = DsServiceClient(mute_address, timeout=0.5)
     try:
         start = time.monotonic()
         with pytest.raises(TimeoutError):
@@ -70,7 +70,7 @@ def test_unresponsive_server_raises_timeout_error(mute_address):
 
 def test_deadline_does_not_leak_grpc_errors(mute_address):
     # The caller should never have to know about grpc's exception types.
-    client = Client(mute_address, timeout=0.5)
+    client = DsServiceClient(mute_address, timeout=0.5)
     try:
         start = time.monotonic()
         with pytest.raises(TimeoutError) as excinfo:
