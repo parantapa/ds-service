@@ -183,6 +183,7 @@ put that in a script of your own and name the script here.
 `wait_until_ready(timeout=30)` polls until the port accepts a TCP connection.
 It raises `RuntimeError` if the process exits first,
 and `TimeoutError` if the server is not listening within `timeout` seconds.
+It only reports a server ready while our own process is still running.
 
 To hand the address to clients on other machines,
 use `get_address_by_interface`,

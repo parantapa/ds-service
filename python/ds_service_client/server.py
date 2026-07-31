@@ -49,6 +49,25 @@ def _free_port(host: str) -> int:
         return sock.getsockname()[1]
 
 
+def _check_port_free(host: str, port: int) -> None:
+    """Raise if something already holds the port, before starting a server.
+
+    A server started on an occupied port loses the race and exits,
+    while the port keeps accepting connections --
+    so without this check the caller would be handed
+    a dead DsServiceServer whose address belongs to somebody else's server,
+    and would read and write that server's state believing it is theirs.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind((host, port))
+        except OSError as exc:
+            raise OSError(
+                f"Cannot start ds-service on {host}:{port}: "
+                f"the port is already in use ({exc})."
+            ) from exc
+
+
 class DsServiceServer:
     """A ds-service process that runs for as long as this object does.
 
@@ -82,6 +101,8 @@ class DsServiceServer:
 
         if port is None:
             port = _free_port(host)
+        else:
+            _check_port_free(host, port)
 
         self.host = host
         self.port = port
@@ -121,23 +142,34 @@ class DsServiceServer:
         host = self.connect_host
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            returncode = self.process.poll()
-            if returncode is not None:
-                raise RuntimeError(
-                    f"ds-service exited with code {returncode} "
-                    f"before listening on {self.address}: {self.command}"
-                )
+            self._raise_if_exited()
 
             try:
                 with socket.create_connection((host, self.port), timeout=timeout):
-                    return
+                    pass
             except OSError:
                 time.sleep(READY_POLL_INTERVAL_S)
+                continue
+
+            # Something is listening -- check it is still us.
+            # A process that has exited by now lost the port to another server,
+            # and returning would hand the caller that one.
+            self._raise_if_exited()
+            return
 
         raise TimeoutError(
             f"ds-service did not start listening on {self.address} "
             f"within {timeout}s: {self.command}"
         )
+
+    def _raise_if_exited(self) -> None:
+        """Raise RuntimeError if the server process is no longer running."""
+        returncode = self.process.poll()
+        if returncode is not None:
+            raise RuntimeError(
+                f"ds-service exited with code {returncode} "
+                f"before listening on {self.address}: {self.command}"
+            )
 
     def get_address_by_interface(self, interface: str) -> str:
         """Return `<ip of interface>:<port>`, for handing to remote clients.
