@@ -24,7 +24,7 @@ Stage: build
     cd /opt
     git clone https://github.com/parantapa/ds-service.git
     cd ds-service
-    git checkout v1.0.1
+    git checkout v2.0.0
 
     conan install . --build=missing
     BUILD_DIR="./build/Release"

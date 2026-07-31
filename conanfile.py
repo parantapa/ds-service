@@ -6,7 +6,7 @@ from conan.tools.cmake import cmake_layout, CMakeDeps, CMakeToolchain, CMake
 class DsServiceRecipe(ConanFile):
     name = "ds-service"
     # Set by scripts/update-version.sh, along with the other version strings.
-    version = "1.0.4"
+    version = "2.0.0"
 
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False], "fPIC": [True, False]}
