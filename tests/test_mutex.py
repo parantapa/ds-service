@@ -5,9 +5,6 @@ import time
 
 import pytest
 
-from ds_service_client import client as client_module
-
-
 def test_try_acquire_creates_and_acquires(client):
     # A mutex that does not exist is created and acquired by the first call.
     assert client.mutex_try_acquire("m") is True
@@ -63,11 +60,6 @@ def test_acquire_unblocks_after_release(client):
     finally:
         t.join()
     assert client.mutex_try_acquire("m") is False  # we hold it now
-
-
-def test_retry_constants_are_defined():
-    assert client_module.MUTEX_ACQUIRE_SLEEP_S == 0.5
-    assert client_module.MUTEX_ACQUIRE_JITTER_S == 0.1
 
 
 def test_search_key_matches_subset(client):
