@@ -94,3 +94,10 @@ def test_search_key_invalid_pattern_raises_valueerror(client):
 
     with pytest.raises(ValueError):
         client.mutex_search_key("(unclosed")
+
+
+def test_release_does_not_create_mutex(client):
+    # Releasing an unknown mutex is a no-op, not a create.
+    client.mutex_release("never-seen")
+
+    assert client.mutex_search_key(".*") == []

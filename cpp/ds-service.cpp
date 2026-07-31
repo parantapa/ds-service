@@ -296,7 +296,16 @@ struct DsServiceImpl final : public DsService::Service {
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto& tasks = task_manager.tasks;
         for (const auto& qname : request->queue()) {
-            auto& queue = task_manager.queue[qname];
+            // find, not operator[]: polling a queue no task was ever added
+            // to must not create it. Workers poll queue names on a loop, so
+            // operator[] here would grow the map by one empty queue per
+            // name ever asked about, for the life of the server.
+            auto queue_it = task_manager.queue.find(qname);
+            if (queue_it == task_manager.queue.end()) {
+                continue;
+            }
+
+            auto& queue = queue_it->second;
             while (!queue.empty()) {
                 const auto& [_, index] = queue.top();
                 if (tasks.state[index] == TaskState::Ready) {

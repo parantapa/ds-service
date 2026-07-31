@@ -158,3 +158,10 @@ def test_search_key_invalid_pattern_raises_valueerror(client):
 
     with pytest.raises(ValueError):
         client.time_series_search_key("(unclosed")
+
+
+def test_get_does_not_create_series(client):
+    # Reading a missing series must not add it to the store.
+    assert client.time_series_get("never-seen") == []
+
+    assert client.time_series_search_key(".*") == []

@@ -87,3 +87,11 @@ def test_search_key_invalid_pattern_raises_valueerror(client):
 
     with pytest.raises(ValueError):
         client.journal_search_key("(unclosed")
+
+
+def test_reads_do_not_create_journal(client):
+    # Neither read is allowed to add the key to the store.
+    assert client.journal_size("never-seen") == 0
+    assert client.journal_read("never-seen", 0, 10) == []
+
+    assert client.journal_search_key(".*") == []
