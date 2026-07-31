@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ds-service-client"
 # Set by scripts/update-version.sh, along with the other version strings.
-version = "2.0.0"
+version = "2.1.0"
 authors = [
   { name="Parantapa Bhattacharya", email="pb@parantapa.net" },
 ]
