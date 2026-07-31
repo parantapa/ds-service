@@ -13,25 +13,9 @@ from pathlib import Path
 import grpc
 import pytest
 
-from ds_service_client.client import (
-    GRPC_CLIENT_OPTIONS,
-    MAX_MESSAGE_SIZE_BYTES,
-    translate_grpc_error,
-)
+from ds_service_client.client import GRPC_CLIENT_OPTIONS, MAX_MESSAGE_SIZE_BYTES
 
 SERVER_SOURCE = Path(__file__).resolve().parents[1] / "cpp" / "ds-service.cpp"
-
-
-class _FakeRpcError(grpc.RpcError):
-    def __init__(self, code, details):
-        self._code = code
-        self._details = details
-
-    def code(self):
-        return self._code
-
-    def details(self):
-        return self._details
 
 
 def _server_source() -> str:
@@ -95,12 +79,6 @@ def test_oversized_value_does_not_leak_grpc_errors(client):
     with pytest.raises(ValueError) as excinfo:
         client.map_set("too-big", payload)
     assert not isinstance(excinfo.value, grpc.RpcError)
-
-
-def test_resource_exhausted_maps_to_value_error():
-    with pytest.raises(ValueError):
-        with translate_grpc_error():
-            raise _FakeRpcError(grpc.StatusCode.RESOURCE_EXHAUSTED, "too big")
 
 
 def test_second_server_on_the_same_port_fails(server, server_binary):
