@@ -37,6 +37,21 @@ READY_POLL_INTERVAL_S = 0.01
 EXIT_POLL_INTERVAL_S = 0.01
 
 
+def resolve_ds_service_bin(ds_service_bin: str | None = None) -> str:
+    """How to start the server: the argument, $DS_SERVICE_BIN, or the default.
+
+    A blank value counts as unset.
+    An exported but empty DS_SERVICE_BIN is how a shell says "no value",
+    and taking it literally would leave the command starting at `--address`,
+    which fails as a missing-executable error naming a flag.
+    """
+    for candidate in (ds_service_bin, os.environ.get(DS_SERVICE_BIN_ENV_VAR)):
+        if candidate and candidate.strip():
+            return candidate.strip()
+
+    return DEFAULT_DS_SERVICE_BIN
+
+
 def _free_port(host: str) -> int:
     """Reserve an ephemeral IPv4 port on host and return it.
 
@@ -107,11 +122,7 @@ class DsServiceServer:
                 f"address; give an IPv4 address such as {WILDCARD_IP}."
             )
 
-        if ds_service_bin is None:
-            ds_service_bin = os.environ.get(
-                DS_SERVICE_BIN_ENV_VAR, DEFAULT_DS_SERVICE_BIN
-            )
-
+        ds_service_bin = resolve_ds_service_bin(ds_service_bin)
 
         # Port 0 is how the kernel is asked for an ephemeral port,
         # so it means the same here as passing port = None.

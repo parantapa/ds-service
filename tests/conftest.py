@@ -4,12 +4,10 @@ Each test runs against a freshly started ``ds-service`` process.
 Starting and stopping it is left to ``ds_service_client.DsServiceServer``.
 """
 
-import os
-
 import pytest
 
 from ds_service_client import DsServiceClient, DsServiceServer
-from ds_service_client.server import DEFAULT_DS_SERVICE_BIN, DS_SERVICE_BIN_ENV_VAR
+from ds_service_client.server import resolve_ds_service_bin
 
 STARTUP_TIMEOUT_S = 15
 GRPC_PROBE_TIMEOUT_S = 15.0
@@ -41,11 +39,11 @@ def _probe_grpc(address: str) -> None:
 def server_binary() -> str:
     """How to start the server under test.
 
-    Resolved the way DsServiceServer resolves it,
+    Resolved by DsServiceServer's own helper,
     so it may be a whole command line rather than a path:
     split it with ``shlex.split`` before running it.
     """
-    return os.environ.get(DS_SERVICE_BIN_ENV_VAR, DEFAULT_DS_SERVICE_BIN)
+    return resolve_ds_service_bin()
 
 
 @pytest.fixture

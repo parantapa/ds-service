@@ -7,6 +7,33 @@ so a fault here shows up everywhere at once.
 import pytest
 
 from ds_service_client import DsServiceClient, DsServiceServer
+from ds_service_client.server import (
+    DEFAULT_DS_SERVICE_BIN,
+    DS_SERVICE_BIN_ENV_VAR,
+    resolve_ds_service_bin,
+)
+
+
+def test_blank_env_var_falls_back_to_the_default(monkeypatch):
+    """An exported but empty DS_SERVICE_BIN means "unset", not "".
+
+    Taken literally the command would start at `--address`,
+    and the failure would name that flag as the missing executable.
+    """
+    monkeypatch.setenv(DS_SERVICE_BIN_ENV_VAR, "")
+    assert resolve_ds_service_bin() == DEFAULT_DS_SERVICE_BIN
+
+    monkeypatch.setenv(DS_SERVICE_BIN_ENV_VAR, "   ")
+    assert resolve_ds_service_bin() == DEFAULT_DS_SERVICE_BIN
+
+    monkeypatch.delenv(DS_SERVICE_BIN_ENV_VAR)
+    assert resolve_ds_service_bin() == DEFAULT_DS_SERVICE_BIN
+
+
+def test_explicit_binary_wins_over_the_env_var(monkeypatch):
+    monkeypatch.setenv(DS_SERVICE_BIN_ENV_VAR, "from-the-environment")
+    assert resolve_ds_service_bin("explicit") == "explicit"
+    assert resolve_ds_service_bin("") == "from-the-environment"
 
 
 def test_port_zero_means_an_ephemeral_port():
