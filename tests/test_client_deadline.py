@@ -14,8 +14,9 @@ def mute_address():
     """A listening socket that accepts connections but never speaks gRPC.
 
     The kernel completes the TCP handshake from the listen backlog on its own,
-    so the client connects and then sits waiting on a response
-    that never arrives -- which is what the deadline has to cut off.
+    so the client connects
+    and then sits waiting on a response that never arrives
+    -- which is what the deadline has to cut off.
     Nothing ever calls accept(), so no server thread is needed.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:

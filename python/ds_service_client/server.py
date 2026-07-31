@@ -20,8 +20,9 @@ DS_SERVICE_BIN_ENV_VAR = "DS_SERVICE_BIN"
 # i.e. a ds-service on the PATH.
 DEFAULT_DS_SERVICE_BIN = "ds-service"
 
-# Address used to talk to the server when it listens on the wildcard
-# address, and when an interface lookup fails.
+# Address used to talk to the server
+# when it listens on the wildcard address,
+# and when an interface lookup fails.
 LOOPBACK_IP = "127.0.0.1"
 
 # Bound on every interface, so not connectable as-is.
@@ -42,7 +43,8 @@ def resolve_ds_service_bin(ds_service_bin: str | None = None) -> str:
 
     A blank value counts as unset.
     An exported but empty DS_SERVICE_BIN is how a shell says "no value",
-    and taking it literally would leave the command starting at `--address`,
+    and taking it literally
+    would leave the command starting at `--address`,
     which fails as a missing-executable error naming a flag.
     """
     for candidate in (ds_service_bin, os.environ.get(DS_SERVICE_BIN_ENV_VAR)):
@@ -69,8 +71,9 @@ def _check_port_free(host: str, port: int) -> None:
 
     A server started on an occupied port loses the race and exits,
     while the port keeps accepting connections --
-    so without this check the caller would be handed
-    a dead DsServiceServer whose address belongs to somebody else's server,
+    so without this check
+    the caller would be handed a dead DsServiceServer
+    whose address belongs to somebody else's server,
     and would read and write that server's state believing it is theirs.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -102,9 +105,10 @@ class DsServiceServer:
     -- is not.
     Wrap such a command in a script of your own if you need one.
 
-    IPv4 only: host must be a dotted-quad address or a name that
-    resolves to one, since the address is passed to the server as a
-    plain `host:port` string, which has no way to spell an IPv6 address.
+    IPv4 only:
+    host must be a dotted-quad address or a name that resolves to one,
+    since the address is passed to the server as a plain `host:port` string,
+    which has no way to spell an IPv6 address.
     """
 
     def __init__(
@@ -114,8 +118,10 @@ class DsServiceServer:
         ds_service_bin: str | None = None,
     ):
         # An IPv6 literal would make a `host:port` string ambiguous
-        # ("::1:5051"), so reject it here rather than letting it fail
-        # deeper down as an unrelated-looking socket error.
+        # ("::1:5051"),
+        # so reject it here
+        # rather than letting it fail deeper down
+        # as an unrelated-looking socket error.
         if ":" in host:
             raise ValueError(
                 f"IPv6 is not supported, and {host!r} looks like an IPv6 "
@@ -141,7 +147,8 @@ class DsServiceServer:
         # start_new_session puts the server in its own process group,
         # so close() can signal the whole group.
         # A container runtime or a wrapper script may leave children behind,
-        # and signalling only the process we started would orphan the server.
+        # and signalling only the process we started
+        # would orphan the server.
         self.process = subprocess.Popen(
             shlex.split(self.command), start_new_session=True
         )
@@ -179,7 +186,8 @@ class DsServiceServer:
                 continue
 
             # Something is listening -- check it is still us.
-            # A process that has exited by now lost the port to another server,
+            # A process that has exited by now
+            # lost the port to another server,
             # and returning would hand the caller that one.
             self._raise_if_exited()
             return
@@ -227,9 +235,10 @@ class DsServiceServer:
     def close(self) -> None:
         """Stop the server: SIGTERM, then SIGKILL if it has not exited.
 
-        The whole process group is signalled, not just the process that
-        was started, so a server left behind by a wrapper that has since
-        exited is stopped too.
+        The whole process group is signalled,
+        not just the process that was started,
+        so a server left behind by a wrapper that has since exited
+        is stopped too.
 
         Safe to call more than once.
         """

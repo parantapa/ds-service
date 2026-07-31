@@ -14,8 +14,9 @@ from .ds_service_pb2_grpc import *
 # gRPC's own default is 4 MiB.
 MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024
 
-# Several of these options are only correct as a matched pair with the
-# server's channel arguments in cpp/ds-service.cpp;
+# Several of these options are only correct
+# as a matched pair with the server's channel arguments
+# in cpp/ds-service.cpp;
 # tests/test_grpc_options.py is what keeps the two sides in step.
 GRPC_CLIENT_OPTIONS = [
     # This ping interval must stay above the server's
@@ -27,12 +28,12 @@ GRPC_CLIENT_OPTIONS = [
     ("grpc.keepalive_time_ms", 120 * 1000),
     ("grpc.keepalive_timeout_ms", 30 * 1000),
     # 0 means "unlimited".
-    # This caps the number of keepalive pings sent
-    # while no RPC is in flight -- it is a total, not a rate
-    # -- so any finite value makes the client stop pinging
+    # This caps the number of keepalive pings sent while no RPC is in flight
+    # -- it is a total, not a rate --
+    # so any finite value makes the client stop pinging
     # on a long-idle connection,
-    # which is exactly the connection keepalive_permit_without_calls
-    # is meant to protect.
+    # which is exactly the connection
+    # keepalive_permit_without_calls is meant to protect.
     ("grpc.http2.max_pings_without_data", 0),
     ("grpc.keepalive_permit_without_calls", 1),
     ("grpc.max_receive_message_length", MAX_MESSAGE_SIZE_BYTES),
@@ -66,7 +67,8 @@ def translate_grpc_error():
             raise TimeoutError(e.details())
         elif e.code() == grpc.StatusCode.RESOURCE_EXHAUSTED:
             # In practice this is a message larger than MAX_MESSAGE_SIZE_BYTES,
-            # i.e. a caller-side size problem, so it reads as a ValueError.
+            # i.e. a caller-side size problem,
+            # so it reads as a ValueError.
             raise ValueError(e.details())
         else:
             raise
@@ -266,8 +268,8 @@ class DsServiceClient:
     def mutex_acquire(self, key: str, timeout: float | None = None) -> None:
         # Note: this timeout bounds the whole acquire loop,
         # including the sleeps between retries.
-        # It is unrelated to self.timeout, which is the per-RPC deadline
-        # on each underlying mutex_try_acquire.
+        # It is unrelated to self.timeout,
+        # which is the per-RPC deadline on each underlying mutex_try_acquire.
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             if self.mutex_try_acquire(key):

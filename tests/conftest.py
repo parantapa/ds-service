@@ -26,7 +26,8 @@ def _probe_grpc(address: str) -> None:
         An RPC round-trip proves more and costs ~1ms.
       - Given a short per-RPC deadline rather than the client default,
         so a port that accepts but never speaks gRPC
-        fails the fixture promptly instead of stalling it for minutes.
+        fails the fixture promptly
+        instead of stalling it for minutes.
     """
     probe = DsServiceClient(address, timeout=GRPC_PROBE_TIMEOUT_S)
     try:
@@ -51,7 +52,8 @@ def server_process():
     """Start a ds-service process on a free port and yield (proc, address).
 
     Most tests want just the address and use the ``server`` fixture;
-    this one is for tests that drive the process itself, such as signalling it.
+    this one is for tests that drive the process itself,
+    such as signalling it.
     """
     server = DsServiceServer(host="127.0.0.1")
     try:

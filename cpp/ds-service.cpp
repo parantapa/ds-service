@@ -28,10 +28,11 @@ using Map = phmap::parallel_flat_hash_map<K, V>;
 
 using TaskQueueEntry = std::priority_queue<std::pair<double, std::size_t>>;
 
-// Tasks are stored struct-of-arrays: a task is a row index shared across
-// these parallel vectors, which are always the same length.
-// Add a task by pushing onto every column, and read a field as
-// `tasks.<column>[index]`.
+// Tasks are stored struct-of-arrays:
+// a task is a row index shared across these parallel vectors,
+// which are always the same length.
+// Add a task by pushing onto every column,
+// and read a field as `tasks.<column>[index]`.
 struct TaskTable {
     std::vector<std::string> task_id;
     std::vector<double> priority;
@@ -50,11 +51,11 @@ struct TaskManager {
     Map<std::string, std::size_t> task_index;
 
     // Queue name -> the rows waiting on it, ordered by priority.
-    // std::priority_queue is a max-heap, so the highest priority
-    // is dispatched first.
-    // A row may sit in several queues at once, and entries are never
-    // removed on a state change -- TaskGet drops the stale ones as it
-    // pops them.
+    // std::priority_queue is a max-heap,
+    // so the highest priority is dispatched first.
+    // A row may sit in several queues at once,
+    // and entries are never removed on a state change
+    // -- TaskGet drops the stale ones as it pops them.
     Map<std::string, TaskQueueEntry> queue;
 };
 
@@ -67,15 +68,19 @@ struct TimeSeries {
 // All server state, and the locks guarding it.
 //
 // Locking is per top-level data structure rather than one global lock:
-// each structure is paired with its own mutex, so operations on one are
-// serialized while operations on different ones run concurrently.
+// each structure is paired with its own mutex,
+// so operations on one are serialized
+// while operations on different ones run concurrently.
 // Every RPC takes a std::scoped_lock on the single structure it touches,
-// so no request ever holds more than one lock and the ordering between
-// them cannot deadlock. Keep it that way: an RPC spanning two structures
-// would need a lock order defined for the whole file.
-// There is no finer-grained locking within a structure -- no per-key or
-// per-queue locks -- so a slow whole-structure scan (any SearchKey,
-// TaskRequeue) blocks every other operation on that structure.
+// so no request ever holds more than one lock
+// and the ordering between them cannot deadlock.
+// Keep it that way:
+// an RPC spanning two structures would need a lock order
+// defined for the whole file.
+// There is no finer-grained locking within a structure
+// -- no per-key or per-queue locks --
+// so a slow whole-structure scan (any SearchKey, TaskRequeue)
+// blocks every other operation on that structure.
 struct SystemState {
     std::mutex map_lock{};
     Map<std::string, std::string> map{};
@@ -136,10 +141,12 @@ std::string format_iso8601_utc(const std::chrono::system_clock::time_point& tp) 
 }
 
 // Current time in seconds as a double.
-// Only differences between two readings are meaningful; the epoch is arbitrary.
-// This is the only clock the task table uses: TaskGet stamps start_time
-// with it and TaskRequeue compares against it, so both must keep using
-// this function rather than any other clock.
+// Only differences between two readings are meaningful;
+// the epoch is arbitrary.
+// This is the only clock the task table uses:
+// TaskGet stamps start_time with it
+// and TaskRequeue compares against it,
+// so both must keep using this function rather than any other clock.
 double now_seconds() {
     using namespace std::chrono;
     return duration<double>(high_resolution_clock::now().time_since_epoch()).count();
@@ -256,8 +263,8 @@ struct DsServiceImpl final : public DsService::Service {
                                      TaskGetCountByStateResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
-        // Every task occupies exactly one row in the SOA, so tallying the
-        // state column gives the count per state.
+        // Every task occupies exactly one row in the SOA,
+        // so tallying the state column gives the count per state.
         auto& tasks = GLOBAL_SYSTEM_STATE->task_manager.tasks;
         std::uint64_t ready = 0, running = 0, complete = 0;
         for (const auto& state : tasks.state) {
@@ -288,18 +295,20 @@ struct DsServiceImpl final : public DsService::Service {
         // Queues are searched in the order the caller listed them:
         // the first one holding a Ready task wins.
         //
-        // A queue entry is never removed when its task leaves the Ready
-        // state, so entries for tasks that are already Running or
-        // Complete accumulate. They are discarded lazily here, as they
-        // reach the top of the heap -- which is why a popped entry that
-        // is not Ready is dropped rather than skipped.
+        // A queue entry is never removed when its task leaves the Ready state,
+        // so entries for tasks that are already Running or Complete accumulate.
+        // They are discarded lazily here, as they reach the top of the heap
+        // -- which is why a popped entry that is not Ready
+        // is dropped rather than skipped.
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto& tasks = task_manager.tasks;
         for (const auto& qname : request->queue()) {
-            // find, not operator[]: polling a queue no task was ever added
-            // to must not create it. Workers poll queue names on a loop, so
-            // operator[] here would grow the map by one empty queue per
-            // name ever asked about, for the life of the server.
+            // find, not operator[]:
+            // polling a queue no task was ever added to must not create it.
+            // Workers poll queue names on a loop,
+            // so operator[] here would grow the map
+            // by one empty queue per name ever asked about,
+            // for the life of the server.
             auto queue_it = task_manager.queue.find(qname);
             if (queue_it == task_manager.queue.end()) {
                 continue;
@@ -349,16 +358,17 @@ struct DsServiceImpl final : public DsService::Service {
     grpc::Status TaskRequeue(grpc::ServerContext*, const TaskRequeueRequest* request, Empty*) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
-        // The only fault tolerance the server has: a worker that dies
-        // mid-task leaves it Running for ever, so a client calls this
-        // periodically to hand stalled work to another worker.
+        // The only fault tolerance the server has:
+        // a worker that dies mid-task leaves it Running for ever,
+        // so a client calls this periodically
+        // to hand stalled work to another worker.
         // It is never called automatically.
         double max_start_time = now_seconds() - request->timeout_s();
 
-        // Stalled tasks are found by scanning every row -- there is no
-        // index by state or by start time -- while holding the task
-        // manager's lock, so this blocks all other task operations for
-        // as long as it runs.
+        // Stalled tasks are found by scanning every row
+        // -- there is no index by state or by start time --
+        // while holding the task manager's lock,
+        // so this blocks all other task operations for as long as it runs.
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto& tasks = task_manager.tasks;
         for (std::size_t index = 0; index < tasks.task_id.size(); index++) {
@@ -531,8 +541,8 @@ struct DsServiceImpl final : public DsService::Service {
                                  MutexTryAcquireResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
 
-        // operator[] value-initializes a missing mutex to false (unheld), so an
-        // unknown key is created and then acquired by this same call.
+        // operator[] value-initializes a missing mutex to false (unheld),
+        // so an unknown key is created and then acquired by this same call.
         bool& held = GLOBAL_SYSTEM_STATE->mutexes[request->key()];
         if (held) {
             response->set_acquired(false);
@@ -547,7 +557,8 @@ struct DsServiceImpl final : public DsService::Service {
     grpc::Status MutexRelease(grpc::ServerContext*, const MutexReleaseRequest* request, Empty*) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
 
-        // Releasing an unheld or unknown mutex is a no-op; don't create the key.
+        // Releasing an unheld or unknown mutex is a no-op;
+        // don't create the key.
         auto& mutexes = GLOBAL_SYSTEM_STATE->mutexes;
         auto it = mutexes.find(request->key());
         if (it != mutexes.end()) {
@@ -593,8 +604,8 @@ struct DsServiceImpl final : public DsService::Service {
                                         CounterGetCurrentValueResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->counters_lock};
 
-        // Read-only: don't create a missing counter; report 0 for one that
-        // does not exist.
+        // Read-only: don't create a missing counter;
+        // report 0 for one that does not exist.
         auto& counters = GLOBAL_SYSTEM_STATE->counters;
         auto it = counters.find(request->key());
         response->set_value(it == counters.end() ? 0 : it->second);
@@ -652,7 +663,8 @@ extern "C" void handle_shutdown_signal(int signum) {
 
 // Wait for SIGINT or SIGTERM, then shut the server down gracefully.
 //
-// Shutdown() refuses new calls, lets in-flight ones finish until the deadline,
+// Shutdown() refuses new calls,
+// lets in-flight ones finish until the deadline,
 // and makes the Wait() in main return.
 void await_shutdown_signal() {
     while (SHUTDOWN_SIGNAL == 0) {
@@ -710,10 +722,11 @@ int main(int argc, char* argv[]) {
     // Server with permit ping at an interval of 10 seconds.
     //
     // That last one is a floor on how often a *client* may ping:
-    // the client's keepalive_time_ms (120s in client.py) must stay above
-    // it, or the server answers the pings with GOAWAY/ENHANCE_YOUR_CALM
-    // and kills every long-lived connection -- which reaches callers as
-    // a TimeoutError that says nothing about pings.
+    // the client's keepalive_time_ms (120s in client.py) must stay above it,
+    // or the server answers the pings with GOAWAY/ENHANCE_YOUR_CALM
+    // and kills every long-lived connection
+    // -- which reaches callers as a TimeoutError
+    // that says nothing about pings.
     // tests/test_grpc_options.py checks the two stay ordered.
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIME_MS, 10 * 60 * 1000 /*10 min*/);
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIMEOUT_MS, 20 * 1000 /*20 sec*/);
@@ -722,7 +735,8 @@ int main(int argc, char* argv[]) {
 
     // Refuse to share the port.
     // gRPC enables SO_REUSEPORT by default,
-    // so without this a second ds-service started on an occupied address
+    // so without this
+    // a second ds-service started on an occupied address
     // binds silently alongside the first.
     // State is in-memory and non-persistent,
     // so that splits clients across two divergent instances

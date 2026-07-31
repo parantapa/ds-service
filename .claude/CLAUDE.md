@@ -52,3 +52,7 @@ A proto change is a four-step job, and only the first two are automatic:
     entry of `debian/changelog`. Set them through the script rather than
     by hand. The script greps for each line first and edits nothing
     unless all of them are present.
+
+## Comments
+
+* When generating block comments, use semantic line breaks.

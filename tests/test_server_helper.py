@@ -55,8 +55,9 @@ def test_explicit_port_already_in_use_is_refused(server):
 
     The server that loses the race for the port exits,
     while the port keeps accepting connections,
-    so a caller handed that address would read and write
-    the other server's state believing it were their own.
+    so a caller handed that address
+    would read and write the other server's state
+    believing it were their own.
     """
     host, port = server.rsplit(":", 1)
 
