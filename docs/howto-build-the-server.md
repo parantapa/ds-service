@@ -85,6 +85,37 @@ the second keeps only the resulting binary.
 The definition file checks out a pinned tag,
 so edit its `git checkout` line to build a different version.
 
+## Static musl binary
+
+`scripts/Dockerfile` builds `ds-service` against musl on Alpine 3.24,
+linked fully statically:
+
+```sh
+docker build -f scripts/Dockerfile -t ds-service:static .
+docker run --rm -p 5051:5051 ds-service:static
+```
+
+The final stage is `FROM scratch`,
+so the image holds nothing but the binary.
+To pull that binary out instead of running it:
+
+```sh
+docker build -f scripts/Dockerfile --output type=local,dest=./dist .
+```
+
+Two details differ from the normal build.
+The Conan profile marks `cmake` as platform-provided,
+because the ConanCenter `cmake` package that `conanfile.py` tool-requires
+repackages glibc binaries that cannot run on musl;
+Alpine's own cmake is used instead.
+And `-static` is passed as `CMAKE_EXE_LINKER_FLAGS` on the final configure
+rather than through the profile,
+so it applies only to `ds-service`
+and not to every dependency's configure-time link checks.
+
+ConanCenter has no musl binaries,
+so the first build compiles the whole dependency tree from source.
+
 ## Debian package
 
 To build a `.deb` instead, see [debian-packaging.md](debian-packaging.md).
