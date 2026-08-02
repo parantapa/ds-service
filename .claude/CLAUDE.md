@@ -13,7 +13,7 @@ before answering questions or changing code in that area:
 - `docs/data-structure-reference.md` — every RPC, its arguments, its
     error statuses, and the exact semantics of each structure.
 - `docs/howto-build-the-server.md` — requirements, the Conan + CMake
-    build, installing, running, and the container build.
+    build, installing, running, and the static musl build.
 - `docs/howto-run-the-tests.md` — the pytest integration suite,
     `DS_SERVICE_BIN`, and what the fixtures provide.
 - `docs/howto-use-the-python-client.md` — installing, connecting, the

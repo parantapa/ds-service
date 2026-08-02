@@ -69,22 +69,6 @@ ds-service --address 0.0.0.0:5051
 The default address is `127.0.0.1:5051`.
 Run `ds-service --help` for the full argument list.
 
-## Container build
-
-A reproducible container build is defined in
-`scripts/apptainer/ds-service.def`:
-
-```sh
-apptainer build ds-service.sif scripts/apptainer/ds-service.def
-./ds-service.sif --address 0.0.0.0:5051
-```
-
-It is a two-stage build
-— the first stage clones the repository and builds it as above,
-the second keeps only the resulting binary.
-The definition file checks out a pinned tag,
-so edit its `git checkout` line to build a different version.
-
 ## Static musl binary
 
 `scripts/Dockerfile` builds `ds-service` against musl on Alpine 3.24,

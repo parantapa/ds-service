@@ -180,9 +180,8 @@ The constructor takes three optional arguments:
 | `ds_service_bin` | `$DS_SERVICE_BIN`, else `ds-service` | How to start the server. |
 
 `ds_service_bin` and `DS_SERVICE_BIN` may hold a **whole command**,
-not just a path -- `apptainer run ds-service.sif` or
-`docker run --rm --network host ds-service` work as well as
-`/usr/bin/ds-service`.
+not just a path -- `docker run --rm --network host ds-service`
+works as well as `/usr/bin/ds-service`.
 `--address <host>:<port>` is appended to whatever is given,
 and the result is split with `shlex.split`:
 quoting is understood, but shell syntax is not --

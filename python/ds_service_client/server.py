@@ -96,8 +96,7 @@ class DsServiceServer:
 
     ds_service_bin (or DS_SERVICE_BIN) may be a full command line
     rather than a path
-    -- `apptainer run ds-service.sif` or
-    `docker run --rm ... ds-service` work as well as
+    -- `docker run --rm ... ds-service` works as well as
     `/usr/bin/ds-service`.
     `--address <host>:<port>` is appended to whatever is given,
     and the result is split with shlex, i.e. quoting is understood

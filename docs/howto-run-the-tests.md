@@ -28,7 +28,7 @@ The fixtures start the server through
 which locates it in one of two ways, in order:
 
 1. `DS_SERVICE_BIN`, if set. It may be a whole command
-    -- `apptainer run ds-service.sif` -- not just a path.
+    -- `docker run --rm --network host ds-service` -- not just a path.
 2. Otherwise, a `ds-service` found on `PATH`.
 
 It does **not** search the build tree,

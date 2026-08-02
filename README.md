@@ -46,6 +46,6 @@ Each of these is a separate key space with its own set of RPCs.
 | Document | What it covers |
 | --- | --- |
 | [Data structure reference](docs/data-structure-reference.md) | Every RPC, its arguments and error statuses, and the exact semantics of each data structure. |
-| [How to build the server](docs/howto-build-the-server.md) | Requirements, the Conan + CMake build, installing, running, and the container build. |
+| [How to build the server](docs/howto-build-the-server.md) | Requirements, the Conan + CMake build, installing, running, and the static musl build. |
 | [How to use the Python client](docs/howto-use-the-python-client.md) | Installing, connecting, the gRPC-status-to-exception mapping, and usage examples. |
 | [How to run the tests](docs/howto-run-the-tests.md) | The pytest integration suite, pointing it at the binary, and what the fixtures provide. |
