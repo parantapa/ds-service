@@ -46,19 +46,6 @@ run_setup() {
     cmake_build
 }
 
-run_server() {
-    cmake_build
-
-    set +Eeuo pipefail
-    . "$BUILD_DIR/generators/conanrun.sh"
-    set -Eeuo pipefail
-
-    PATH="$BUILD_DIR:$PATH"
-
-    which ds-service
-    ds-service
-}
-
 run_test() {
     cmake_build
 
@@ -72,8 +59,20 @@ run_test() {
     python -m pytest
 }
 
-run_install() {
-    cmake_install "$1"
+run_build-static-binary() {
+    set -x
+    docker build -f scripts/Dockerfile --output type=local,dest=./dist .
+}
+
+run_build-python-package() {
+    set -x
+    python -m build
+    python -m twine check dist/*.tar.gz dist/*.whl
+}
+
+run_upload-python-package() {
+    set -x
+    python -m twine upload dist/*.tar.gz dist/*.whl
 }
 
 show_help() {

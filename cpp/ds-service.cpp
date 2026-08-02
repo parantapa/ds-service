@@ -645,7 +645,7 @@ constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
 // Anything still running when the deadline passes is cancelled.
 constexpr int SHUTDOWN_GRACE_S = 5;
 
-const char* VERSION = "2.1.0";
+const char* VERSION = "2.2.0";
 
 // How often the thread below looks for a delivered signal.
 // It bounds how long shutdown takes to start, so keep it short.
