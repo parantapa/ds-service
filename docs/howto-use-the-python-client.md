@@ -159,10 +159,10 @@ The process starts as soon as the object is constructed.
 ```python
 from ds_service_client import DsServiceClient, DsServiceServer
 
-with DsServiceServer() as server:
+with DsServiceServer("lo") as server:
     server.wait_until_ready()          # blocks until the port accepts connections
 
-    with DsServiceClient(f"{server.connect_host}:{server.port}") as client:
+    with DsServiceClient(server.address) as client:
         client.map_set("greeting", b"hello")
 ```
 
@@ -171,13 +171,32 @@ which sends `SIGTERM`, waits ten seconds,
 and then sends `SIGKILL`.
 Call `close()` directly when not using it as a context manager.
 
-The constructor takes three optional arguments:
+The constructor takes one required argument and two optional ones:
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `host` | `"0.0.0.0"` | IPv4 address the server binds. |
+| `interface` | required | Network interface whose IPv4 address the server binds. |
 | `port` | a free ephemeral port | Port the server binds; `0` means the same as leaving it out. |
 | `ds_service_bin` | `$DS_SERVICE_BIN`, else `ds-service` | How to start the server. |
+
+The interface decides who can reach the server:
+`lo` for this machine only,
+`eth0` or `ib0` for other machines on that network.
+The server is never bound to a wildcard address,
+so `server.address` -- `<ip of the interface>:<port>` --
+is what every client connects to, local or remote:
+
+```python
+server = DsServiceServer("eth0")
+server.address   # -> "172.17.0.2:45999", the address to hand to remote clients
+                 # -> the InfiniBand address, had this been "ib0" on a cluster node
+```
+
+An interface that does not exist on this machine,
+or that exists with no IPv4 address on it,
+raises `ValueError` from the constructor,
+before any server process is started.
+`server.host` is the resolved address on its own.
 
 `ds_service_bin` and `DS_SERVICE_BIN` may hold a **whole command**,
 not just a path -- `docker run --rm --network host ds-service`
@@ -191,22 +210,6 @@ put that in a script of your own and name the script here.
 It raises `RuntimeError` if the process exits first,
 and `TimeoutError` if the server is not listening within `timeout` seconds.
 It only reports a server ready while our own process is still running.
-
-To hand the address to clients on other machines,
-use `get_address_by_interface`,
-which pairs the port with an interface's IPv4 address:
-
-```python
-server.get_address_by_interface("eth0")   # -> "172.17.0.2:45999"
-server.get_address_by_interface("ib0")    # -> the InfiniBand address, on a cluster node
-```
-
-An interface that does not exist on this machine 
-(or has no IPv4 address) produces a warning
-and falls back to `127.0.0.1`.
-For a server bound to a wildcard address,
-`server.connect_host` is the loopback address
-to use from the same machine.
 
 See the [data-structure-reference.md](data-structure-reference.md)
 for what each data structure and RPC does.

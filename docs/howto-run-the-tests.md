@@ -64,6 +64,7 @@ The fixtures live in `tests/conftest.py`:
 | Fixture | Yields |
 | --- | --- |
 | `server_binary` | How to start the server under test -- a path, or a whole command line. |
+| `loopback_interface` | The name of the interface holding `127.0.0.1`, which is what test servers bind. |
 | `server_process` | `(proc, address)` for a running server -- for tests that drive the process itself, such as signalling it. |
 | `server` | The address of a running server. |
 | `client` | A connected `DsServiceClient`, closed at the end of the test. |
@@ -71,6 +72,8 @@ The fixtures live in `tests/conftest.py`:
 Each test gets a **fresh server process on its own free port**,
 so the server's in-memory state is isolated between tests
 and the suite can run without a fixed port.
+Every one of them binds the loopback interface,
+so a test run is never reachable from another machine.
 Starting and stopping it is `DsServiceServer`'s job,
 so the harness cannot drift from the helper the client library ships.
 Startup waits for the port to accept a TCP connection

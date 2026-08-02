@@ -9,7 +9,6 @@ import signal
 import socket
 import subprocess
 import time
-import warnings
 
 import ifaddr
 
@@ -19,14 +18,6 @@ DS_SERVICE_BIN_ENV_VAR = "DS_SERVICE_BIN"
 # Used when neither the argument nor the environment variable is set,
 # i.e. a ds-service on the PATH.
 DEFAULT_DS_SERVICE_BIN = "ds-service"
-
-# Address used to talk to the server
-# when it listens on the wildcard address,
-# and when an interface lookup fails.
-LOOPBACK_IP = "127.0.0.1"
-
-# Bound on every interface, so not connectable as-is.
-WILDCARD_IP = "0.0.0.0"
 
 # How long close() waits for a SIGTERM'd server to exit before SIGKILL.
 TERMINATE_TIMEOUT_S = 10.0
@@ -52,6 +43,36 @@ def resolve_ds_service_bin(ds_service_bin: str | None = None) -> str:
             return candidate.strip()
 
     return DEFAULT_DS_SERVICE_BIN
+
+
+def resolve_interface_ipv4(interface: str) -> str:
+    """The IPv4 address assigned to interface, as a dotted quad.
+
+    Raises ValueError if this machine has no such interface,
+    or has it but with no IPv4 address on it.
+    Neither case has an address to bind,
+    and binding some other one
+    would put the server on a network the caller did not ask for.
+    """
+    known = []
+    for adapter in ifaddr.get_adapters():
+        known.append(adapter.name)
+        if adapter.name != interface and adapter.nice_name != interface:
+            continue
+
+        for adapter_ip in adapter.ips:
+            if adapter_ip.is_IPv4:
+                return str(adapter_ip.ip)
+
+        raise ValueError(
+            f"Interface {interface!r} has no IPv4 address assigned; "
+            f"ds-service is reachable over IPv4 only."
+        )
+
+    raise ValueError(
+        f"No interface named {interface!r} on this machine; "
+        f"the interfaces here are {', '.join(sorted(known))}."
+    )
 
 
 def _free_port(host: str) -> int:
@@ -94,6 +115,19 @@ class DsServiceServer:
     use wait_until_ready() before connecting,
     and close() to stop it.
 
+    The server binds the IPv4 address of interface:
+    the loopback interface for a server only this machine can reach,
+    a real one -- `eth0`, `ib0` -- for a server other machines can reach.
+    `address` is then what any of them connect to,
+    since the server is never bound to a wildcard address.
+    A ValueError is raised for an interface that does not exist here
+    or that has no IPv4 address;
+    see resolve_interface_ipv4().
+
+    IPv4 only:
+    the address is passed to the server as a plain `host:port` string,
+    which has no way to spell an IPv6 address.
+
     ds_service_bin (or DS_SERVICE_BIN) may be a full command line
     rather than a path
     -- `docker run --rm ... ds-service` works as well as
@@ -103,29 +137,15 @@ class DsServiceServer:
     but shell syntax -- a pipeline, a redirection, a `FOO=bar` prefix
     -- is not.
     Wrap such a command in a script of your own if you need one.
-
-    IPv4 only:
-    host must be a dotted-quad address or a name that resolves to one,
-    since the address is passed to the server as a plain `host:port` string,
-    which has no way to spell an IPv6 address.
     """
 
     def __init__(
         self,
-        host: str = WILDCARD_IP,
+        interface: str,
         port: int | None = None,
         ds_service_bin: str | None = None,
     ):
-        # An IPv6 literal would make a `host:port` string ambiguous
-        # ("::1:5051"),
-        # so reject it here
-        # rather than letting it fail deeper down
-        # as an unrelated-looking socket error.
-        if ":" in host:
-            raise ValueError(
-                f"IPv6 is not supported, and {host!r} looks like an IPv6 "
-                f"address; give an IPv4 address such as {WILDCARD_IP}."
-            )
+        host = resolve_interface_ipv4(interface)
 
         ds_service_bin = resolve_ds_service_bin(ds_service_bin)
 
@@ -136,6 +156,7 @@ class DsServiceServer:
         else:
             _check_port_free(host, port)
 
+        self.interface = interface
         self.host = host
         self.port = port
         self.ds_service_bin = ds_service_bin
@@ -159,26 +180,18 @@ class DsServiceServer:
         # and close() may run after that.
         self.pgid = self.process.pid
 
-    @property
-    def connect_host(self) -> str:
-        """Host to connect to, for a server listening on the wildcard address."""
-        if self.host == WILDCARD_IP:
-            return LOOPBACK_IP
-        return self.host
-
     def wait_until_ready(self, timeout: int = 30) -> None:
         """Block until the server accepts TCP connections.
 
         Raises TimeoutError if it is not listening within timeout seconds,
         and RuntimeError if the process exits before then.
         """
-        host = self.connect_host
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             self._raise_if_exited()
 
             try:
-                with socket.create_connection((host, self.port), timeout=timeout):
+                with socket.create_connection((self.host, self.port), timeout=timeout):
                     pass
             except OSError:
                 time.sleep(READY_POLL_INTERVAL_S)
@@ -204,32 +217,6 @@ class DsServiceServer:
                 f"ds-service exited with code {returncode} "
                 f"before listening on {self.address}: {self.command}"
             )
-
-    def get_address_by_interface(self, interface: str) -> str:
-        """Return `<ip of interface>:<port>`, for handing to remote clients.
-
-        Falls back to 127.0.0.1 with a warning
-        if the interface does not exist on this machine
-        or has no IPv4 address.
-        """
-        ip = None
-        for adapter in ifaddr.get_adapters():
-            if adapter.name == interface or adapter.nice_name == interface:
-                for adapter_ip in adapter.ips:
-                    if adapter_ip.is_IPv4:
-                        ip = adapter_ip.ip
-                        break
-                break
-
-        if ip is None:
-            warnings.warn(
-                f"No IPv4 address found for interface {interface!r}; "
-                f"falling back to {LOOPBACK_IP}.",
-                stacklevel=2,
-            )
-            ip = LOOPBACK_IP
-
-        return f"{ip}:{self.port}"
 
     def close(self) -> None:
         """Stop the server: SIGTERM, then SIGKILL if it has not exited.

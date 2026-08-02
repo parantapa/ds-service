@@ -4,6 +4,7 @@ Each test runs against a freshly started ``ds-service`` process.
 Starting and stopping it is left to ``ds_service_client.DsServiceServer``.
 """
 
+import ifaddr
 import pytest
 
 from ds_service_client import DsServiceClient, DsServiceServer
@@ -11,6 +12,24 @@ from ds_service_client.server import resolve_ds_service_bin
 
 STARTUP_TIMEOUT_S = 15
 GRPC_PROBE_TIMEOUT_S = 15.0
+
+# The address every test server binds, through its interface.
+LOOPBACK_IP = "127.0.0.1"
+
+
+def _loopback_interface() -> str:
+    """The name of the interface holding 127.0.0.1.
+
+    Looked up rather than hardcoded to `lo`,
+    because DsServiceServer is given an interface name
+    and the name of the loopback one is the platform's business.
+    """
+    for adapter in ifaddr.get_adapters():
+        for ip in adapter.ips:
+            if ip.is_IPv4 and ip.ip == LOOPBACK_IP:
+                return adapter.name
+
+    raise RuntimeError(f"No interface on this machine holds {LOOPBACK_IP}.")
 
 
 def _probe_grpc(address: str) -> None:
@@ -47,15 +66,25 @@ def server_binary() -> str:
     return resolve_ds_service_bin()
 
 
+@pytest.fixture(scope="session")
+def loopback_interface() -> str:
+    """The interface test servers bind, i.e. the one holding 127.0.0.1.
+
+    Session-scoped because the machine's interfaces
+    do not change under the suite.
+    """
+    return _loopback_interface()
+
+
 @pytest.fixture
-def server_process():
+def server_process(loopback_interface):
     """Start a ds-service process on a free port and yield (proc, address).
 
     Most tests want just the address and use the ``server`` fixture;
     this one is for tests that drive the process itself,
     such as signalling it.
     """
-    server = DsServiceServer(host="127.0.0.1")
+    server = DsServiceServer(loopback_interface)
     try:
         server.wait_until_ready(timeout=STARTUP_TIMEOUT_S)
 
