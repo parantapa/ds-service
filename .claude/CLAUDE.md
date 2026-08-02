@@ -18,8 +18,6 @@ before answering questions or changing code in that area:
     `DS_SERVICE_BIN`, and what the fixtures provide.
 - `docs/howto-use-the-python-client.md` — installing, connecting, the
     gRPC-status-to-exception mapping, and usage examples.
-- `docs/debian-packaging.md` — building the `.deb` and setting the
-    package version.
 
 When behavior changes, update the doc that covers it rather than
 restating it here.
@@ -48,10 +46,9 @@ A proto change is a four-step job, and only the first two are automatic:
 - Every version string in the repo is set by
     `scripts/update-version.sh <version>`: `cpp/ds-service.cpp`,
     `CMakeLists.txt` (numeric part only — `project(VERSION)` rejects a
-    pre-release suffix), `pyproject.toml`, `conanfile.py`, and the top
-    entry of `debian/changelog`. Set them through the script rather than
-    by hand. The script greps for each line first and edits nothing
-    unless all of them are present.
+    pre-release suffix), `pyproject.toml`, and `conanfile.py`. Set them
+    through the script rather than by hand. The script greps for each
+    line first and edits nothing unless all of them are present.
 
 ## Comments
 

@@ -115,7 +115,3 @@ and not to every dependency's configure-time link checks.
 
 ConanCenter has no musl binaries,
 so the first build compiles the whole dependency tree from source.
-
-## Debian package
-
-To build a `.deb` instead, see [debian-packaging.md](debian-packaging.md).

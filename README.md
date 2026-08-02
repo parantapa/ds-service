@@ -49,4 +49,3 @@ Each of these is a separate key space with its own set of RPCs.
 | [How to build the server](docs/howto-build-the-server.md) | Requirements, the Conan + CMake build, installing, running, and the container build. |
 | [How to use the Python client](docs/howto-use-the-python-client.md) | Installing, connecting, the gRPC-status-to-exception mapping, and usage examples. |
 | [How to run the tests](docs/howto-run-the-tests.md) | The pytest integration suite, pointing it at the binary, and what the fixtures provide. |
-| [Debian packaging](docs/debian-packaging.md) | Building the `.deb` and setting the package version. |
