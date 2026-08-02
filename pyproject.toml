@@ -46,3 +46,23 @@ include = ["ds_service_client*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["python"]
+
+# Check the hand-written code only.
+# The generated stubs are excluded because they are not ours to fix
+# -- protoc emits calls into `grpc.experimental`,
+# which grpc's own type stubs do not declare --
+# and the build tree is excluded
+# because it holds stale copies of the same files,
+# which would otherwise be reported twice.
+[tool.pyright]
+include = ["python", "tests"]
+exclude = [
+    "**/__pycache__",
+    "build",
+    "dist",
+    "python/ds_service_client/ds_service_pb2.py",
+    "python/ds_service_client/ds_service_pb2.pyi",
+    "python/ds_service_client/ds_service_pb2_grpc.py",
+]
+extraPaths = ["python"]
+pythonVersion = "3.12"

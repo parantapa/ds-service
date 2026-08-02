@@ -23,8 +23,13 @@ def test_context_manager_closes_the_channel(server):
 
 
 def test_exception_in_the_block_still_closes_the_channel(server):
+    # Bound before the with statement,
+    # so the channel can still be reached
+    # after the block has raised.
+    client = DsServiceClient(server)
+
     with pytest.raises(RuntimeError):
-        with DsServiceClient(server) as client:
+        with client:
             raise RuntimeError("boom")
 
     with pytest.raises(ValueError, match="closed channel"):

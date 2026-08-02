@@ -5,6 +5,7 @@ import time
 
 import pytest
 
+
 def test_try_acquire_creates_and_acquires(client):
     # A mutex that does not exist is created and acquired by the first call.
     assert client.mutex_try_acquire("m") is True
