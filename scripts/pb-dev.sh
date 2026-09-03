@@ -75,7 +75,7 @@ run_upload-python-package() {
     python -m twine upload dist/*.tar.gz dist/*.whl
 }
 
-run_release-ds-service() {
+run_make-release() {
     local binary="dist/ds-service"
     local repo="https://github.com/parantapa/ds-service"
 

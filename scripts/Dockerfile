@@ -36,10 +36,19 @@ RUN apk add --no-cache \
 ENV CONAN_HOME=/opt/conan_home
 
 # compiler.version tracks the gcc Alpine ships.
-# cmake is not listed here at all:
-# conanfile.py does not tool_require it,
-# so the build uses the cmake apk installed above,
-# which need only satisfy
+#
+# cmake is declared platform-provided so that Conan uses the apk installed
+# above and never downloads its own.
+# ConanCenter's cmake package repackages Kitware's glibc binaries,
+# which cannot run on musl.
+# This is needed even though conanfile.py does not tool_require cmake:
+# abseil, c-ares, openssl, re2 and zlib each tool_require
+# `cmake/[>=3.16]` or later to build themselves,
+# and without this line Conan satisfies those from ConanCenter
+# and the dependency build dies with "Could not find CMAKE_ROOT".
+# Conan does not check the platform tool's real version;
+# the version declared here only has to satisfy those ranges,
+# and the tool itself only has to satisfy
 # CMakeLists.txt's `cmake_minimum_required(VERSION 3.31)`.
 RUN mkdir -p "$CONAN_HOME/profiles" \
     && cat > "$CONAN_HOME/profiles/default" <<'EOF'
@@ -51,6 +60,9 @@ compiler.cppstd=20
 compiler.libcxx=libstdc++11
 compiler.version=15
 os=Linux
+
+[platform_tool_requires]
+cmake/4.2
 
 [options]
 grpc/*:codegen=True

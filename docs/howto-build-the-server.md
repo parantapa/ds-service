@@ -87,8 +87,13 @@ To pull that binary out instead of running it:
 docker build -f scripts/Dockerfile --output type=local,dest=./dist .
 ```
 
-One detail differs from the normal build.
-`-static` is passed as `CMAKE_EXE_LINKER_FLAGS` on the final configure
+Two details differ from the normal build.
+The Conan profile marks `cmake` as platform-provided,
+so Alpine's own cmake is used throughout:
+several of the dependencies tool-require cmake to build themselves,
+and the ConanCenter `cmake` package that would otherwise satisfy them
+repackages Kitware's glibc binaries, which cannot run on musl.
+And `-static` is passed as `CMAKE_EXE_LINKER_FLAGS` on the final configure
 rather than through the profile,
 so it applies only to `ds-service`
 and not to every dependency's configure-time link checks.
