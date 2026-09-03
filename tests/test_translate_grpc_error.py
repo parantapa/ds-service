@@ -9,7 +9,7 @@ whether or not a real server produces it easily.
 import grpc
 import pytest
 
-from ds_service_client import NoTaskAvailable, TaskStateError
+from ds_service_client import MutexNotHeld, NoTaskAvailable, TaskStateError
 from ds_service_client.client import translate_grpc_error
 
 
@@ -43,6 +43,14 @@ def test_failed_precondition_maps_to_task_state_error():
     with pytest.raises(TaskStateError):
         with translate_grpc_error():
             raise _FakeRpcError(grpc.StatusCode.FAILED_PRECONDITION, "not Running")
+
+
+def test_failed_precondition_is_overridable_for_mutex_release():
+    # MutexRelease reports a refused release the same way TaskDone reports
+    # a foreign worker, but it is not a task-state problem.
+    with pytest.raises(MutexNotHeld):
+        with translate_grpc_error(failed_precondition=MutexNotHeld):
+            raise _FakeRpcError(grpc.StatusCode.FAILED_PRECONDITION, "not held")
 
 
 def test_not_found_maps_to_key_error_by_default():

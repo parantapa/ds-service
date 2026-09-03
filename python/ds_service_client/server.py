@@ -121,29 +121,6 @@ class DsServiceServer:
     so the server is already coming up when it returns;
     use wait_until_ready() before connecting,
     and close() to stop it.
-
-    The server binds the IPv4 address of interface:
-    the loopback interface for a server only this machine can reach,
-    a real one -- `eth0`, `ib0` -- for a server other machines can reach.
-    `address` is then what any of them connect to,
-    since the server is never bound to a wildcard address.
-    A ValueError is raised for an interface that does not exist here
-    or that has no IPv4 address;
-    see resolve_interface_ipv4().
-
-    IPv4 only:
-    the address is passed to the server as a plain `host:port` string,
-    which has no way to spell an IPv6 address.
-
-    ds_service_bin (or DS_SERVICE_BIN) may be a full command line
-    rather than a path
-    -- `docker run --rm ... ds-service` works as well as
-    `/usr/bin/ds-service`.
-    `--address <host>:<port>` is appended to whatever is given,
-    and the result is split with shlex, i.e. quoting is understood
-    but shell syntax -- a pipeline, a redirection, a `FOO=bar` prefix
-    -- is not.
-    Wrap such a command in a script of your own if you need one.
     """
 
     def __init__(
@@ -237,12 +214,6 @@ class DsServiceServer:
         is stopped too.
 
         Safe to call more than once: the second call does nothing.
-        That matters because the first one reaps the child and frees its pid,
-        and the pid is the process group id --
-        signalling it again could hit whatever process group
-        has since been given that pid.
-        An explicit close() followed by __exit__ is the ordinary way
-        to reach the second call.
         """
         if self._closed:
             return

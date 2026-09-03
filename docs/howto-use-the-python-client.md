@@ -51,7 +51,7 @@ The client translates gRPC status codes into ordinary Python exceptions:
 | `ALREADY_EXISTS` | `ValueError` |
 | `INVALID_ARGUMENT` | `ValueError` |
 | `RESOURCE_EXHAUSTED` | `ValueError` |
-| `FAILED_PRECONDITION` | `TaskStateError` |
+| `FAILED_PRECONDITION` | `TaskStateError`, or `MutexNotHeld` from the `mutex_*` methods |
 | `UNAVAILABLE` | `TimeoutError` |
 | `DEADLINE_EXCEEDED` | `TimeoutError` |
 
@@ -67,7 +67,18 @@ which raises `TimeoutError`.
 
 `TaskStateError` comes from `task_done`
 for a task that is not `Running`,
-or one that `task_requeue` has since handed to another worker.
+or one that is held by a different worker,
+and from `task_get_worker_id` for a task that is not `Running`.
+A cancelled task is the exception on `task_done`:
+that call succeeds,
+but the task stays `Canceled` and the output is discarded.
+
+`MutexNotHeld` is the other exception to a table row.
+`mutex_release` raises it when the caller is not the mutex's holder --
+including a mutex that is already free, or that does not exist --
+because a mutex belongs to the `worker_id` that acquired it.
+`mutex_get_worker_id` raises it for a mutex that exists but is free;
+a key that does not exist at all raises `KeyError` there.
 
 A worker loop therefore looks like this:
 
@@ -89,7 +100,7 @@ while True:
     try:
         client.task_done(task.task_id, worker_id="worker-a", output=output)
     except TaskStateError:
-        # The task was requeued and is somebody else's now; drop the result.
+        # The task is not this worker's to complete; drop the result.
         pass
 ```
 
@@ -113,6 +124,8 @@ assert sorted(client.map_search_key("^run/")) == ["run/1", "run/2"]
 client.task_add("job-1", queue="work", priority=1.0, function=b"...", input=b"...")
 
 task = client.task_get(worker_id="worker-a", queue="work")
+# It is Running now, and belongs to the worker that claimed it.
+assert client.task_get_worker_id(task.task_id) == "worker-a"
 # ... do the work ...
 # worker_id must be the one that claimed the task.
 client.task_done(task.task_id, worker_id="worker-a", output=b"result")
@@ -128,10 +141,21 @@ assert client.task_get_output("job-1") == b"result"
 
 # Aggregate counts across all tasks in the system.
 counts = client.task_get_count_by_state()
-assert (counts.ready, counts.running, counts.complete) == (0, 0, 1)
+assert (counts.ready, counts.running, counts.complete, counts.canceled) == (0, 0, 1, 0)
 
-# Reset tasks that have been running for more than 300 seconds back to Ready.
-client.task_requeue(300.0)
+# A second task, this one never run.
+client.task_add("job-2", queue="work", priority=1.0, function=b"...", input=b"...")
+
+# Read and change the priority of a task that already exists.
+# A task still waiting is moved within the queues it waits on.
+assert client.task_get_priority("job-2") == 1.0
+client.task_set_priority("job-2", 5.0)
+
+# Withdraw a task that has not finished yet.
+# True if this call moved it to Canceled,
+# False if it was already Complete or Canceled.
+assert client.task_cancel("job-2") is True
+assert client.task_get_status("job-2") == TaskState.Canceled
 
 # Journal
 client.journal_append("events", b"started")
@@ -154,18 +178,21 @@ assert [p.value for p in points] == [0.5]
 assert client.time_series_search_key("^loss$") == ["loss"]
 
 # Named mutex
-if client.mutex_try_acquire("resource-a"):
+# The mutex belongs to the worker_id that acquired it,
+# and only that worker can release it.
+if client.mutex_try_acquire("resource-a", worker_id="worker-a"):
     try:
         ...  # exclusive section
+        assert client.mutex_get_worker_id("resource-a") == "worker-a"
     finally:
-        client.mutex_release("resource-a")
+        client.mutex_release("resource-a", worker_id="worker-a")
 
 # Or block until acquired, giving up after 30 seconds
-client.mutex_acquire("resource-a", timeout=30.0)
+client.mutex_acquire("resource-a", worker_id="worker-a", timeout=30.0)
 try:
     ...  # exclusive section
 finally:
-    client.mutex_release("resource-a")
+    client.mutex_release("resource-a", worker_id="worker-a")
 
 assert client.mutex_search_key("^resource-") == ["resource-a"]
 
@@ -180,7 +207,7 @@ assert client.counter_search_key("^ids$") == ["ids"]
 ```
 
 `mutex_acquire` is the one method with no RPC of its own:
-it retries `mutex_try_acquire` in a loop,
+it retries `mutex_try_acquire` in a loop with the same `worker_id`,
 sleeping between attempts,
 and raises `TimeoutError` once `timeout` seconds have elapsed.
 With `timeout=None` (the default) it retries forever.

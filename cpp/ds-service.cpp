@@ -24,26 +24,12 @@
 template <typename K, typename V>
 using Map = phmap::parallel_flat_hash_map<K, V>;
 
-// One waiting task in one queue.
-//
-// `seq` stamps the entry with the value `TaskTable::seq` held for that row
-// when the entry was pushed.
-// It does two jobs:
-// it breaks priority ties in insertion order,
-// and it identifies entries left over from an earlier dispatch cycle
-// -- see TaskManager::queue.
 struct TaskQueueEntry {
     double priority;
     std::uint64_t seq;
     std::size_t index;
 };
 
-// std::priority_queue is a max-heap, i.e. it pops the *largest* entry,
-// so "comes first" means "compares greater" here:
-// higher priority first,
-// and among equal priorities the smaller seq, which is the older entry.
-// Equal priorities would otherwise be dispatched
-// in reverse insertion order.
 struct TaskQueueEntryOrder {
     bool operator()(const TaskQueueEntry& a, const TaskQueueEntry& b) const {
         if (a.priority != b.priority) {
@@ -55,59 +41,34 @@ struct TaskQueueEntryOrder {
 
 using TaskQueue = std::priority_queue<TaskQueueEntry, std::vector<TaskQueueEntry>, TaskQueueEntryOrder>;
 
-// Tasks are stored struct-of-arrays:
-// a task is a row index shared across these parallel vectors,
-// which are always the same length.
-// Add a task by pushing onto every column,
-// and read a field as `tasks.<column>[index]`.
 struct TaskTable {
     std::vector<std::string> task_id;
-    std::vector<double> priority;
     std::vector<std::string> function;
     std::vector<std::string> input;
     std::vector<std::string> output;
     std::vector<TaskState> state;
-    std::vector<double> start_time;
-    std::vector<std::vector<std::string>> queues;
-
-    // The worker holding the row, set by TaskGet and checked by TaskDone.
-    // Empty unless the row is Running.
     std::vector<std::string> worker_id;
-
-    // Bumped every time the row is made Ready,
-    // i.e. once by TaskAdd and once per TaskRequeue that moves it.
-    // Queue entries carry the value current when they were pushed,
-    // so an entry whose seq no longer matches its row is a leftover.
+    std::vector<double> priority;
+    std::vector<std::vector<std::string>> queues;
     std::vector<std::uint64_t> seq;
 };
 
 struct TaskManager {
     TaskTable tasks;
 
-    // task_id -> the row in `tasks` holding it.
     Map<std::string, std::size_t> task_index;
 
-    // Source of TaskTable::seq. Never reused, never reset.
     std::uint64_t next_seq = 0;
 
     // Queue name -> the rows waiting on it, ordered by priority.
     // std::priority_queue is a max-heap,
     // so the highest priority is dispatched first.
-    //
-    // A row may sit in several queues at once,
-    // and there is no way to erase from the middle of a heap,
-    // so entries are never removed on a state change:
-    // TaskGet drops them as it pops them,
-    // discarding any whose row is no longer Ready
-    // or whose seq no longer matches the row's.
-    //
-    // That keeps a polled queue self-cleaning rather than merely correct:
-    // leftovers from an earlier cycle carry a smaller seq than the live
-    // entry for the same row, so they sort *ahead* of it
-    // and are discarded by the very TaskGet that goes on to dispatch it.
-    // A queue nobody ever polls still holds its leftovers,
-    // as does any row that is never dispatched again.
     Map<std::string, TaskQueue> queue;
+};
+
+struct MutexState {
+    bool held = false;
+    std::string worker_id;
 };
 
 struct TimeSeries {
@@ -116,22 +77,6 @@ struct TimeSeries {
     std::vector<std::int64_t> step;
 };
 
-// All server state, and the locks guarding it.
-//
-// Locking is per top-level data structure rather than one global lock:
-// each structure is paired with its own mutex,
-// so operations on one are serialized
-// while operations on different ones run concurrently.
-// Every RPC takes a std::scoped_lock on the single structure it touches,
-// so no request ever holds more than one lock
-// and the ordering between them cannot deadlock.
-// Keep it that way:
-// an RPC spanning two structures would need a lock order
-// defined for the whole file.
-// There is no finer-grained locking within a structure
-// -- no per-key or per-queue locks --
-// so a slow whole-structure scan (any SearchKey, TaskRequeue)
-// blocks every other operation on that structure.
 struct SystemState {
     std::mutex map_lock{};
     Map<std::string, std::string> map{};
@@ -143,7 +88,7 @@ struct SystemState {
     Map<std::string, TimeSeries> time_series{};
 
     std::mutex mutexes_lock{};
-    Map<std::string, bool> mutexes{};
+    Map<std::string, MutexState> mutexes{};
 
     std::mutex counters_lock{};
     Map<std::string, std::uint64_t> counters{};
@@ -189,27 +134,6 @@ std::string format_iso8601_utc(const std::chrono::system_clock::time_point& tp) 
         return std::format("{:%Y-%m-%dT%H:%M:%S}Z", secs);
     }
     return std::format("{:%Y-%m-%dT%H:%M:%S}Z", std::chrono::floor<std::chrono::microseconds>(tp));
-}
-
-// Current time in seconds as a double.
-// Only differences between two readings are meaningful;
-// the epoch is arbitrary.
-// This is the only clock the task table uses:
-// TaskGet stamps start_time with it
-// and TaskRequeue compares against it,
-// so both must keep using this function rather than any other clock.
-//
-// steady_clock, not high_resolution_clock,
-// which libstdc++ defines as an alias for system_clock:
-// a wall clock steps whenever NTP corrects it,
-// and TaskRequeue reads a forward step
-// as every Running task having stalled at once,
-// handing live work to a second worker.
-// The readings mean nothing across a restart,
-// so they must never be serialized or persisted.
-double now_seconds() {
-    using namespace std::chrono;
-    return duration<double>(steady_clock::now().time_since_epoch()).count();
 }
 
 SystemState* GLOBAL_SYSTEM_STATE = nullptr;
@@ -263,14 +187,13 @@ struct DsServiceImpl final : public DsService::Service {
         if (it == task_manager.task_index.end()) {
             auto& tasks = task_manager.tasks;
             tasks.task_id.push_back(request->task_id());
-            tasks.priority.push_back(request->priority());
             tasks.function.push_back(request->function());
             tasks.input.push_back(request->input());
             tasks.output.push_back("");
             tasks.state.push_back(TaskState::Ready);
-            tasks.start_time.push_back(-1.0);
-            tasks.queues.push_back({});
             tasks.worker_id.push_back("");
+            tasks.priority.push_back(request->priority());
+            tasks.queues.push_back({});
             tasks.seq.push_back(++task_manager.next_seq);
 
             auto index = tasks.task_id.size() - 1;
@@ -278,7 +201,7 @@ struct DsServiceImpl final : public DsService::Service {
             task_manager.task_index[request->task_id()] = index;
             for (const auto& qname : request->queue()) {
                 tasks.queues[index].push_back(qname);
-                task_manager.queue[qname].push(TaskQueueEntry{request->priority(), tasks.seq[index], index});
+                task_manager.queue[qname].push(TaskQueueEntry{tasks.priority[index], tasks.seq[index], index});
             }
 
             return grpc::Status::OK;
@@ -325,10 +248,8 @@ struct DsServiceImpl final : public DsService::Service {
                                      TaskGetCountByStateResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
-        // Every task occupies exactly one row in the SOA,
-        // so tallying the state column gives the count per state.
         auto& tasks = GLOBAL_SYSTEM_STATE->task_manager.tasks;
-        std::uint64_t ready = 0, running = 0, complete = 0;
+        std::uint64_t ready = 0, running = 0, complete = 0, canceled = 0;
         for (const auto& state : tasks.state) {
             switch (state) {
             case TaskState::Ready:
@@ -340,6 +261,9 @@ struct DsServiceImpl final : public DsService::Service {
             case TaskState::Complete:
                 complete++;
                 break;
+            case TaskState::Canceled:
+                canceled++;
+                break;
             default:
                 break;
             }
@@ -348,6 +272,97 @@ struct DsServiceImpl final : public DsService::Service {
         response->set_ready(ready);
         response->set_running(running);
         response->set_complete(complete);
+        response->set_canceled(canceled);
+        return grpc::Status::OK;
+    }
+
+    grpc::Status TaskCancel(grpc::ServerContext*, const TaskCancelRequest* request,
+                            TaskCancelResponse* response) override {
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
+
+        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
+        auto it = task_manager.task_index.find(request->task_id());
+        if (it == task_manager.task_index.end()) {
+            return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                                fmt::format("Task with ID = {} not found.", request->task_id()));
+        }
+
+        auto index = it->second;
+        auto& tasks = task_manager.tasks;
+
+        if (tasks.state[index] != TaskState::Ready && tasks.state[index] != TaskState::Running) {
+            response->set_success(false);
+            return grpc::Status::OK;
+        }
+
+        tasks.state[index] = TaskState::Canceled;
+        tasks.worker_id[index] = "";
+
+        response->set_success(true);
+        return grpc::Status::OK;
+    }
+
+    grpc::Status TaskGetPriority(grpc::ServerContext*, const TaskGetPriorityRequest* request,
+                                 TaskGetPriorityResponse* response) override {
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
+
+        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
+        auto it = task_manager.task_index.find(request->task_id());
+        if (it == task_manager.task_index.end()) {
+            return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                                fmt::format("Task with ID = {} not found.", request->task_id()));
+        }
+
+        response->set_priority(task_manager.tasks.priority[it->second]);
+        return grpc::Status::OK;
+    }
+
+    grpc::Status TaskSetPriority(grpc::ServerContext*, const TaskSetPriorityRequest* request, Empty*) override {
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
+
+        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
+        auto it = task_manager.task_index.find(request->task_id());
+        if (it == task_manager.task_index.end()) {
+            return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                                fmt::format("Task with ID = {} not found.", request->task_id()));
+        }
+
+        auto index = it->second;
+        auto& tasks = task_manager.tasks;
+        tasks.priority[index] = request->priority();
+
+        if (tasks.state[index] != TaskState::Ready) {
+            return grpc::Status::OK;
+        }
+
+        tasks.seq[index] = ++task_manager.next_seq;
+        for (const auto& qname : tasks.queues[index]) {
+            task_manager.queue[qname].push(TaskQueueEntry{tasks.priority[index], tasks.seq[index], index});
+        }
+
+        return grpc::Status::OK;
+    }
+
+    grpc::Status TaskGetWorkerId(grpc::ServerContext*, const TaskGetWorkerIdRequest* request,
+                                 TaskGetWorkerIdResponse* response) override {
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
+
+        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
+        auto it = task_manager.task_index.find(request->task_id());
+        if (it == task_manager.task_index.end()) {
+            return grpc::Status(grpc::StatusCode::NOT_FOUND,
+                                fmt::format("Task with ID = {} not found.", request->task_id()));
+        }
+
+        auto index = it->second;
+        auto& tasks = task_manager.tasks;
+
+        if (tasks.state[index] != TaskState::Running) {
+            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
+                                fmt::format("Task with ID = {} is not Running.", request->task_id()));
+        }
+
+        response->set_worker_id(tasks.worker_id[index]);
         return grpc::Status::OK;
     }
 
@@ -357,21 +372,15 @@ struct DsServiceImpl final : public DsService::Service {
         // Queues are searched in the order the caller listed them:
         // the first one holding a Ready task wins.
         //
-        // A queue entry is never removed when its task leaves the Ready state,
-        // so entries for tasks that are already Running or Complete accumulate,
-        // as do entries left over from a cycle before a TaskRequeue.
+        // A queue entry is never removed when its task leaves the Ready state
+        // or when TaskSetPriority supersedes it,
+        // so dead entries accumulate.
         // They are discarded lazily here, as they reach the top of the heap
         // -- which is why a popped entry that is not usable
         // is dropped rather than skipped.
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto& tasks = task_manager.tasks;
         for (const auto& qname : request->queue()) {
-            // find, not operator[]:
-            // polling a queue no task was ever added to must not create it.
-            // Workers poll queue names on a loop,
-            // so operator[] here would grow the map
-            // by one empty queue per name ever asked about,
-            // for the life of the server.
             auto queue_it = task_manager.queue.find(qname);
             if (queue_it == task_manager.queue.end()) {
                 continue;
@@ -383,16 +392,16 @@ struct DsServiceImpl final : public DsService::Service {
                 queue.pop();
 
                 // Two ways an entry can be dead:
-                // its row has left Ready,
-                // or the row was made Ready again after this entry was pushed
-                // and a newer entry supersedes it.
+                // its row has left Ready
+                // -- claimed through another of its queues, or finished --
+                // or TaskSetPriority has since pushed a newer entry
+                // that supersedes it.
                 if (tasks.state[entry.index] != TaskState::Ready || entry.seq != tasks.seq[entry.index]) {
                     continue;
                 }
 
                 const auto index = entry.index;
                 tasks.state[index] = TaskState::Running;
-                tasks.start_time[index] = now_seconds();
                 tasks.worker_id[index] = request->worker_id();
 
                 response->set_task_id(tasks.task_id[index]);
@@ -403,11 +412,6 @@ struct DsServiceImpl final : public DsService::Service {
             }
         }
 
-        // NOT_FOUND, not UNAVAILABLE:
-        // gRPC produces UNAVAILABLE itself when it cannot reach the server,
-        // so reusing it here left a worker loop unable to tell
-        // "no work right now" from "the server is gone"
-        // and polling a dead server for ever.
         return grpc::Status(grpc::StatusCode::NOT_FOUND, "No tasks available.");
     }
 
@@ -424,20 +428,15 @@ struct DsServiceImpl final : public DsService::Service {
         auto index = it->second;
         auto& tasks = task_manager.tasks;
 
-        // A task that is not Running has no result to record:
-        // it was never claimed, or it has already been completed.
+        if (tasks.state[index] == TaskState::Canceled) {
+            return grpc::Status::OK;
+        }
+
         if (tasks.state[index] != TaskState::Running) {
             return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
                                 fmt::format("Task with ID = {} is not Running.", request->task_id()));
         }
 
-        // A Running task belongs to the worker that claimed it.
-        // A stalled worker whose task TaskRequeue handed to somebody else
-        // must not overwrite the new owner's result when it finally reports.
-        //
-        // Both of these refusals used to be a silent OK,
-        // so a worker could not tell a recorded result
-        // from one that had been dropped on the floor.
         if (tasks.worker_id[index] != request->worker_id()) {
             return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
                                 fmt::format("Task with ID = {} is held by worker {}, not {}.", request->task_id(),
@@ -446,42 +445,6 @@ struct DsServiceImpl final : public DsService::Service {
 
         tasks.state[index] = TaskState::Complete;
         tasks.output[index] = request->output();
-        return grpc::Status::OK;
-    }
-
-    grpc::Status TaskRequeue(grpc::ServerContext*, const TaskRequeueRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        // The only fault tolerance the server has:
-        // a worker that dies mid-task leaves it Running for ever,
-        // so a client calls this periodically
-        // to hand stalled work to another worker.
-        // It is never called automatically.
-        double max_start_time = now_seconds() - request->timeout_s();
-
-        // Stalled tasks are found by scanning every row
-        // -- there is no index by state or by start time --
-        // while holding the task manager's lock,
-        // so this blocks all other task operations for as long as it runs.
-        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
-        auto& tasks = task_manager.tasks;
-        for (std::size_t index = 0; index < tasks.task_id.size(); index++) {
-            if (tasks.state[index] == TaskState::Running && tasks.start_time[index] < max_start_time) {
-                tasks.state[index] = TaskState::Ready;
-                tasks.start_time[index] = -1;
-                tasks.worker_id[index] = "";
-
-                // A fresh seq retires every entry this row already has,
-                // so the entries pushed below supersede them
-                // rather than adding a second live entry per queue.
-                tasks.seq[index] = ++task_manager.next_seq;
-
-                for (const auto& qname : tasks.queues[index]) {
-                    task_manager.queue[qname].push(TaskQueueEntry{tasks.priority[index], tasks.seq[index], index});
-                }
-            }
-        }
-
         return grpc::Status::OK;
     }
 
@@ -641,13 +604,12 @@ struct DsServiceImpl final : public DsService::Service {
                                  MutexTryAcquireResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
 
-        // operator[] value-initializes a missing mutex to false (unheld),
-        // so an unknown key is created and then acquired by this same call.
-        bool& held = GLOBAL_SYSTEM_STATE->mutexes[request->key()];
-        if (held) {
+        MutexState& mutex = GLOBAL_SYSTEM_STATE->mutexes[request->key()];
+        if (mutex.held) {
             response->set_acquired(false);
         } else {
-            held = true;
+            mutex.held = true;
+            mutex.worker_id = request->worker_id();
             response->set_acquired(true);
         }
 
@@ -657,14 +619,39 @@ struct DsServiceImpl final : public DsService::Service {
     grpc::Status MutexRelease(grpc::ServerContext*, const MutexReleaseRequest* request, Empty*) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
 
-        // Releasing an unheld or unknown mutex is a no-op;
-        // don't create the key.
         auto& mutexes = GLOBAL_SYSTEM_STATE->mutexes;
         auto it = mutexes.find(request->key());
-        if (it != mutexes.end()) {
-            it->second = false;
+        if (it == mutexes.end() || !it->second.held) {
+            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
+                                fmt::format("Mutex {} is not held.", request->key()));
         }
 
+        if (it->second.worker_id != request->worker_id()) {
+            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
+                                fmt::format("Mutex {} is held by worker {}, not {}.", request->key(),
+                                            it->second.worker_id, request->worker_id()));
+        }
+
+        it->second = MutexState{};
+        return grpc::Status::OK;
+    }
+
+    grpc::Status MutexGetWorkerId(grpc::ServerContext*, const MutexGetWorkerIdRequest* request,
+                                  MutexGetWorkerIdResponse* response) override {
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
+
+        auto& mutexes = GLOBAL_SYSTEM_STATE->mutexes;
+        auto it = mutexes.find(request->key());
+        if (it == mutexes.end()) {
+            return grpc::Status(grpc::StatusCode::NOT_FOUND, fmt::format("Mutex {} not found.", request->key()));
+        }
+
+        if (!it->second.held) {
+            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
+                                fmt::format("Mutex {} is not held.", request->key()));
+        }
+
+        response->set_worker_id(it->second.worker_id);
         return grpc::Status::OK;
     }
 
@@ -691,9 +678,6 @@ struct DsServiceImpl final : public DsService::Service {
                                      CounterGetNextValueResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->counters_lock};
 
-        // operator[] value-initializes a missing counter to 0,
-        // so pre-incrementing makes the first call return 1
-        // and creates the counter.
         std::uint64_t& counter = GLOBAL_SYSTEM_STATE->counters[request->key()];
         response->set_value(++counter);
 
@@ -704,8 +688,6 @@ struct DsServiceImpl final : public DsService::Service {
                                         CounterGetCurrentValueResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->counters_lock};
 
-        // Read-only: don't create a missing counter;
-        // report 0 for one that does not exist.
         auto& counters = GLOBAL_SYSTEM_STATE->counters;
         auto it = counters.find(request->key());
         response->set_value(it == counters.end() ? 0 : it->second);
@@ -745,7 +727,7 @@ constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
 // Anything still running when the deadline passes is cancelled.
 constexpr int SHUTDOWN_GRACE_S = 5;
 
-const char* VERSION = "3.0.0";
+const char* VERSION = "4.0.0";
 
 // How often the thread below looks for a delivered signal.
 // It bounds how long shutdown takes to start, so keep it short.

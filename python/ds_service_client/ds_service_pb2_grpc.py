@@ -69,6 +69,26 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetCountByStateResponse.FromString,
                 _registered_method=True)
+        self.TaskCancel = channel.unary_unary(
+                '/DsService/TaskCancel',
+                request_serializer=ds__service__client_dot_ds__service__pb2.TaskCancelRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.TaskCancelResponse.FromString,
+                _registered_method=True)
+        self.TaskGetPriority = channel.unary_unary(
+                '/DsService/TaskGetPriority',
+                request_serializer=ds__service__client_dot_ds__service__pb2.TaskGetPriorityRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetPriorityResponse.FromString,
+                _registered_method=True)
+        self.TaskSetPriority = channel.unary_unary(
+                '/DsService/TaskSetPriority',
+                request_serializer=ds__service__client_dot_ds__service__pb2.TaskSetPriorityRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
+                _registered_method=True)
+        self.TaskGetWorkerId = channel.unary_unary(
+                '/DsService/TaskGetWorkerId',
+                request_serializer=ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdResponse.FromString,
+                _registered_method=True)
         self.TaskGet = channel.unary_unary(
                 '/DsService/TaskGet',
                 request_serializer=ds__service__client_dot_ds__service__pb2.TaskGetRequest.SerializeToString,
@@ -77,11 +97,6 @@ class DsServiceStub(object):
         self.TaskDone = channel.unary_unary(
                 '/DsService/TaskDone',
                 request_serializer=ds__service__client_dot_ds__service__pb2.TaskDoneRequest.SerializeToString,
-                response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
-                _registered_method=True)
-        self.TaskRequeue = channel.unary_unary(
-                '/DsService/TaskRequeue',
-                request_serializer=ds__service__client_dot_ds__service__pb2.TaskRequeueRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
                 _registered_method=True)
         self.JournalSize = channel.unary_unary(
@@ -128,6 +143,11 @@ class DsServiceStub(object):
                 '/DsService/MutexRelease',
                 request_serializer=ds__service__client_dot_ds__service__pb2.MutexReleaseRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
+                _registered_method=True)
+        self.MutexGetWorkerId = channel.unary_unary(
+                '/DsService/MutexGetWorkerId',
+                request_serializer=ds__service__client_dot_ds__service__pb2.MutexGetWorkerIdRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.MutexGetWorkerIdResponse.FromString,
                 _registered_method=True)
         self.MutexSearchKey = channel.unary_unary(
                 '/DsService/MutexSearchKey',
@@ -196,6 +216,30 @@ class DsServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def TaskCancel(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def TaskGetPriority(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def TaskSetPriority(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def TaskGetWorkerId(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def TaskGet(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -203,12 +247,6 @@ class DsServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def TaskDone(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def TaskRequeue(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -263,6 +301,12 @@ class DsServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def MutexRelease(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def MutexGetWorkerId(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -330,6 +374,26 @@ def add_DsServiceServicer_to_server(servicer, server):
                     request_deserializer=ds__service__client_dot_ds__service__pb2.Empty.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.TaskGetCountByStateResponse.SerializeToString,
             ),
+            'TaskCancel': grpc.unary_unary_rpc_method_handler(
+                    servicer.TaskCancel,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.TaskCancelRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.TaskCancelResponse.SerializeToString,
+            ),
+            'TaskGetPriority': grpc.unary_unary_rpc_method_handler(
+                    servicer.TaskGetPriority,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetPriorityRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.TaskGetPriorityResponse.SerializeToString,
+            ),
+            'TaskSetPriority': grpc.unary_unary_rpc_method_handler(
+                    servicer.TaskSetPriority,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.TaskSetPriorityRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
+            ),
+            'TaskGetWorkerId': grpc.unary_unary_rpc_method_handler(
+                    servicer.TaskGetWorkerId,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdResponse.SerializeToString,
+            ),
             'TaskGet': grpc.unary_unary_rpc_method_handler(
                     servicer.TaskGet,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetRequest.FromString,
@@ -338,11 +402,6 @@ def add_DsServiceServicer_to_server(servicer, server):
             'TaskDone': grpc.unary_unary_rpc_method_handler(
                     servicer.TaskDone,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.TaskDoneRequest.FromString,
-                    response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
-            ),
-            'TaskRequeue': grpc.unary_unary_rpc_method_handler(
-                    servicer.TaskRequeue,
-                    request_deserializer=ds__service__client_dot_ds__service__pb2.TaskRequeueRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
             ),
             'JournalSize': grpc.unary_unary_rpc_method_handler(
@@ -389,6 +448,11 @@ def add_DsServiceServicer_to_server(servicer, server):
                     servicer.MutexRelease,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.MutexReleaseRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.Empty.SerializeToString,
+            ),
+            'MutexGetWorkerId': grpc.unary_unary_rpc_method_handler(
+                    servicer.MutexGetWorkerId,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.MutexGetWorkerIdRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.MutexGetWorkerIdResponse.SerializeToString,
             ),
             'MutexSearchKey': grpc.unary_unary_rpc_method_handler(
                     servicer.MutexSearchKey,
@@ -611,6 +675,114 @@ class DsService(object):
             _registered_method=True)
 
     @staticmethod
+    def TaskCancel(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/TaskCancel',
+            ds__service__client_dot_ds__service__pb2.TaskCancelRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.TaskCancelResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def TaskGetPriority(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/TaskGetPriority',
+            ds__service__client_dot_ds__service__pb2.TaskGetPriorityRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.TaskGetPriorityResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def TaskSetPriority(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/TaskSetPriority',
+            ds__service__client_dot_ds__service__pb2.TaskSetPriorityRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def TaskGetWorkerId(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/TaskGetWorkerId',
+            ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def TaskGet(request,
             target,
             options=(),
@@ -653,33 +825,6 @@ class DsService(object):
             target,
             '/DsService/TaskDone',
             ds__service__client_dot_ds__service__pb2.TaskDoneRequest.SerializeToString,
-            ds__service__client_dot_ds__service__pb2.Empty.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def TaskRequeue(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/DsService/TaskRequeue',
-            ds__service__client_dot_ds__service__pb2.TaskRequeueRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.Empty.FromString,
             options,
             channel_credentials,
@@ -924,6 +1069,33 @@ class DsService(object):
             '/DsService/MutexRelease',
             ds__service__client_dot_ds__service__pb2.MutexReleaseRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.Empty.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def MutexGetWorkerId(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/MutexGetWorkerId',
+            ds__service__client_dot_ds__service__pb2.MutexGetWorkerIdRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.MutexGetWorkerIdResponse.FromString,
             options,
             channel_credentials,
             insecure,

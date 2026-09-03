@@ -16,7 +16,7 @@ Presently, it provides six data structures:
 - **A journal store** -- append-only, ordered logs of binary entries.
 - **A time series store** -- append-only series of
     timestamped floating-point values.
-- **Named mutexes** -- cooperative locks
+- **Named mutexes** -- worker-owned locks
     for coordinating exclusive resource access across workers.
 - **Counters** -- named monotonic counters
     that hand out successive integers.
@@ -38,7 +38,8 @@ Each of these is a separate key space with its own set of RPCs.
     that wraps the generated gRPC stubs
     and translates gRPC status codes into Python exceptions
     (`KeyError`, `ValueError`, `TimeoutError`,
-    and the task-queue specific `NoTaskAvailable` and `TaskStateError`).
+    the task-queue-specific `NoTaskAvailable` and `TaskStateError`,
+    and `MutexNotHeld`).
 - **Interface** (`misc/ds-service.proto`) -- the protobuf/gRPC contract
     shared by both sides.
 

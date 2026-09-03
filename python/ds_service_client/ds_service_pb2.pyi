@@ -12,10 +12,12 @@ class TaskState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     Ready: _ClassVar[TaskState]
     Running: _ClassVar[TaskState]
     Complete: _ClassVar[TaskState]
+    Canceled: _ClassVar[TaskState]
     Undefined: _ClassVar[TaskState]
 Ready: TaskState
 Running: TaskState
 Complete: TaskState
+Canceled: TaskState
 Undefined: TaskState
 
 class Empty(_message.Message):
@@ -93,14 +95,60 @@ class TaskGetOutputResponse(_message.Message):
     def __init__(self, output: _Optional[bytes] = ...) -> None: ...
 
 class TaskGetCountByStateResponse(_message.Message):
-    __slots__ = ("ready", "running", "complete")
+    __slots__ = ("ready", "running", "complete", "canceled")
     READY_FIELD_NUMBER: _ClassVar[int]
     RUNNING_FIELD_NUMBER: _ClassVar[int]
     COMPLETE_FIELD_NUMBER: _ClassVar[int]
+    CANCELED_FIELD_NUMBER: _ClassVar[int]
     ready: int
     running: int
     complete: int
-    def __init__(self, ready: _Optional[int] = ..., running: _Optional[int] = ..., complete: _Optional[int] = ...) -> None: ...
+    canceled: int
+    def __init__(self, ready: _Optional[int] = ..., running: _Optional[int] = ..., complete: _Optional[int] = ..., canceled: _Optional[int] = ...) -> None: ...
+
+class TaskCancelRequest(_message.Message):
+    __slots__ = ("task_id",)
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    task_id: str
+    def __init__(self, task_id: _Optional[str] = ...) -> None: ...
+
+class TaskCancelResponse(_message.Message):
+    __slots__ = ("success",)
+    SUCCESS_FIELD_NUMBER: _ClassVar[int]
+    success: bool
+    def __init__(self, success: bool = ...) -> None: ...
+
+class TaskGetPriorityRequest(_message.Message):
+    __slots__ = ("task_id",)
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    task_id: str
+    def __init__(self, task_id: _Optional[str] = ...) -> None: ...
+
+class TaskGetPriorityResponse(_message.Message):
+    __slots__ = ("priority",)
+    PRIORITY_FIELD_NUMBER: _ClassVar[int]
+    priority: float
+    def __init__(self, priority: _Optional[float] = ...) -> None: ...
+
+class TaskSetPriorityRequest(_message.Message):
+    __slots__ = ("task_id", "priority")
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    PRIORITY_FIELD_NUMBER: _ClassVar[int]
+    task_id: str
+    priority: float
+    def __init__(self, task_id: _Optional[str] = ..., priority: _Optional[float] = ...) -> None: ...
+
+class TaskGetWorkerIdRequest(_message.Message):
+    __slots__ = ("task_id",)
+    TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    task_id: str
+    def __init__(self, task_id: _Optional[str] = ...) -> None: ...
+
+class TaskGetWorkerIdResponse(_message.Message):
+    __slots__ = ("worker_id",)
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    worker_id: str
+    def __init__(self, worker_id: _Optional[str] = ...) -> None: ...
 
 class TaskGetRequest(_message.Message):
     __slots__ = ("worker_id", "queue")
@@ -129,12 +177,6 @@ class TaskDoneRequest(_message.Message):
     output: bytes
     worker_id: str
     def __init__(self, task_id: _Optional[str] = ..., output: _Optional[bytes] = ..., worker_id: _Optional[str] = ...) -> None: ...
-
-class TaskRequeueRequest(_message.Message):
-    __slots__ = ("timeout_s",)
-    TIMEOUT_S_FIELD_NUMBER: _ClassVar[int]
-    timeout_s: float
-    def __init__(self, timeout_s: _Optional[float] = ...) -> None: ...
 
 class JournalSizeRequest(_message.Message):
     __slots__ = ("key",)
@@ -215,10 +257,12 @@ class TimeSeriesGetResponse(_message.Message):
     def __init__(self, point: _Optional[_Iterable[_Union[TimeSeriesDataPoint, _Mapping]]] = ...) -> None: ...
 
 class MutexTryAcquireRequest(_message.Message):
-    __slots__ = ("key",)
+    __slots__ = ("key", "worker_id")
     KEY_FIELD_NUMBER: _ClassVar[int]
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
     key: str
-    def __init__(self, key: _Optional[str] = ...) -> None: ...
+    worker_id: str
+    def __init__(self, key: _Optional[str] = ..., worker_id: _Optional[str] = ...) -> None: ...
 
 class MutexTryAcquireResponse(_message.Message):
     __slots__ = ("acquired",)
@@ -227,10 +271,24 @@ class MutexTryAcquireResponse(_message.Message):
     def __init__(self, acquired: bool = ...) -> None: ...
 
 class MutexReleaseRequest(_message.Message):
+    __slots__ = ("key", "worker_id")
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    worker_id: str
+    def __init__(self, key: _Optional[str] = ..., worker_id: _Optional[str] = ...) -> None: ...
+
+class MutexGetWorkerIdRequest(_message.Message):
     __slots__ = ("key",)
     KEY_FIELD_NUMBER: _ClassVar[int]
     key: str
     def __init__(self, key: _Optional[str] = ...) -> None: ...
+
+class MutexGetWorkerIdResponse(_message.Message):
+    __slots__ = ("worker_id",)
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    worker_id: str
+    def __init__(self, worker_id: _Optional[str] = ...) -> None: ...
 
 class CounterGetNextValueRequest(_message.Message):
     __slots__ = ("key",)

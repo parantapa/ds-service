@@ -2,8 +2,7 @@
 
 The test suite in `tests/` is an integration suite driven by
 [pytest](https://pytest.org/).
-There are no unit tests of the C++ internals:
-every test starts a real `ds-service` process
+Every test starts a real `ds-service` process
 and drives it through the Python client over gRPC.
 
 ## Prerequisites
@@ -16,7 +15,7 @@ and drives it through the Python client over gRPC.
     pip install -e ".[test]"
     ```
 
-    This pulls in `pytest`
+    This pulls in `pytest`.
     Installing is not strictly required for the client itself --
     `pyproject.toml` sets `pythonpath = ["python"]`, so
     `ds_service_client` imports straight from the source tree.
@@ -31,9 +30,7 @@ which locates it in one of two ways, in order:
     -- `docker run --rm --network host ds-service` -- not just a path.
 2. Otherwise, a `ds-service` found on `PATH`.
 
-It does **not** search the build tree,
-so after an in-tree build
-either set the variable or put the binary on `PATH`:
+After an in-tree build, point the variable at the binary:
 
 ```sh
 export DS_SERVICE_BIN=build/Release/ds-service
@@ -47,7 +44,7 @@ every test fails with a `FileNotFoundError`.
 ```sh
 python -m pytest                 # everything
 python -m pytest tests/test_journal.py
-python -m pytest tests/test_tasks.py::test_task_requeue_returns_stalled_task
+python -m pytest tests/test_tasks.py::test_add_get_done_lifecycle
 ```
 
 `testpaths = ["tests"]` in `pyproject.toml` means a bare

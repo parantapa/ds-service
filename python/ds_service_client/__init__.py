@@ -1,2 +1,8 @@
-from .client import DsServiceClient, NoTaskAvailable, TaskState, TaskStateError
+from .client import (
+    DsServiceClient,
+    MutexNotHeld,
+    NoTaskAvailable,
+    TaskState,
+    TaskStateError,
+)
 from .server import DsServiceServer

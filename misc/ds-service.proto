@@ -9,11 +9,13 @@ service DsService {
     rpc TaskGetStatus(TaskGetStatusRequest) returns (TaskGetStatusResponse) {}
     rpc TaskGetOutput(TaskGetOutputRequest) returns (TaskGetOutputResponse) {}
     rpc TaskGetCountByState(Empty) returns (TaskGetCountByStateResponse) {}
+    rpc TaskCancel(TaskCancelRequest) returns (TaskCancelResponse) {}
+    rpc TaskGetPriority(TaskGetPriorityRequest) returns (TaskGetPriorityResponse) {}
+    rpc TaskSetPriority(TaskSetPriorityRequest) returns (Empty) {}
+    rpc TaskGetWorkerId(TaskGetWorkerIdRequest) returns (TaskGetWorkerIdResponse) {}
 
     rpc TaskGet(TaskGetRequest) returns (TaskGetResponse) {}
     rpc TaskDone(TaskDoneRequest) returns (Empty) {}
-
-    rpc TaskRequeue(TaskRequeueRequest) returns (Empty) {}
 
     rpc JournalSize(JournalSizeRequest) returns (JournalSizeResponse) {}
     rpc JournalRead(JournalReadRequest) returns (JournalReadResponse) {}
@@ -26,6 +28,7 @@ service DsService {
 
     rpc MutexTryAcquire(MutexTryAcquireRequest) returns (MutexTryAcquireResponse) {}
     rpc MutexRelease(MutexReleaseRequest) returns (Empty) {}
+    rpc MutexGetWorkerId(MutexGetWorkerIdRequest) returns (MutexGetWorkerIdResponse) {}
     rpc MutexSearchKey(SearchKeyRequest) returns (SearchKeyResponse) {}
 
     rpc CounterGetNextValue(CounterGetNextValueRequest) returns (CounterGetNextValueResponse) {}
@@ -64,13 +67,13 @@ message TaskAddRequest {
     bytes input = 5;
 }
 
-// Undefined is reported by TaskGetStatus for a task_id that does not exist;
-// a live task is always one of Ready, Running, or Complete.
+// Undefined is reported by TaskGetStatus for a task_id that does not exist.
 enum TaskState {
     Ready = 0;
     Running = 1;
     Complete = 2;
-    Undefined = 3;
+    Canceled = 3;
+    Undefined = 4;
 }
 
 // TaskGetStatus reports the state of every requested task_id,
@@ -93,12 +96,54 @@ message TaskGetOutputResponse {
 }
 
 // Counts of all tasks in the system by state.
-// Every task is in exactly one of these states, so the three
+// Every task is in exactly one of these states, so the four
 // counts sum to the total number of tasks the server knows about.
 message TaskGetCountByStateResponse {
     uint64 ready = 1;
     uint64 running = 2;
     uint64 complete = 3;
+    uint64 canceled = 4;
+}
+
+// Cancelling a Ready task stops it being dispatched from any queue
+// it was waiting on;
+// cancelling a Running task takes it away from the worker holding it.
+message TaskCancelRequest {
+    string task_id = 1;
+}
+
+// success is true if the task was Ready or Running
+// and this call moved it to Canceled,
+// false if it was already Complete or Canceled
+// and so was left as it was.
+message TaskCancelResponse {
+    bool success = 1;
+}
+
+message TaskGetPriorityRequest {
+    string task_id = 1;
+}
+
+message TaskGetPriorityResponse {
+    double priority = 1;
+}
+
+// Re-prioritizing a Ready task moves it within every queue it waits on,
+// and it goes behind equal priority the tasks already waiting.
+message TaskSetPriorityRequest {
+    string task_id = 1;
+    double priority = 2;
+}
+
+// Reports the worker that claimed a Running task through TaskGet.
+// NOT_FOUND for a task_id that does not exist,
+// and FAILED_PRECONDITION for a task that is not Running.
+message TaskGetWorkerIdRequest {
+    string task_id = 1;
+}
+
+message TaskGetWorkerIdResponse {
+    string worker_id = 1;
 }
 
 message TaskGetRequest {
@@ -113,17 +158,13 @@ message TaskGetResponse {
 }
 
 // worker_id must be the one that claimed the task through TaskGet.
-// TaskDone from any other worker is refused,
-// so a worker whose task was handed to somebody else by TaskRequeue
-// cannot overwrite the result of the worker that now owns it.
+// TaskDone from any other worker is refused.
+// TaskDone on a Canceled task is accepted but does nothing.
+// The task stays Canceled and the output is discarded.
 message TaskDoneRequest {
     string task_id = 1;
     bytes output = 2;
     string worker_id = 3;
-}
-
-message TaskRequeueRequest {
-    double timeout_s = 1;
 }
 
 message JournalSizeRequest {
@@ -183,18 +224,39 @@ message TimeSeriesGetResponse {
 }
 
 // Acquiring a mutex that does not exist creates it first.
+// worker_id is recorded as the holder of a mutex this call acquires,
+// and it is what MutexRelease must present to release it again.
 message MutexTryAcquireRequest {
     string key = 1;
+    string worker_id = 2;
 }
 
 // acquired is true if the mutex was acquired by this call,
-// false if it was already held by someone else.
+// false if it was already held --
+// by any worker, this one included, since the lock is not reentrant.
 message MutexTryAcquireResponse {
     bool acquired = 1;
 }
 
+// worker_id must be the one that acquired the mutex.
+// Releasing clears the recorded holder, leaving the mutex free.
+// Every other case is refused with FAILED_PRECONDITION:
+// a mutex held by another worker, one that is already free,
+// and one that does not exist.
 message MutexReleaseRequest {
     string key = 1;
+    string worker_id = 2;
+}
+
+// Reports the worker holding the mutex.
+// NOT_FOUND for a key no MutexTryAcquire has ever named,
+// and FAILED_PRECONDITION for a key that exists but is free.
+message MutexGetWorkerIdRequest {
+    string key = 1;
+}
+
+message MutexGetWorkerIdResponse {
+    string worker_id = 1;
 }
 
 // The first call for a given key creates the counter and returns 1;

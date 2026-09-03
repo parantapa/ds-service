@@ -11,7 +11,7 @@ and the build is driven by CMake.
     all the C++ dependencies come from Conan.
 
 The first Conan run has to build a fair amount from source
-so expect it to take a while.
+and will likely take a while.
 Subsequent builds reuse the Conan cache.
 
 ## Building
@@ -36,7 +36,7 @@ The steps are:
 3. `cmake -S . -B ...` configures the build against that toolchain.
 4. `cmake --build ...` compiles it.
 
-The binary lands at `build/Release/ds-service`.
+The binary is created at `build/Release/ds-service`.
 For a debug build, pass `-s build_type=Debug` to `conan install` and use
 `-DCMAKE_BUILD_TYPE=Debug` with a matching `build/Debug` directory.
 
@@ -47,7 +47,7 @@ The C++ protobuf and gRPC stubs (`ds-service.pb.*`, `ds-service.grpc.pb.*`)
 are generated **automatically during the build**, into the build tree --
 there is no manual step and they are not committed.
 
-The Python client stubs are the one generated artifact *not* covered by
+The Python client stubs are *not* covered by
 the C++ build: they are produced by `scripts/gen_python_bindings.sh` and
 committed to the repository, so they only need regenerating when the
 proto changes.
@@ -55,10 +55,10 @@ proto changes.
 ## Installing
 
 ```sh
-cmake --install build/Release --prefix /usr/local
+cmake --install build/Release --prefix /path/to/prefix
 ```
 
-This installs the `ds-service` binary under `<prefix>/bin`.
+This installs the `ds-service` binary under `/path/to/prefix/bin`.
 
 ## Running
 
