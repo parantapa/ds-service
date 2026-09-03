@@ -6,8 +6,8 @@ and the build is driven by CMake.
 
 ## Requirements
 
-- `build-essential` (or another C++23 toolchain — `g++` >= 14), `cmake` (>= 4.0), `git`
-- [Conan](https://conan.io/) 2.x on `PATH` (`pip install conan`) —
+- `build-essential` (or another C++23 toolchain -- `g++` >= 14), `cmake` (>= 3.31), `git`
+- [Conan](https://conan.io/) 2.x on `PATH` (`pip install conan`) --
     all the C++ dependencies come from Conan.
 
 The first Conan run has to build a fair amount from source
@@ -31,8 +31,8 @@ The steps are:
 
 1. `conan install` resolves and builds the dependencies and writes the
     CMake toolchain and dependency files into `build/Release/generators/`.
-2. Sourcing `conanbuild.sh` puts the Conan-provided build tools —
-    `protoc` and `grpc_cpp_plugin`, which the build needs — on `PATH`.
+2. Sourcing `conanbuild.sh` puts the Conan-provided build tools --
+    `protoc` and `grpc_cpp_plugin`, which the build needs -- on `PATH`.
 3. `cmake -S . -B ...` configures the build against that toolchain.
 4. `cmake --build ...` compiles it.
 
@@ -44,7 +44,7 @@ For a debug build, pass `-s build_type=Debug` to `conan install` and use
 
 `misc/ds-service.proto` is the source of truth for the wire format.
 The C++ protobuf and gRPC stubs (`ds-service.pb.*`, `ds-service.grpc.pb.*`)
-are generated **automatically during the build**, into the build tree —
+are generated **automatically during the build**, into the build tree --
 there is no manual step and they are not committed.
 
 The Python client stubs are the one generated artifact *not* covered by
@@ -87,12 +87,8 @@ To pull that binary out instead of running it:
 docker build -f scripts/Dockerfile --output type=local,dest=./dist .
 ```
 
-Two details differ from the normal build.
-The Conan profile marks `cmake` as platform-provided,
-because the ConanCenter `cmake` package that `conanfile.py` tool-requires
-repackages glibc binaries that cannot run on musl;
-Alpine's own cmake is used instead.
-And `-static` is passed as `CMAKE_EXE_LINKER_FLAGS` on the final configure
+One detail differs from the normal build.
+`-static` is passed as `CMAKE_EXE_LINKER_FLAGS` on the final configure
 rather than through the profile,
 so it applies only to `ds-service`
 and not to every dependency's configure-time link checks.

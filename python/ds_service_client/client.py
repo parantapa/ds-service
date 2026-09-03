@@ -50,13 +50,38 @@ MUTEX_ACQUIRE_SLEEP_S = 0.5
 MUTEX_ACQUIRE_JITTER_S = 0.1
 
 
+class NoTaskAvailable(Exception):
+    """Raised by task_get when no queue it polled has work ready.
+
+    Deliberately not a TimeoutError:
+    catch this to sleep and retry,
+    and let TimeoutError -- an unreachable server -- escape.
+    """
+
+
+class TaskStateError(RuntimeError):
+    """Raised when an operation does not match a task's current state.
+
+    In practice this is task_done for a task that is not Running,
+    or that is held by a different worker
+    -- both of which the server used to accept silently,
+    discarding the output and answering OK.
+    """
+
+
 @contextmanager
-def translate_grpc_error():
+def translate_grpc_error(not_found: type[Exception] = KeyError):
+    """Re-raise gRPC status codes as the exceptions this client documents.
+
+    `not_found` overrides what NOT_FOUND maps to,
+    because the code means "no such key" on most RPCs
+    but "no task is ready" on TaskGet.
+    """
     try:
         yield
     except grpc.RpcError as e:
         if e.code() == grpc.StatusCode.NOT_FOUND:
-            raise KeyError(e.details())
+            raise not_found(e.details())
         elif e.code() == grpc.StatusCode.ALREADY_EXISTS:
             raise ValueError(e.details())
         elif e.code() == grpc.StatusCode.INVALID_ARGUMENT:
@@ -65,6 +90,8 @@ def translate_grpc_error():
             raise TimeoutError(e.details())
         elif e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
             raise TimeoutError(e.details())
+        elif e.code() == grpc.StatusCode.FAILED_PRECONDITION:
+            raise TaskStateError(e.details())
         elif e.code() == grpc.StatusCode.RESOURCE_EXHAUSTED:
             # In practice this is a message larger than MAX_MESSAGE_SIZE_BYTES,
             # i.e. a caller-side size problem,
@@ -164,18 +191,32 @@ class DsServiceClient:
             return self.stub.TaskGetCountByState(Empty(), timeout=self.timeout)
 
     def task_get(self, worker_id: str, queue: str | list[str]) -> TaskGetResponse:
+        """Claim a task for worker_id from the first queue holding one.
+
+        Queues are tried in the order given.
+        Raises NoTaskAvailable -- not TimeoutError --
+        when none of them has a task ready,
+        so that an unreachable server stays distinguishable from idle work.
+        """
         if isinstance(queue, str):
             queue = [queue]
 
-        with translate_grpc_error():
+        with translate_grpc_error(not_found=NoTaskAvailable):
             return self.stub.TaskGet(
                 TaskGetRequest(worker_id=worker_id, queue=queue), timeout=self.timeout
             )
 
-    def task_done(self, task_id: str, output: bytes):
+    def task_done(self, task_id: str, worker_id: str, output: bytes):
+        """Record a task's output and mark it Complete.
+
+        worker_id must be the one that claimed the task through task_get.
+        Raises TaskStateError if the task is not Running,
+        or if TaskRequeue has since handed it to another worker.
+        """
         with translate_grpc_error():
             return self.stub.TaskDone(
-                TaskDoneRequest(task_id=task_id, output=output), timeout=self.timeout
+                TaskDoneRequest(task_id=task_id, output=output, worker_id=worker_id),
+                timeout=self.timeout,
             )
 
     def task_requeue(self, timeout_s: float):

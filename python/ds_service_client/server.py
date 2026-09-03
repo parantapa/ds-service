@@ -96,8 +96,15 @@ def _check_port_free(host: str, port: int) -> None:
     the caller would be handed a dead DsServiceServer
     whose address belongs to somebody else's server,
     and would read and write that server's state believing it is theirs.
+
+    SO_REUSEADDR is set because gRPC's own listener sets it:
+    without it this probe also fails on a port left in TIME_WAIT
+    by a server that has already exited,
+    which is a port the real server would bind quite happily.
+    It still fails against a live listener, which is what it is here for.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind((host, port))
         except OSError as exc:
@@ -180,6 +187,9 @@ class DsServiceServer:
         # and close() may run after that.
         self.pgid = self.process.pid
 
+        # Guards close() against running twice -- see its docstring.
+        self._closed = False
+
     def wait_until_ready(self, timeout: int = 30) -> None:
         """Block until the server accepts TCP connections.
 
@@ -226,8 +236,22 @@ class DsServiceServer:
         so a server left behind by a wrapper that has since exited
         is stopped too.
 
-        Safe to call more than once.
+        Safe to call more than once: the second call does nothing.
+        That matters because the first one reaps the child and frees its pid,
+        and the pid is the process group id --
+        signalling it again could hit whatever process group
+        has since been given that pid.
+        An explicit close() followed by __exit__ is the ordinary way
+        to reach the second call.
         """
+        if self._closed:
+            return
+
+        # Set before the teardown, not after,
+        # so a failure partway through still bars a second run
+        # rather than leaving the group id live to be signalled again.
+        self._closed = True
+
         deadline = time.monotonic() + TERMINATE_TIMEOUT_S
 
         self._signal_process_group(signal.SIGTERM)

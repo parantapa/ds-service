@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from ds_service_client import TaskState
+from ds_service_client import NoTaskAvailable, TaskState, TaskStateError
 
 
 def test_add_get_done_lifecycle(client):
@@ -18,14 +18,27 @@ def test_add_get_done_lifecycle(client):
     assert task.input == b"in"
     assert client.task_get_status("t1") == TaskState.Running
 
-    client.task_done("t1", output=b"result")
+    client.task_done("t1", worker_id="w1", output=b"result")
     assert client.task_get_status("t1") == TaskState.Complete
     assert client.task_get_output("t1") == b"result"
 
 
-def test_get_from_empty_queue_raises_timeout(client):
-    with pytest.raises(TimeoutError):
+def test_get_from_empty_queue_raises_no_task_available(client):
+    with pytest.raises(NoTaskAvailable):
         client.task_get(worker_id="w1", queue="work")
+
+
+def test_no_task_available_is_not_a_timeout_error(client):
+    # The distinction a worker loop depends on:
+    # an idle queue must not look like an unreachable server,
+    # which is what TimeoutError means.
+    with pytest.raises(NoTaskAvailable):
+        client.task_get(worker_id="w1", queue="work")
+
+    try:
+        client.task_get(worker_id="w1", queue="work")
+    except NoTaskAvailable as exc:
+        assert not isinstance(exc, TimeoutError)
 
 
 def test_duplicate_add_raises_valueerror(client):
@@ -105,7 +118,7 @@ def test_task_requeue_returns_stalled_task(client):
     client.task_get(worker_id="w1", queue="work")  # now Running
 
     # No work left to hand out while the task is Running.
-    with pytest.raises(TimeoutError):
+    with pytest.raises(NoTaskAvailable):
         client.task_get(worker_id="w2", queue="work")
 
     # Reset any task running longer than the (tiny) timeout back to Ready.
@@ -133,9 +146,102 @@ def test_count_by_state_tracks_lifecycle(client):
     # Claim one (Ready -> Running) and complete another.
     client.task_get(worker_id="w1", queue="work")
     claimed = client.task_get(worker_id="w2", queue="work")
-    client.task_done(claimed.task_id, output=b"out")
+    client.task_done(claimed.task_id, worker_id="w2", output=b"out")
 
     counts = client.task_get_count_by_state()
     assert (counts.ready, counts.running, counts.complete) == (1, 1, 1)
     # The three counts always sum to the total number of tasks.
     assert counts.ready + counts.running + counts.complete == 3
+
+
+def test_equal_priority_is_dispatched_in_insertion_order(client):
+    # Equal priorities used to come back in reverse insertion order,
+    # because the heap broke ties on the row index, largest first.
+    for name in ["a", "b", "c", "d"]:
+        client.task_add(name, queue="work", priority=1.0, function=b"", input=b"")
+
+    dispatched = [
+        client.task_get(worker_id="w1", queue="work").task_id for _ in range(4)
+    ]
+    assert dispatched == ["a", "b", "c", "d"]
+
+
+def test_priority_still_outranks_insertion_order(client):
+    client.task_add("first", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add("second", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add("urgent", queue="work", priority=9.0, function=b"", input=b"")
+
+    dispatched = [
+        client.task_get(worker_id="w1", queue="work").task_id for _ in range(3)
+    ]
+    assert dispatched == ["urgent", "first", "second"]
+
+
+def test_done_on_ready_task_raises(client):
+    client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
+
+    # Never claimed, so there is no result to record.
+    with pytest.raises(TaskStateError):
+        client.task_done("t", worker_id="w1", output=b"result")
+
+    assert client.task_get_status("t") == TaskState.Ready
+    assert client.task_get_output("t") == b""
+
+
+def test_done_twice_raises_the_second_time(client):
+    client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("t", worker_id="w1", output=b"first")
+
+    with pytest.raises(TaskStateError):
+        client.task_done("t", worker_id="w1", output=b"second")
+
+    # The first result stands.
+    assert client.task_get_output("t") == b"first"
+
+
+def test_done_from_unknown_task_raises_keyerror(client):
+    with pytest.raises(KeyError):
+        client.task_done("ghost", worker_id="w1", output=b"")
+
+
+def test_stale_worker_cannot_overwrite_the_new_owner(client):
+    """A requeued task belongs to whoever claimed it next."""
+    client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_get(worker_id="w1", queue="work")
+
+    # w1 stalls; the task is handed to w2.
+    time.sleep(0.05)
+    client.task_requeue(timeout_s=0.0)
+    assert client.task_get(worker_id="w2", queue="work").task_id == "t"
+
+    # w1 finally reports. It no longer owns the task.
+    with pytest.raises(TaskStateError):
+        client.task_done("t", worker_id="w1", output=b"stale")
+
+    assert client.task_get_status("t") == TaskState.Running
+
+    # w2, the actual owner, still completes it.
+    client.task_done("t", worker_id="w2", output=b"fresh")
+    assert client.task_get_output("t") == b"fresh"
+
+
+def test_requeue_does_not_duplicate_a_multi_queue_task(client):
+    """A task in several queues yields one dispatch per requeue, not many.
+
+    Each requeue used to push a fresh entry into every one of the task's
+    queues without retiring the entries already there,
+    so the leftovers accumulated.
+    """
+    client.task_add("t", queue=["alpha", "beta"], priority=1.0, function=b"", input=b"")
+
+    for _ in range(5):
+        assert client.task_get(worker_id="w1", queue=["alpha", "beta"]).task_id == "t"
+        time.sleep(0.01)
+        client.task_requeue(timeout_s=0.0)
+
+    # One claim empties both queues: the task is Running,
+    # and every leftover entry is stale.
+    assert client.task_get(worker_id="w1", queue=["alpha", "beta"]).task_id == "t"
+    with pytest.raises(NoTaskAvailable):
+        client.task_get(worker_id="w2", queue=["alpha", "beta"])

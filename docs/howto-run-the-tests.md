@@ -80,4 +80,5 @@ Startup waits for the port to accept a TCP connection
 and then makes one read-only RPC,
 which confirms the service is registered and answering;
 teardown terminates the process, escalating to a kill if it does not
-exit within five seconds.
+exit within the grace period `DsServiceServer` allows
+(`TERMINATE_TIMEOUT_S` in `python/ds_service_client/server.py`).

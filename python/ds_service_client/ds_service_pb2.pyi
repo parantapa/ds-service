@@ -121,12 +121,14 @@ class TaskGetResponse(_message.Message):
     def __init__(self, task_id: _Optional[str] = ..., function: _Optional[bytes] = ..., input: _Optional[bytes] = ...) -> None: ...
 
 class TaskDoneRequest(_message.Message):
-    __slots__ = ("task_id", "output")
+    __slots__ = ("task_id", "output", "worker_id")
     TASK_ID_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
+    WORKER_ID_FIELD_NUMBER: _ClassVar[int]
     task_id: str
     output: bytes
-    def __init__(self, task_id: _Optional[str] = ..., output: _Optional[bytes] = ...) -> None: ...
+    worker_id: str
+    def __init__(self, task_id: _Optional[str] = ..., output: _Optional[bytes] = ..., worker_id: _Optional[str] = ...) -> None: ...
 
 class TaskRequeueRequest(_message.Message):
     __slots__ = ("timeout_s",)

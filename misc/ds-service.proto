@@ -112,9 +112,14 @@ message TaskGetResponse {
     bytes input = 3;
 }
 
+// worker_id must be the one that claimed the task through TaskGet.
+// TaskDone from any other worker is refused,
+// so a worker whose task was handed to somebody else by TaskRequeue
+// cannot overwrite the result of the worker that now owns it.
 message TaskDoneRequest {
     string task_id = 1;
     bytes output = 2;
+    string worker_id = 3;
 }
 
 message TaskRequeueRequest {

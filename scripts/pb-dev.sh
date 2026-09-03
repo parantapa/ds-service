@@ -144,12 +144,14 @@ show_help() {
     echo "Usage: $0 (help | command)"
 }
 
-if [[ "$1" == "help" || "$1" == "-h" || "$1" == "--help" ]]; then
+if [[ $# -eq 0 || "${1:-}" == "help" || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     show_help
 elif [[ $(type -t "run_${1}") == function ]]; then
     fn="run_${1}"
     shift
     $fn "$@"
 else
-    echo "Unknown command: $1"
+    echo "Unknown command: $1" >&2
+    show_help >&2
+    exit 1
 fi

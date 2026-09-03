@@ -11,9 +11,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
-#include <experimental/scope>
 
 #include <spdlog/spdlog.h>
 #include <argparse/argparse.hpp>
@@ -26,7 +24,36 @@
 template <typename K, typename V>
 using Map = phmap::parallel_flat_hash_map<K, V>;
 
-using TaskQueueEntry = std::priority_queue<std::pair<double, std::size_t>>;
+// One waiting task in one queue.
+//
+// `seq` stamps the entry with the value `TaskTable::seq` held for that row
+// when the entry was pushed.
+// It does two jobs:
+// it breaks priority ties in insertion order,
+// and it identifies entries left over from an earlier dispatch cycle
+// -- see TaskManager::queue.
+struct TaskQueueEntry {
+    double priority;
+    std::uint64_t seq;
+    std::size_t index;
+};
+
+// std::priority_queue is a max-heap, i.e. it pops the *largest* entry,
+// so "comes first" means "compares greater" here:
+// higher priority first,
+// and among equal priorities the smaller seq, which is the older entry.
+// Equal priorities would otherwise be dispatched
+// in reverse insertion order.
+struct TaskQueueEntryOrder {
+    bool operator()(const TaskQueueEntry& a, const TaskQueueEntry& b) const {
+        if (a.priority != b.priority) {
+            return a.priority < b.priority;
+        }
+        return a.seq > b.seq;
+    }
+};
+
+using TaskQueue = std::priority_queue<TaskQueueEntry, std::vector<TaskQueueEntry>, TaskQueueEntryOrder>;
 
 // Tasks are stored struct-of-arrays:
 // a task is a row index shared across these parallel vectors,
@@ -42,6 +69,16 @@ struct TaskTable {
     std::vector<TaskState> state;
     std::vector<double> start_time;
     std::vector<std::vector<std::string>> queues;
+
+    // The worker holding the row, set by TaskGet and checked by TaskDone.
+    // Empty unless the row is Running.
+    std::vector<std::string> worker_id;
+
+    // Bumped every time the row is made Ready,
+    // i.e. once by TaskAdd and once per TaskRequeue that moves it.
+    // Queue entries carry the value current when they were pushed,
+    // so an entry whose seq no longer matches its row is a leftover.
+    std::vector<std::uint64_t> seq;
 };
 
 struct TaskManager {
@@ -50,13 +87,27 @@ struct TaskManager {
     // task_id -> the row in `tasks` holding it.
     Map<std::string, std::size_t> task_index;
 
+    // Source of TaskTable::seq. Never reused, never reset.
+    std::uint64_t next_seq = 0;
+
     // Queue name -> the rows waiting on it, ordered by priority.
     // std::priority_queue is a max-heap,
     // so the highest priority is dispatched first.
+    //
     // A row may sit in several queues at once,
-    // and entries are never removed on a state change
-    // -- TaskGet drops the stale ones as it pops them.
-    Map<std::string, TaskQueueEntry> queue;
+    // and there is no way to erase from the middle of a heap,
+    // so entries are never removed on a state change:
+    // TaskGet drops them as it pops them,
+    // discarding any whose row is no longer Ready
+    // or whose seq no longer matches the row's.
+    //
+    // That keeps a polled queue self-cleaning rather than merely correct:
+    // leftovers from an earlier cycle carry a smaller seq than the live
+    // entry for the same row, so they sort *ahead* of it
+    // and are discarded by the very TaskGet that goes on to dispatch it.
+    // A queue nobody ever polls still holds its leftovers,
+    // as does any row that is never dispatched again.
+    Map<std::string, TaskQueue> queue;
 };
 
 struct TimeSeries {
@@ -147,9 +198,18 @@ std::string format_iso8601_utc(const std::chrono::system_clock::time_point& tp) 
 // TaskGet stamps start_time with it
 // and TaskRequeue compares against it,
 // so both must keep using this function rather than any other clock.
+//
+// steady_clock, not high_resolution_clock,
+// which libstdc++ defines as an alias for system_clock:
+// a wall clock steps whenever NTP corrects it,
+// and TaskRequeue reads a forward step
+// as every Running task having stalled at once,
+// handing live work to a second worker.
+// The readings mean nothing across a restart,
+// so they must never be serialized or persisted.
 double now_seconds() {
     using namespace std::chrono;
-    return duration<double>(high_resolution_clock::now().time_since_epoch()).count();
+    return duration<double>(steady_clock::now().time_since_epoch()).count();
 }
 
 SystemState* GLOBAL_SYSTEM_STATE = nullptr;
@@ -210,13 +270,15 @@ struct DsServiceImpl final : public DsService::Service {
             tasks.state.push_back(TaskState::Ready);
             tasks.start_time.push_back(-1.0);
             tasks.queues.push_back({});
+            tasks.worker_id.push_back("");
+            tasks.seq.push_back(++task_manager.next_seq);
 
             auto index = tasks.task_id.size() - 1;
 
             task_manager.task_index[request->task_id()] = index;
             for (const auto& qname : request->queue()) {
                 tasks.queues[index].push_back(qname);
-                task_manager.queue[qname].push(std::make_pair(request->priority(), index));
+                task_manager.queue[qname].push(TaskQueueEntry{request->priority(), tasks.seq[index], index});
             }
 
             return grpc::Status::OK;
@@ -296,9 +358,10 @@ struct DsServiceImpl final : public DsService::Service {
         // the first one holding a Ready task wins.
         //
         // A queue entry is never removed when its task leaves the Ready state,
-        // so entries for tasks that are already Running or Complete accumulate.
+        // so entries for tasks that are already Running or Complete accumulate,
+        // as do entries left over from a cycle before a TaskRequeue.
         // They are discarded lazily here, as they reach the top of the heap
-        // -- which is why a popped entry that is not Ready
+        // -- which is why a popped entry that is not usable
         // is dropped rather than skipped.
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto& tasks = task_manager.tasks;
@@ -316,24 +379,36 @@ struct DsServiceImpl final : public DsService::Service {
 
             auto& queue = queue_it->second;
             while (!queue.empty()) {
-                const auto& [_, index] = queue.top();
-                if (tasks.state[index] == TaskState::Ready) {
-                    tasks.state[index] = TaskState::Running;
-                    tasks.start_time[index] = now_seconds();
+                const auto entry = queue.top();
+                queue.pop();
 
-                    response->set_task_id(tasks.task_id[index]);
-                    response->set_function(tasks.function[index]);
-                    response->set_input(tasks.input[index]);
-
-                    queue.pop();
-                    return grpc::Status::OK;
-                } else {
-                    queue.pop();
+                // Two ways an entry can be dead:
+                // its row has left Ready,
+                // or the row was made Ready again after this entry was pushed
+                // and a newer entry supersedes it.
+                if (tasks.state[entry.index] != TaskState::Ready || entry.seq != tasks.seq[entry.index]) {
+                    continue;
                 }
+
+                const auto index = entry.index;
+                tasks.state[index] = TaskState::Running;
+                tasks.start_time[index] = now_seconds();
+                tasks.worker_id[index] = request->worker_id();
+
+                response->set_task_id(tasks.task_id[index]);
+                response->set_function(tasks.function[index]);
+                response->set_input(tasks.input[index]);
+
+                return grpc::Status::OK;
             }
         }
 
-        return grpc::Status(grpc::StatusCode::UNAVAILABLE, "No tasks available.");
+        // NOT_FOUND, not UNAVAILABLE:
+        // gRPC produces UNAVAILABLE itself when it cannot reach the server,
+        // so reusing it here left a worker loop unable to tell
+        // "no work right now" from "the server is gone"
+        // and polling a dead server for ever.
+        return grpc::Status(grpc::StatusCode::NOT_FOUND, "No tasks available.");
     }
 
     grpc::Status TaskDone(grpc::ServerContext*, const TaskDoneRequest* request, Empty*) override {
@@ -344,15 +419,34 @@ struct DsServiceImpl final : public DsService::Service {
         if (it == task_manager.task_index.end()) {
             return grpc::Status(grpc::StatusCode::NOT_FOUND,
                                 fmt::format("Task with ID = {} not found.", request->task_id()));
-        } else {
-            auto index = it->second;
-            auto& tasks = task_manager.tasks;
-            if (tasks.state[index] == TaskState::Running) {
-                tasks.state[index] = TaskState::Complete;
-                tasks.output[index] = request->output();
-            }
-            return grpc::Status::OK;
         }
+
+        auto index = it->second;
+        auto& tasks = task_manager.tasks;
+
+        // A task that is not Running has no result to record:
+        // it was never claimed, or it has already been completed.
+        if (tasks.state[index] != TaskState::Running) {
+            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
+                                fmt::format("Task with ID = {} is not Running.", request->task_id()));
+        }
+
+        // A Running task belongs to the worker that claimed it.
+        // A stalled worker whose task TaskRequeue handed to somebody else
+        // must not overwrite the new owner's result when it finally reports.
+        //
+        // Both of these refusals used to be a silent OK,
+        // so a worker could not tell a recorded result
+        // from one that had been dropped on the floor.
+        if (tasks.worker_id[index] != request->worker_id()) {
+            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
+                                fmt::format("Task with ID = {} is held by worker {}, not {}.", request->task_id(),
+                                            tasks.worker_id[index], request->worker_id()));
+        }
+
+        tasks.state[index] = TaskState::Complete;
+        tasks.output[index] = request->output();
+        return grpc::Status::OK;
     }
 
     grpc::Status TaskRequeue(grpc::ServerContext*, const TaskRequeueRequest* request, Empty*) override {
@@ -375,9 +469,15 @@ struct DsServiceImpl final : public DsService::Service {
             if (tasks.state[index] == TaskState::Running && tasks.start_time[index] < max_start_time) {
                 tasks.state[index] = TaskState::Ready;
                 tasks.start_time[index] = -1;
+                tasks.worker_id[index] = "";
+
+                // A fresh seq retires every entry this row already has,
+                // so the entries pushed below supersede them
+                // rather than adding a second live entry per queue.
+                tasks.seq[index] = ++task_manager.next_seq;
 
                 for (const auto& qname : tasks.queues[index]) {
-                    task_manager.queue[qname].push(std::make_pair(tasks.priority[index], index));
+                    task_manager.queue[qname].push(TaskQueueEntry{tasks.priority[index], tasks.seq[index], index});
                 }
             }
         }
@@ -645,7 +745,7 @@ constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
 // Anything still running when the deadline passes is cancelled.
 constexpr int SHUTDOWN_GRACE_S = 5;
 
-const char* VERSION = "2.2.0";
+const char* VERSION = "3.0.0";
 
 // How often the thread below looks for a delivered signal.
 // It bounds how long shutdown takes to start, so keep it short.
@@ -717,12 +817,14 @@ int main(int argc, char* argv[]) {
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
 
-    // Server sends keepalive pings every 10 mins with 20 second timeout.
-    // Pings will be sent even if there are no calls in flight.
-    // Server with permit ping at an interval of 10 seconds.
+    // Keepalive, in the order the arguments appear below:
+    // ping an idle connection every 10 minutes,
+    // give each ping 20 seconds to be answered,
+    // and keep pinging even with no calls in flight.
     //
-    // That last one is a floor on how often a *client* may ping:
-    // the client's keepalive_time_ms (120s in client.py) must stay above it,
+    // The fourth argument is different in kind:
+    // it is a floor on how often a *client* may ping.
+    // The client's keepalive_time_ms (120s in client.py) must stay above it,
     // or the server answers the pings with GOAWAY/ENHANCE_YOUR_CALM
     // and kills every long-lived connection
     // -- which reaches callers as a TimeoutError

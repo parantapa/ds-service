@@ -24,7 +24,7 @@
 FROM alpine:3.24.1 AS build
 
 # Alpine 3.24 ships gcc 15.2, cmake 4.2 and musl 1.2.6,
-# which covers the C++23 and CMake >= 4.0 requirements.
+# which covers the C++23 and CMake >= 3.31 requirements.
 # perl and linux-headers are needed by the OpenSSL build gRPC pulls in,
 # python3-dev by any Conan dependency without a musllinux wheel,
 # and bash to source Conan's generated conanbuild.sh.
@@ -35,13 +35,12 @@ RUN apk add --no-cache \
 
 ENV CONAN_HOME=/opt/conan_home
 
-# compiler.version tracks the gcc Alpine ships,
-# and cmake is declared platform-provided
-# because conanfile.py tool_requires it
-# while ConanCenter's cmake package merely repackages Kitware's glibc binaries,
-# which cannot execute here.
-# Conan does not check the platform tool's real version;
-# it only has to satisfy CMakeLists.txt's `cmake_minimum_required(VERSION 4.0)`.
+# compiler.version tracks the gcc Alpine ships.
+# cmake is not listed here at all:
+# conanfile.py does not tool_require it,
+# so the build uses the cmake apk installed above,
+# which need only satisfy
+# CMakeLists.txt's `cmake_minimum_required(VERSION 3.31)`.
 RUN mkdir -p "$CONAN_HOME/profiles" \
     && cat > "$CONAN_HOME/profiles/default" <<'EOF'
 [settings]
@@ -52,9 +51,6 @@ compiler.cppstd=20
 compiler.libcxx=libstdc++11
 compiler.version=15
 os=Linux
-
-[platform_tool_requires]
-cmake/4.3.3
 
 [options]
 grpc/*:codegen=True
@@ -78,7 +74,7 @@ COPY CMakeLists.txt ./
 COPY cpp/ ./cpp/
 COPY misc/ ./misc/
 
-SHELL ["/bin/bash", "-c"]
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # -static is applied here rather than through the profile's exelinkflags
 # so that it only affects this executable;
@@ -97,7 +93,16 @@ RUN . build/Release/generators/conanbuild.sh \
     && strip build/Release/ds-service
 
 # Fail the build rather than ship something that silently kept an interpreter.
-RUN if readelf -l build/Release/ds-service | grep -q INTERP; then \
+#
+# readelf writes to a file instead of piping straight into grep:
+# in `if readelf ... | grep -q INTERP`
+# only grep's status is consulted,
+# so a readelf that errored -- a moved binary, a missing tool --
+# feeds grep an empty input,
+# the condition reads as "no interpreter found",
+# and the check passes without having verified anything.
+RUN readelf -l build/Release/ds-service > /tmp/ds-service-phdrs.txt \
+    && if grep -q INTERP /tmp/ds-service-phdrs.txt; then \
         echo "ERROR: ds-service is not statically linked" >&2; \
         exit 1; \
     fi

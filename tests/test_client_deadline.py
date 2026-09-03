@@ -6,7 +6,7 @@ import time
 import grpc
 import pytest
 
-from ds_service_client import DsServiceClient
+from ds_service_client import DsServiceClient, NoTaskAvailable
 
 
 @pytest.fixture
@@ -63,3 +63,24 @@ def test_calls_still_succeed_under_the_default_deadline(client):
     # A normal round-trip is nowhere near the deadline.
     client.map_set("k", b"v")
     assert client.map_get("k") == b"v"
+
+
+def test_task_get_on_an_unreachable_server_is_not_no_task_available():
+    """The distinction the worker loop depends on.
+
+    A worker sleeps and retries on NoTaskAvailable,
+    so a server it cannot reach must raise something else
+    -- otherwise the loop polls a dead address for ever.
+    """
+    # Bind a port and drop it, so nothing is listening on a known address.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        dead_address = "127.0.0.1:%d" % sock.getsockname()[1]
+
+    client = DsServiceClient(dead_address, timeout=2.0)
+    try:
+        with pytest.raises(TimeoutError) as excinfo:
+            client.task_get(worker_id="w1", queue="work")
+        assert not isinstance(excinfo.value, NoTaskAvailable)
+    finally:
+        client.close()

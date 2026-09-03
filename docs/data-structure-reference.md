@@ -14,7 +14,7 @@ while operations on different structures may run concurrently.
 No state is persisted -- when the server stops, all of it is lost.
 
 The Python names for these operations are the snake_case forms of the
-RPC names (`MapSet` → `client.map_set`);
+RPC names (`MapSet` -> `client.map_set`);
 see [howto-use-the-python-client.md](howto-use-the-python-client.md).
 
 ## The key-value store
@@ -54,28 +54,43 @@ Tasks are units of work identified by a unique `task_id`.
 Each task carries an opaque `function` and `input` payload,
 a floating-point `priority`,
 and one or more named queues it should be dispatched from.
-A task moves through three states: `Ready` → `Running` → `Complete`.
+A task moves through three states: `Ready` -> `Running` -> `Complete`.
 A fourth state, `Undefined`, is never held by a live task;
 it is what `TaskGetStatus` reports for a `task_id` that does not exist.
 
 | RPC | Description |
 | --- | --- |
 | `TaskAdd(task_id, queue, priority, function, input)` | Register a new task and enqueue it on each named queue. Returns `ALREADY_EXISTS` if the id is already known. |
-| `TaskGet(worker_id, queue)` | Claim the highest-priority `Ready` task from the first non-empty queue, mark it `Running`, and return its payload. Returns `UNAVAILABLE` when no work is ready. |
-| `TaskDone(task_id, output)` | Mark a `Running` task `Complete` and store its output. |
+| `TaskGet(worker_id, queue)` | Claim the highest-priority `Ready` task from the first queue that has one, mark it `Running` on behalf of `worker_id`, and return its payload. Queues are tried in the order given. Returns `NOT_FOUND` when none of them has work ready. |
+| `TaskDone(task_id, output, worker_id)` | Mark a `Running` task `Complete` and store its output. Returns `NOT_FOUND` for an unknown `task_id`, and `FAILED_PRECONDITION` if the task is not `Running` or is held by a different worker. |
 | `TaskGetStatus(task_id...)` | Return the state of each requested task, in request order. An unknown `task_id` reports `Undefined` rather than being an error. |
 | `TaskGetOutput(task_id)` | Return a single task's output. Returns `NOT_FOUND` if the task does not exist; a task that has not completed yet has empty output. |
 | `TaskGetCountByState()` | Return how many tasks are currently in each of the `Ready`, `Running`, and `Complete` states. Takes no arguments. |
 | `TaskRequeue(timeout_s)` | Reset any task that has been `Running` longer than `timeout_s` back to `Ready` and re-enqueue it. |
 
-Within a queue, higher `priority` values are dispatched first.
+Within a queue, higher `priority` values are dispatched first,
+and tasks of equal priority are dispatched in the order they were added.
+A task returned to `Ready` by `TaskRequeue`
+takes its place at the back of that order rather than keeping its old one.
+
 A worker polls using `TaskGet` across the queues it cares about,
 runs the work, and reports back with `TaskDone`.
+
+`TaskGet` answers a queue with no work ready with `NOT_FOUND`,
+leaving `UNAVAILABLE` to mean only that the server could not be reached.
+
+A task belongs to the worker that claimed it.
+`TaskDone` from any other worker is refused with `FAILED_PRECONDITION`,
+which is what stops a worker whose task was reassigned by `TaskRequeue`
+from overwriting the result of the worker that now holds it.
+`TaskDone` on a task that is not `Running` is refused the same way;
+it neither records the output nor reports success.
+
 `TaskRequeue` provides fault tolerance:
 if a worker crashes without completing its task,
 a periodic `TaskRequeue` call can be used to make it available to another worker.
 `TaskRequeue` is not automatic,
-the user is responsibile for periodically calling `TaskRequeue`.
+the user is responsible for periodically calling `TaskRequeue`.
 
 ## The journal store
 
@@ -148,8 +163,8 @@ a worker that acquires a mutex and then dies leaves it held
 until some client releases it -- there is no automatic timeout.
 
 The Python client adds a blocking `mutex_acquire(key, timeout=None)`
-on top of these two RPCs.
-It retries `MutexTryAcquire` until it succeeds,
+on top of `MutexTryAcquire`.
+It retries that call until it succeeds,
 sleeping between attempts, and raises `TimeoutError`
 if `timeout` seconds elapse first (it retries forever when `timeout` is `None`).
 

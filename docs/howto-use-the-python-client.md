@@ -47,17 +47,51 @@ The client translates gRPC status codes into ordinary Python exceptions:
 
 | gRPC status | Python exception |
 | --- | --- |
-| `NOT_FOUND` | `KeyError` |
+| `NOT_FOUND` | `KeyError`, or `NoTaskAvailable` from `task_get` |
 | `ALREADY_EXISTS` | `ValueError` |
 | `INVALID_ARGUMENT` | `ValueError` |
 | `RESOURCE_EXHAUSTED` | `ValueError` |
+| `FAILED_PRECONDITION` | `TaskStateError` |
 | `UNAVAILABLE` | `TimeoutError` |
 | `DEADLINE_EXCEEDED` | `TimeoutError` |
 
 So a missing key raises `KeyError`,
-a bad regular expression or an over-sized message raises `ValueError`,
-and `task_get` with no work ready raises `TimeoutError`.
+and a bad regular expression or an over-sized message raises `ValueError`.
 Any other status reaches the caller as a raw `grpc.RpcError`.
+
+`task_get` is the one exception to the `NOT_FOUND` row:
+no work ready raises `NoTaskAvailable`, which is not a `TimeoutError`.
+A worker loop can therefore sleep and retry on `NoTaskAvailable`
+and still fail against a server it cannot reach,
+which raises `TimeoutError`.
+
+`TaskStateError` comes from `task_done`
+for a task that is not `Running`,
+or one that `task_requeue` has since handed to another worker.
+
+A worker loop therefore looks like this:
+
+```python
+import time
+
+from ds_service_client import NoTaskAvailable, TaskStateError
+
+while True:
+    try:
+        task = client.task_get(worker_id="worker-a", queue="work")
+    except NoTaskAvailable:
+        time.sleep(1)
+        continue
+    # A TimeoutError here means the server is unreachable, and propagates.
+
+    output = do_the_work(task)
+
+    try:
+        client.task_done(task.task_id, worker_id="worker-a", output=output)
+    except TaskStateError:
+        # The task was requeued and is somebody else's now; drop the result.
+        pass
+```
 
 ## Usage
 
@@ -80,7 +114,8 @@ client.task_add("job-1", queue="work", priority=1.0, function=b"...", input=b"..
 
 task = client.task_get(worker_id="worker-a", queue="work")
 # ... do the work ...
-client.task_done(task.task_id, output=b"result")
+# worker_id must be the one that claimed the task.
+client.task_done(task.task_id, worker_id="worker-a", output=b"result")
 
 # Poll the state of one or more tasks; an unknown id reports Undefined.
 # A single string returns one state; a list returns a list of states.
@@ -167,7 +202,8 @@ with DsServiceServer("lo") as server:
 ```
 
 Leaving the `with` block calls `close()`,
-which sends `SIGTERM`, waits ten seconds,
+which sends `SIGTERM`, waits for the grace period set by
+`TERMINATE_TIMEOUT_S` in `ds_service_client/server.py`,
 and then sends `SIGKILL`.
 Call `close()` directly when not using it as a context manager.
 

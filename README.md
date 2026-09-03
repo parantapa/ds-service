@@ -37,7 +37,8 @@ Each of these is a separate key space with its own set of RPCs.
 - **Client** (`python/ds_service_client/`) -- a Python 3.12+ client library
     that wraps the generated gRPC stubs
     and translates gRPC status codes into Python exceptions
-    (`KeyError`, `ValueError`, `TimeoutError`).
+    (`KeyError`, `ValueError`, `TimeoutError`,
+    and the task-queue specific `NoTaskAvailable` and `TaskStateError`).
 - **Interface** (`misc/ds-service.proto`) -- the protobuf/gRPC contract
     shared by both sides.
 
@@ -49,3 +50,4 @@ Each of these is a separate key space with its own set of RPCs.
 | [How to build the server](docs/howto-build-the-server.md) | Requirements, the Conan + CMake build, installing, running, and the static musl build. |
 | [How to use the Python client](docs/howto-use-the-python-client.md) | Installing, connecting, the gRPC-status-to-exception mapping, and usage examples. |
 | [How to run the tests](docs/howto-run-the-tests.md) | The pytest integration suite, pointing it at the binary, and what the fixtures provide. |
+| [Developer notes](docs/developer-notes.md) | Working on `ds-service` itself: the generated code workflow, the conventions a change is checked against, versioning, and known limitations. |

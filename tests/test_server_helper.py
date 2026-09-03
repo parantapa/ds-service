@@ -137,3 +137,56 @@ def test_dead_process_reported_as_runtime_error(loopback_interface):
             ds_server.wait_until_ready(timeout=15)
     finally:
         ds_server.close()
+
+
+def test_close_is_safe_to_call_twice(loopback_interface):
+    """The second close() must not signal a pid that has been recycled.
+
+    The first call reaps the child and frees its pid,
+    and that pid is the process group id close() signals.
+    """
+    server = DsServiceServer(loopback_interface)
+    server.wait_until_ready(timeout=15)
+
+    server.close()
+    assert server.process.poll() is not None
+
+    # The ordinary way to reach a second call is close() then __exit__.
+    server.close()
+    server.close()
+
+
+def test_context_manager_exit_after_explicit_close(loopback_interface):
+    with DsServiceServer(loopback_interface) as server:
+        server.wait_until_ready(timeout=15)
+        server.close()
+    # __exit__ ran a second close() on the way out and did not raise.
+    assert server.process.poll() is not None
+
+
+def test_fixed_port_is_reusable_after_the_server_exits(loopback_interface):
+    """A port left in TIME_WAIT is free as far as the real server is concerned.
+
+    The probe socket sets SO_REUSEADDR for exactly this reason:
+    without it, restarting on a fixed port
+    right after a client disconnected was refused
+    even though nothing was listening.
+    """
+    first = DsServiceServer(loopback_interface)
+    try:
+        first.wait_until_ready(timeout=15)
+        port = first.port
+
+        # A connected and closed client is what leaves the socket in TIME_WAIT.
+        client = DsServiceClient(first.address)
+        client.task_get_count_by_state()
+        client.close()
+    finally:
+        first.close()
+
+    second = DsServiceServer(loopback_interface, port=port)
+    try:
+        second.wait_until_ready(timeout=15)
+        assert second.port == port
+    finally:
+        second.close()

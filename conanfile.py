@@ -6,7 +6,7 @@ from conan.tools.cmake import cmake_layout, CMakeDeps, CMakeToolchain, CMake
 class DsServiceRecipe(ConanFile):
     name = "ds-service"
     # Set by scripts/update-version.sh, along with the other version strings.
-    version = "2.2.0"
+    version = "3.0.0"
 
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False], "fPIC": [True, False]}
@@ -29,7 +29,6 @@ class DsServiceRecipe(ConanFile):
     def build_requirements(self):
         self.tool_requires("grpc/1.82.0")
         self.tool_requires("protobuf/6.33.5")
-        self.tool_requires("cmake/4.3.3")
 
     def generate(self):
         deps = CMakeDeps(self)
@@ -48,4 +47,8 @@ class DsServiceRecipe(ConanFile):
         cmake.install()
 
     def package_info(self):
-        self.cpp_info.libs = ["ds-service-grpc"]
+        # This package ships an executable, not a library:
+        # CMakeLists.txt installs only the ds-service target,
+        # so advertising ds-service-grpc here
+        # would hand consumers an unresolvable -lds-service-grpc.
+        self.cpp_info.libs = []
