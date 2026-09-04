@@ -40,6 +40,9 @@ Each of these is a separate key space with its own set of RPCs.
     (`KeyError`, `ValueError`, `TimeoutError`,
     the task-queue-specific `NoTaskAvailable` and `TaskStateError`,
     and `MutexNotHeld`).
+    It ships a blocking client, `DsServiceClient`,
+    and an asyncio one, `DsServiceClientAsync`,
+    offering the same methods and raising the same exceptions.
 - **Interface** (`misc/ds-service.proto`) -- the protobuf/gRPC contract
     shared by both sides.
 
@@ -49,6 +52,6 @@ Each of these is a separate key space with its own set of RPCs.
 | --- | --- |
 | [Data structure reference](docs/data-structure-reference.md) | Every RPC, its arguments and error statuses, and the exact semantics of each data structure. |
 | [How to build the server](docs/howto-build-the-server.md) | Requirements, the Conan + CMake build, installing, running, and the static musl build. |
-| [How to use the Python client](docs/howto-use-the-python-client.md) | Installing, connecting, the gRPC-status-to-exception mapping, and usage examples. |
+| [How to use the Python client](docs/howto-use-the-python-client.md) | Installing, connecting, the gRPC-status-to-exception mapping, usage examples, and the asyncio client. |
 | [How to run the tests](docs/howto-run-the-tests.md) | The pytest integration suite, pointing it at the binary, and what the fixtures provide. |
 | [Developer notes](docs/developer-notes.md) | Working on `ds-service` itself: the generated code workflow, the conventions a change is checked against, versioning, and known limitations. |

@@ -214,12 +214,14 @@ Mutexes have no expiry.
 A worker that acquires a mutex and then dies leaves it held
 for the life of the server.
 
-The Python client adds a blocking
+The Python clients add a waiting
 `mutex_acquire(key, worker_id, timeout=None)`
 on top of `MutexTryAcquire`.
 It retries that call until it succeeds,
 sleeping between attempts, and raises `TimeoutError`
 if `timeout` seconds elapse first (it retries forever when `timeout` is `None`).
+`DsServiceClient` blocks the calling thread while it waits;
+`DsServiceClientAsync` yields to its event loop instead.
 
 ## Counters
 

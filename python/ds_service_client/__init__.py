@@ -1,5 +1,6 @@
 from .client import (
     DsServiceClient,
+    DsServiceClientAsync,
     MutexNotHeld,
     NoTaskAvailable,
     TaskState,

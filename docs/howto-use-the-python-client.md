@@ -3,7 +3,8 @@
 `ds_service_client` is a Python 3.12+ library
 that wraps the generated gRPC stubs
 and presents the server's data structures as ordinary methods
-on a `DsServiceClient` object.
+on a `DsServiceClient` object,
+or on a `DsServiceClientAsync` object for asyncio callers.
 
 ## Installing
 
@@ -40,6 +41,11 @@ whether the block ends normally or raises:
 with DsServiceClient("127.0.0.1:5051") as client:
     client.map_set("greeting", b"hello")
 ```
+
+Everything below is written against `DsServiceClient`,
+whose calls block until the server answers.
+See [The asyncio client](#the-asyncio-client)
+for the same API on an event loop.
 
 ## Errors
 
@@ -211,6 +217,58 @@ it retries `mutex_try_acquire` in a loop with the same `worker_id`,
 sleeping between attempts,
 and raises `TimeoutError` once `timeout` seconds have elapsed.
 With `timeout=None` (the default) it retries forever.
+
+## The asyncio client
+
+`DsServiceClientAsync` is the same API over `grpc.aio`:
+the same method names, the same arguments,
+and the same exceptions as the table above,
+with every RPC awaited instead of blocking the caller.
+Every example in [Usage](#usage) works against it
+by awaiting each call.
+
+```python
+import asyncio
+
+from ds_service_client import DsServiceClientAsync
+
+
+async def main() -> None:
+    async with DsServiceClientAsync("127.0.0.1:5051") as client:
+        await client.map_set("greeting", b"hello")
+        assert await client.map_get("greeting") == b"hello"
+
+        # Independent RPCs can be in flight at the same time.
+        first, second = await asyncio.gather(
+            client.counter_get_next_value("ids"),
+            client.counter_get_next_value("ids"),
+        )
+        assert {first, second} == {1, 2}
+
+
+asyncio.run(main())
+```
+
+Three things differ from `DsServiceClient`:
+
+- `close()` is a coroutine, so it is `await client.close()`,
+    and the context manager is `async with`, not `with`.
+- The constructor has to run with an event loop already running --
+    inside a coroutine, not at import time --
+    because `grpc.aio` binds the channel
+    to the loop that is current when the channel is created.
+- An RPC attempted after `close()` raises `grpc.aio.UsageError`,
+    where the blocking client raises `ValueError`.
+
+`mutex_acquire` waits with `asyncio.sleep`,
+so only the coroutine that called it waits
+while the rest of the loop keeps running.
+`timeout` still bounds the whole loop, sleeps included.
+
+The two clients are separate classes rather than one class with two modes,
+because grpc's blocking and asyncio channels are different objects
+and a caller wants `map_get` to return either `bytes` or an awaitable,
+never one dressed as the other.
 
 ## Temporary servers
 

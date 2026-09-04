@@ -32,6 +32,8 @@ and only the first two happen on their own:
 4. Hand-update `cpp/ds-service.cpp` and
     `python/ds_service_client/client.py`
     to implement and expose the change.
+    A new RPC means a method on **both** clients in `client.py`;
+    see "Two clients, one API" below.
 
 ### Regenerating moves the client's dependency floors
 
@@ -50,6 +52,30 @@ the committed stubs therefore raises the client's minimum requirements
 for everybody.
 Pin `grpcio-tools` to the version already recorded in the stubs
 unless raising those floors is the actual intent.
+
+## Two clients, one API
+
+`client.py` holds two hand-written clients,
+`DsServiceClient` over grpc's blocking channel
+and `DsServiceClientAsync` over `grpc.aio`.
+They are separate classes on purpose --
+the two channels are different objects,
+and one class returning either `bytes` or an awaitable
+would defeat both the reader and pyright --
+which leaves every RPC written out twice.
+
+`tests/test_client_parity.py` is what keeps the copies in step.
+It fails when the two classes stop offering the same method names,
+when a shared method's parameters or return annotation drift apart,
+and when an async method is not a coroutine function.
+Add an RPC to one client without the other and it says so.
+
+What is genuinely shared is shared at module level rather than copied:
+`translate_grpc_error`, `GRPC_CLIENT_OPTIONS`, the timeout and mutex
+constants, and the `as_queue_list`, `time_series_get_request` and
+`mutex_retry_delay` helpers.
+Only the stub call and its `await` should differ between the two copies
+of a method.
 
 ## Conventions
 
