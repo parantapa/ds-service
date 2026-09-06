@@ -366,6 +366,26 @@ struct DsServiceImpl final : public DsService::Service {
         return grpc::Status::OK;
     }
 
+    // Searches the task ids, which is the task queue's key space.
+    grpc::Status TaskSearchId(grpc::ServerContext*, const SearchKeyRequest* request,
+                              SearchKeyResponse* response) override {
+        RE2 pattern{request->pattern()};
+        if (!pattern.ok()) {
+            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
+                                fmt::format("Invalid regular expression: {}", pattern.error()));
+        }
+
+        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
+
+        for (const auto& task_id : GLOBAL_SYSTEM_STATE->task_manager.tasks.task_id) {
+            if (RE2::PartialMatch(task_id, pattern)) {
+                response->add_key(task_id);
+            }
+        }
+
+        return grpc::Status::OK;
+    }
+
     grpc::Status TaskGet(grpc::ServerContext*, const TaskGetRequest* request, TaskGetResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
@@ -727,7 +747,7 @@ constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
 // Anything still running when the deadline passes is cancelled.
 constexpr int SHUTDOWN_GRACE_S = 5;
 
-const char* VERSION = "4.1.0";
+const char* VERSION = "5.0.0";
 
 // How often the thread below looks for a delivered signal.
 // It bounds how long shutdown takes to start, so keep it short.

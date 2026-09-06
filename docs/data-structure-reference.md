@@ -47,6 +47,7 @@ each expose the same operation over their own key space --
 `MutexSearchKey`, and `CounterSearchKey` --
 with identical RE2 semantics
 and the same walk-every-key cost under that store's lock.
+The task queue does the same over its task ids with `TaskSearchId`.
 
 ## The task queue
 
@@ -74,6 +75,7 @@ it is what `TaskGetStatus` reports for a `task_id` that does not exist.
 | `TaskGetPriority(task_id)` | Return the task's current priority. Returns `NOT_FOUND` for an unknown `task_id`. |
 | `TaskSetPriority(task_id, priority)` | Change the task's priority. A `Ready` task is moved within every queue it is waiting on; a task in any other state records the new priority but is never dispatched again. Returns `NOT_FOUND` for an unknown `task_id`. |
 | `TaskGetWorkerId(task_id)` | Return the `worker_id` holding a `Running` task. Returns `NOT_FOUND` for an unknown `task_id`, and `FAILED_PRECONDITION` if the task is not `Running`. |
+| `TaskSearchId(pattern)` | Return every `task_id` matching the regular expression `pattern`. Tasks in every state are searched. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
 
 Within a queue, higher `priority` values are dispatched first,
 and tasks of equal priority are dispatched in the order they were added.
@@ -124,6 +126,15 @@ No RPC returns a task to `Ready`,
 and `TaskAdd` refuses a `task_id` that already exists.
 So getting the work done will require submitting it again
 under a new `task_id`.
+
+`TaskSearchId` searches the task ids --
+the key space the task queue has --
+with the same RE2 semantics as `MapSearchKey`.
+Every task the server knows about is searched,
+whatever state it is in.
+Task rows are never reclaimed,
+so the walk covers every task ever added
+rather than the ones still outstanding.
 
 ## The journal store
 

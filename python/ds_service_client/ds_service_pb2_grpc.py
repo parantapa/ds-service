@@ -89,6 +89,11 @@ class DsServiceStub(object):
                 request_serializer=ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdRequest.SerializeToString,
                 response_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdResponse.FromString,
                 _registered_method=True)
+        self.TaskSearchId = channel.unary_unary(
+                '/DsService/TaskSearchId',
+                request_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+                response_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
+                _registered_method=True)
         self.TaskGet = channel.unary_unary(
                 '/DsService/TaskGet',
                 request_serializer=ds__service__client_dot_ds__service__pb2.TaskGetRequest.SerializeToString,
@@ -235,6 +240,12 @@ class DsServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def TaskGetWorkerId(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def TaskSearchId(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -393,6 +404,11 @@ def add_DsServiceServicer_to_server(servicer, server):
                     servicer.TaskGetWorkerId,
                     request_deserializer=ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdRequest.FromString,
                     response_serializer=ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdResponse.SerializeToString,
+            ),
+            'TaskSearchId': grpc.unary_unary_rpc_method_handler(
+                    servicer.TaskSearchId,
+                    request_deserializer=ds__service__client_dot_ds__service__pb2.SearchKeyRequest.FromString,
+                    response_serializer=ds__service__client_dot_ds__service__pb2.SearchKeyResponse.SerializeToString,
             ),
             'TaskGet': grpc.unary_unary_rpc_method_handler(
                     servicer.TaskGet,
@@ -772,6 +788,33 @@ class DsService(object):
             '/DsService/TaskGetWorkerId',
             ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdRequest.SerializeToString,
             ds__service__client_dot_ds__service__pb2.TaskGetWorkerIdResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def TaskSearchId(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/DsService/TaskSearchId',
+            ds__service__client_dot_ds__service__pb2.SearchKeyRequest.SerializeToString,
+            ds__service__client_dot_ds__service__pb2.SearchKeyResponse.FromString,
             options,
             channel_credentials,
             insecure,

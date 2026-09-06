@@ -13,6 +13,7 @@ service DsService {
     rpc TaskGetPriority(TaskGetPriorityRequest) returns (TaskGetPriorityResponse) {}
     rpc TaskSetPriority(TaskSetPriorityRequest) returns (Empty) {}
     rpc TaskGetWorkerId(TaskGetWorkerIdRequest) returns (TaskGetWorkerIdResponse) {}
+    rpc TaskSearchId(SearchKeyRequest) returns (SearchKeyResponse) {}
 
     rpc TaskGet(TaskGetRequest) returns (TaskGetResponse) {}
     rpc TaskDone(TaskDoneRequest) returns (Empty) {}

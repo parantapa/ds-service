@@ -110,6 +110,8 @@ including after it reaches `Complete` or `Canceled`,
 so a long-lived server accumulates rows in proportion to
 the total number of tasks ever added
 rather than the number currently outstanding.
+`TaskSearchId` walks that table,
+so its costs grows the same way.
 
 Compaction is not a local change:
 a row is addressed by its index,

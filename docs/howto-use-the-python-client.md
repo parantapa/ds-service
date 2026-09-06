@@ -163,6 +163,9 @@ client.task_set_priority("job-2", 5.0)
 assert client.task_cancel("job-2") is True
 assert client.task_get_status("job-2") == TaskState.Canceled
 
+# Find task ids by regular expression, whatever state the tasks are in.
+assert sorted(client.task_search_id("^job-")) == ["job-1", "job-2"]
+
 # Journal
 client.journal_append("events", b"started")
 client.journal_append("events", b"finished")

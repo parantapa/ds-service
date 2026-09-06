@@ -433,3 +433,61 @@ def test_multi_queue_task_is_dispatched_once(client):
     # that entry is dead, because the task is no longer Ready.
     with pytest.raises(NoTaskAvailable):
         client.task_get(worker_id="w2", queue=["alpha", "beta"])
+
+
+def test_search_id_matches_subset(client):
+    for task_id in ["run/1", "run/2", "trial/1"]:
+        client.task_add(task_id, queue="work", priority=1.0, function=b"", input=b"")
+
+    assert sorted(client.task_search_id("^run/")) == ["run/1", "run/2"]
+
+
+def test_search_id_is_unanchored(client):
+    client.task_add(
+        "study-alpha-1", queue="work", priority=1.0, function=b"", input=b""
+    )
+    client.task_add("study-beta-1", queue="work", priority=1.0, function=b"", input=b"")
+
+    assert client.task_search_id("alpha") == ["study-alpha-1"]
+
+
+def test_search_id_finds_tasks_in_every_state(client):
+    for task_id in ["ready", "running", "complete", "canceled"]:
+        client.task_add(task_id, queue=task_id, priority=1.0, function=b"", input=b"")
+
+    client.task_get(worker_id="w1", queue="running")
+    client.task_get(worker_id="w1", queue="complete")
+    client.task_done("complete", worker_id="w1", output=b"")
+    client.task_cancel("canceled")
+
+    assert sorted(client.task_search_id(".*")) == [
+        "canceled",
+        "complete",
+        "ready",
+        "running",
+    ]
+
+
+def test_search_id_on_empty_store(client):
+    assert client.task_search_id(".*") == []
+
+
+def test_search_id_invalid_pattern_raises_valueerror(client):
+    client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
+
+    with pytest.raises(ValueError):
+        client.task_search_id("(unclosed")
+
+
+def test_reads_do_not_create_task(client):
+    # None of these is allowed to add a row for the id it asks about.
+    assert client.task_get_status("never-seen") == TaskState.Undefined
+    for read in (
+        client.task_get_output,
+        client.task_get_priority,
+        client.task_get_worker_id,
+    ):
+        with pytest.raises(KeyError):
+            read("never-seen")
+
+    assert client.task_search_id(".*") == []

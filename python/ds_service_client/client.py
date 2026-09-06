@@ -340,6 +340,18 @@ class DsServiceClient:
             )
             return response.worker_id
 
+    def task_search_id(self, pattern: str) -> list[str]:
+        """Return the task ids matching the RE2 pattern.
+
+        Same semantics as map_search_key, over the task ids;
+        tasks in every state are searched.
+        """
+        with translate_grpc_error():
+            response: SearchKeyResponse = self.stub.TaskSearchId(
+                SearchKeyRequest(pattern=pattern), timeout=self.timeout
+            )
+            return list(response.key)
+
     def task_get(self, worker_id: str, queue: str | list[str]) -> TaskGetResponse:
         """Claim a task for worker_id from the first queue holding one.
 
@@ -773,6 +785,18 @@ class DsServiceClientAsync:
                 TaskGetWorkerIdRequest(task_id=task_id), timeout=self.timeout
             )
             return response.worker_id
+
+    async def task_search_id(self, pattern: str) -> list[str]:
+        """Return the task ids matching the RE2 pattern.
+
+        Same semantics as map_search_key, over the task ids;
+        tasks in every state are searched.
+        """
+        with translate_grpc_error():
+            response: SearchKeyResponse = await self.stub.TaskSearchId(
+                SearchKeyRequest(pattern=pattern), timeout=self.timeout
+            )
+            return list(response.key)
 
     async def task_get(self, worker_id: str, queue: str | list[str]) -> TaskGetResponse:
         """Claim a task for worker_id from the first queue holding one.
