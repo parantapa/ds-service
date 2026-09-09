@@ -392,12 +392,12 @@ struct DsServiceImpl final : public DsService::Service {
         // Queues are searched in the order the caller listed them:
         // the first one holding a Ready task wins.
         //
-        // A queue entry is never removed when its task leaves the Ready state
-        // or when TaskSetPriority supersedes it,
-        // so dead entries accumulate.
-        // They are discarded lazily here, as they reach the top of the heap
+        // Dead queue entries are discarded lazily here,
+        // as they reach the top of the heap
         // -- which is why a popped entry that is not usable
         // is dropped rather than skipped.
+        // See "Known limitations" in docs/developer-notes.md
+        // for why they accumulate in the first place.
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         auto& tasks = task_manager.tasks;
         for (const auto& qname : request->queue()) {

@@ -1,4 +1,4 @@
-# How to use the Python client
+# Python client reference
 
 `ds_service_client` is a Python 3.12+ library
 that wraps the generated gRPC stubs
@@ -6,19 +6,25 @@ and presents the server's data structures as ordinary methods
 on a `DsServiceClient` object,
 or on a `DsServiceClientAsync` object for asyncio callers.
 
+This document describes the client library.
+For what each underlying RPC does, see the
+[data structure reference](data-structure-reference.md).
+For the process helper that starts a server,
+see the [server helper reference](server-helper-reference.md).
+
 ## Installing
 
 ```sh
 pip install ds-service-client
 ```
 
-Or, from a checkout of this repository:
+From a checkout of this repository:
 
 ```sh
 pip install .
 ```
 
-## Connecting
+## `DsServiceClient`
 
 ```python
 from ds_service_client import DsServiceClient
@@ -26,14 +32,13 @@ from ds_service_client import DsServiceClient
 client = DsServiceClient("127.0.0.1:5051")
 ```
 
-If `DsServiceClient()` is constructed without an address,
-it reads the server address from the `DS_SERVER_ADDRESS` environment variable.
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `address` | `$DS_SERVER_ADDRESS` | `<host>:<port>` of the server. A `KeyError` is raised when neither the argument nor the variable is set. |
+| `timeout` | `300` | Seconds, applied as the deadline of every RPC the client makes. |
 
-The constructor also takes a `timeout` (seconds, default 300),
-which is applied as the deadline of every RPC the client makes.
 `client.close()` closes the underlying gRPC channel.
-
-It is also a context manager,
+The object is also a context manager,
 which closes the channel on the way out
 whether the block ends normally or raises:
 
@@ -42,12 +47,20 @@ with DsServiceClient("127.0.0.1:5051") as client:
     client.map_set("greeting", b"hello")
 ```
 
-Everything below is written against `DsServiceClient`,
-whose calls block until the server answers.
-See [The asyncio client](#the-asyncio-client)
-for the same API on an event loop.
+An RPC attempted after `close()` raises `ValueError`.
 
-## Errors
+### Method names
+
+Every method is the snake_case form of the RPC it calls
+(`MapSet` -> `client.map_set`),
+with one addition:
+`mutex_acquire` has no RPC of its own.
+It retries `MutexTryAcquire` in a loop with the same `worker_id`,
+sleeping between attempts,
+and raises `TimeoutError` once `timeout` seconds have elapsed.
+With `timeout=None` (the default) it retries forever.
+
+## Exceptions
 
 The client translates gRPC status codes into ordinary Python exceptions:
 
@@ -61,56 +74,31 @@ The client translates gRPC status codes into ordinary Python exceptions:
 | `UNAVAILABLE` | `TimeoutError` |
 | `DEADLINE_EXCEEDED` | `TimeoutError` |
 
-So a missing key raises `KeyError`,
+A missing key raises `KeyError`,
 and a bad regular expression or an over-sized message raises `ValueError`.
 Any other status reaches the caller as a raw `grpc.RpcError`.
 
-`task_get` is the one exception to the `NOT_FOUND` row:
-no work ready raises `NoTaskAvailable`, which is not a `TimeoutError`.
-A worker loop can therefore sleep and retry on `NoTaskAvailable`
-and still fail against a server it cannot reach,
-which raises `TimeoutError`.
+`NoTaskAvailable` is raised by `task_get` when no work is ready.
+It is not a `TimeoutError`.
 
-`TaskStateError` comes from `task_done`
+`TaskStateError` is raised by `task_done`
 for a task that is not `Running`,
 or one that is held by a different worker,
-and from `task_get_worker_id` for a task that is not `Running`.
+and by `task_get_worker_id` for a task that is not `Running`.
 A cancelled task is the exception on `task_done`:
 that call succeeds,
 but the task stays `Canceled` and the output is discarded.
 
-`MutexNotHeld` is the other exception to a table row.
-`mutex_release` raises it when the caller is not the mutex's holder --
-including a mutex that is already free, or that does not exist --
-because a mutex belongs to the `worker_id` that acquired it.
+`MutexNotHeld` is raised by `mutex_release`
+when the caller is not the mutex's holder,
+which covers a mutex that is already free and one that does not exist.
 `mutex_get_worker_id` raises it for a mutex that exists but is free;
 a key that does not exist at all raises `KeyError` there.
 
-A worker loop therefore looks like this:
+`NoTaskAvailable`, `TaskStateError`, `MutexNotHeld` and `TaskState`
+are importable from `ds_service_client`.
 
-```python
-import time
-
-from ds_service_client import NoTaskAvailable, TaskStateError
-
-while True:
-    try:
-        task = client.task_get(worker_id="worker-a", queue="work")
-    except NoTaskAvailable:
-        time.sleep(1)
-        continue
-    # A TimeoutError here means the server is unreachable, and propagates.
-
-    output = do_the_work(task)
-
-    try:
-        client.task_done(task.task_id, worker_id="worker-a", output=output)
-    except TaskStateError:
-        # The task is not this worker's to complete; drop the result.
-        pass
-```
-
-## Usage
+## Examples
 
 ```python
 from ds_service_client import DsServiceClient, TaskState
@@ -215,20 +203,13 @@ assert client.counter_get_current_value("unused") == 0
 assert client.counter_search_key("^ids$") == ["ids"]
 ```
 
-`mutex_acquire` is the one method with no RPC of its own:
-it retries `mutex_try_acquire` in a loop with the same `worker_id`,
-sleeping between attempts,
-and raises `TimeoutError` once `timeout` seconds have elapsed.
-With `timeout=None` (the default) it retries forever.
-
-## The asyncio client
+## `DsServiceClientAsync`
 
 `DsServiceClientAsync` is the same API over `grpc.aio`:
 the same method names, the same arguments,
 and the same exceptions as the table above,
 with every RPC awaited instead of blocking the caller.
-Every example in [Usage](#usage) works against it
-by awaiting each call.
+Every example above works against it by awaiting each call.
 
 ```python
 import asyncio
@@ -256,7 +237,7 @@ Three things differ from `DsServiceClient`:
 
 - `close()` is a coroutine, so it is `await client.close()`,
     and the context manager is `async with`, not `with`.
-- The constructor has to run with an event loop already running --
+- The constructor must run with an event loop already running --
     inside a coroutine, not at import time --
     because `grpc.aio` binds the channel
     to the loop that is current when the channel is created.
@@ -268,72 +249,5 @@ so only the coroutine that called it waits
 while the rest of the loop keeps running.
 `timeout` still bounds the whole loop, sleeps included.
 
-The two clients are separate classes rather than one class with two modes,
-because grpc's blocking and asyncio channels are different objects
-and a caller wants `map_get` to return either `bytes` or an awaitable,
-never one dressed as the other.
-
-## Temporary servers
-
-`DsServiceServer` runs a private `ds-service` process
-for as long as the object lives.
-The process starts as soon as the object is constructed.
-
-```python
-from ds_service_client import DsServiceClient, DsServiceServer
-
-with DsServiceServer("lo") as server:
-    server.wait_until_ready()          # blocks until the port accepts connections
-
-    with DsServiceClient(server.address) as client:
-        client.map_set("greeting", b"hello")
-```
-
-Leaving the `with` block calls `close()`,
-which sends `SIGTERM`, waits for the grace period set by
-`TERMINATE_TIMEOUT_S` in `ds_service_client/server.py`,
-and then sends `SIGKILL`.
-Call `close()` directly when not using it as a context manager.
-
-The constructor takes one required argument and two optional ones:
-
-| Argument | Default | Meaning |
-| --- | --- | --- |
-| `interface` | required | Network interface whose IPv4 address the server binds. |
-| `port` | a free ephemeral port | Port the server binds; `0` means the same as leaving it out. |
-| `ds_service_bin` | `$DS_SERVICE_BIN`, else `ds-service` | How to start the server. |
-
-The interface decides who can reach the server:
-`lo` for this machine only,
-`eth0` or `ib0` for other machines on that network.
-The server is never bound to a wildcard address,
-so `server.address` -- `<ip of the interface>:<port>` --
-is what every client connects to, local or remote:
-
-```python
-server = DsServiceServer("eth0")
-server.address   # -> "172.17.0.2:45999", the address to hand to remote clients
-                 # -> the InfiniBand address, had this been "ib0" on a cluster node
-```
-
-An interface that does not exist on this machine,
-or that exists with no IPv4 address on it,
-raises `ValueError` from the constructor,
-before any server process is started.
-`server.host` is the resolved address on its own.
-
-`ds_service_bin` and `DS_SERVICE_BIN` may hold a **whole command**,
-not just a path -- `docker run --rm --network host ds-service`
-works as well as `/usr/bin/ds-service`.
-`--address <host>:<port>` is appended to whatever is given,
-and the result is split with `shlex.split`:
-quoting is understood, but shell syntax is not --
-put that in a script of your own and name the script here.
-
-`wait_until_ready(timeout=30)` polls until the port accepts a TCP connection.
-It raises `RuntimeError` if the process exits first,
-and `TimeoutError` if the server is not listening within `timeout` seconds.
-It only reports a server ready while our own process is still running.
-
-See the [data-structure-reference.md](data-structure-reference.md)
-for what each data structure and RPC does.
+The two clients are separate classes rather than one class with two modes;
+see [about the architecture](about-the-architecture.md#two-python-clients-one-api).

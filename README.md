@@ -7,6 +7,12 @@
 `ds-service` runs a single server process
 that holds shared state in memory
 and lets many distributed clients and workers coordinate using it.
+Use it when several processes -- on one machine or across a cluster --
+need to hand work to each other,
+share intermediate results,
+take turns on a resource,
+or agree on a number,
+and the state only has to live as long as the run does.
 
 Presently, it provides six data structures:
 - **A key-value store** -- a shared `string -> bytes` store
@@ -23,35 +29,73 @@ Presently, it provides six data structures:
 
 Each of these is a separate key space with its own set of RPCs.
 
-## Architecture
+## Installation
 
-- **Server** (`cpp/ds-service.cpp`) -- a C++23 gRPC service.
-    All state lives in memory,
-    with a separate lock guarding each top-level data structure.
-    Operations on one structure are serialized,
-    while operations on different structures may run concurrently.
-    Each RPC touches a single structure,
-    so no request ever holds more than one lock.
-    State is **not** persisted;
-    that is, when the server stops all data is lost.
-- **Client** (`python/ds_service_client/`) -- a Python 3.12+ client library
-    that wraps the generated gRPC stubs
-    and translates gRPC status codes into Python exceptions
-    (`KeyError`, `ValueError`, `TimeoutError`,
-    the task-queue-specific `NoTaskAvailable` and `TaskStateError`,
-    and `MutexNotHeld`).
-    It ships a blocking client, `DsServiceClient`,
-    and an asyncio one, `DsServiceClientAsync`,
-    offering the same methods and raising the same exceptions.
-- **Interface** (`misc/ds-service.proto`) -- the protobuf/gRPC contract
-    shared by both sides.
+The server is a single statically linked binary.
+Grab the latest release, make it executable,
+and put it somewhere on your `PATH`:
 
-## Additional Information
+```sh
+curl -sSL -o ds-service \
+    https://github.com/parantapa/ds-service/releases/latest/download/ds-service
+chmod +x ds-service
+```
+
+It is linked against musl with no dynamic dependencies,
+so it runs on any x86-64 Linux host.
+To pin a version, name its tag instead of `latest`:
+`.../releases/download/v5.0.0/ds-service`.
+
+The Python client comes from PyPI:
+
+```sh
+pip install ds-service-client
+```
+
+To build the server from source instead,
+see [how to build the server](docs/howto-build-the-server.md).
+
+## Usage
+
+Start a server:
+
+```sh
+ds-service --address 127.0.0.1:5051
+```
+
+Then, from any process that can reach it:
+
+```python
+from ds_service_client import DsServiceClient
+
+with DsServiceClient("127.0.0.1:5051") as client:
+    client.map_set("greeting", b"hello")
+    assert client.map_get("greeting") == b"hello"
+
+    client.task_add("job-1", queue="work", priority=1.0, function=b"greet", input=b"world")
+
+    task = client.task_get(worker_id="worker-a", queue="work")
+    client.task_done(task.task_id, worker_id="worker-a", output=b"hello world")
+
+    assert client.task_get_output("job-1") == b"hello world"
+```
+
+## Documentation
 
 | Document | What it covers |
 | --- | --- |
-| [Data structure reference](docs/data-structure-reference.md) | Every RPC, its arguments and error statuses, and the exact semantics of each data structure. |
+| [Tutorial: run your first tasks](docs/tutorial-your-first-tasks.md) | Start a server, store a value, and take a task from `Ready` to `Complete`. Start here. |
 | [How to build the server](docs/howto-build-the-server.md) | Requirements, the Conan + CMake build, installing, running, and the static musl build. |
-| [How to use the Python client](docs/howto-use-the-python-client.md) | Installing, connecting, the gRPC-status-to-exception mapping, usage examples, and the asyncio client. |
-| [How to run the tests](docs/howto-run-the-tests.md) | The pytest integration suite, pointing it at the binary, and what the fixtures provide. |
-| [Developer notes](docs/developer-notes.md) | Working on `ds-service` itself: the generated code workflow, the conventions a change is checked against, versioning, and known limitations. |
+| [How to write a worker](docs/howto-write-a-worker.md) | The claim-work-report loop, mutexes around shared resources, progress reporting, and the asyncio variant. |
+| [How to run the tests](docs/howto-run-the-tests.md) | The pytest integration suite and pointing it at the binary. |
+| [Data structure reference](docs/data-structure-reference.md) | Every RPC, its arguments and error statuses, and the exact semantics of each data structure. |
+| [Python client reference](docs/python-client-reference.md) | `DsServiceClient` and `DsServiceClientAsync`: constructors, method names, the gRPC-status-to-exception mapping, and examples. |
+| [Server helper reference](docs/server-helper-reference.md) | `DsServiceServer`, which runs a private `ds-service` process for the life of the object. |
+| [About the architecture](docs/about-the-architecture.md) | The three pieces, why state is not persisted, one lock per structure, and why there are two Python clients. |
+| [About the task queue](docs/about-the-task-queue.md) | Task ownership, what cancelling does and does not do, and why there is no fault tolerance. |
+| [About the static musl build](docs/about-the-static-musl-build.md) | Why the static image exists and why its Conan profile differs. |
+| [Developer notes](docs/developer-notes.md) | Working on `ds-service` itself: the source map, the generated code workflow, the test harness, conventions, versioning, and known limitations. |
+
+## License
+
+MIT. See [LICENSE](LICENSE).

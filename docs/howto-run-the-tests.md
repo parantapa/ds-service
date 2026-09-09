@@ -8,7 +8,7 @@ and drives it through the Python client over gRPC.
 ## Prerequisites
 
 1. **Build the server** -- the tests run the compiled binary.
-    See [howto-build-the-server.md](howto-build-the-server.md).
+    See [how to build the server](howto-build-the-server.md).
 2. **Install the test dependencies:**
 
     ```sh
@@ -54,28 +54,7 @@ After changing `misc/ds-service.proto` or the C++ server,
 rebuild the binary -- and run `scripts/gen_python_bindings.sh` for a proto change --
 before running the suite, or it exercises stale code.
 
-## How the harness works
-
-The fixtures live in `tests/conftest.py`:
-
-| Fixture | Yields |
-| --- | --- |
-| `server_binary` | How to start the server under test -- a path, or a whole command line. |
-| `loopback_interface` | The name of the interface holding `127.0.0.1`, which is what test servers bind. |
-| `server_process` | `(proc, address)` for a running server -- for tests that drive the process itself, such as signalling it. |
-| `server` | The address of a running server. |
-| `client` | A connected `DsServiceClient`, closed at the end of the test. |
-
-Each test gets a **fresh server process on its own free port**,
-so the server's in-memory state is isolated between tests
-and the suite can run without a fixed port.
-Every one of them binds the loopback interface,
-so a test run is never reachable from another machine.
-Starting and stopping it is `DsServiceServer`'s job,
-so the harness cannot drift from the helper the client library ships.
-Startup waits for the port to accept a TCP connection
-and then makes one read-only RPC,
-which confirms the service is registered and answering;
-teardown terminates the process, escalating to a kill if it does not
-exit within the grace period `DsServiceServer` allows
-(`TERMINATE_TIMEOUT_S` in `python/ds_service_client/server.py`).
+Each test gets a fresh server process on its own free port,
+so no test can see another's state and no fixed port is needed.
+For the fixtures themselves,
+see the [developer notes](developer-notes.md#the-test-harness).

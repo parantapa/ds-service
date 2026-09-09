@@ -1,13 +1,12 @@
 """Tests that the async client mirrors the synchronous one.
 
-The two clients are separate classes on purpose --
-grpc's blocking and asyncio channels are different objects,
-and a caller wants `map_get` to return `bytes` or an awaitable,
-never one pretending to be the other --
-but that leaves each RPC written out twice.
-Nothing except these tests stops one class
+Every RPC is written out twice, once per client class,
+and nothing except these tests stops one class
 from gaining a method, or changing an argument,
 that the other never hears about.
+
+See "Two clients, one API" in docs/developer-notes.md
+for why the two classes are separate.
 """
 
 import inspect

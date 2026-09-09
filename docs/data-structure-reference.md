@@ -12,10 +12,12 @@ and takes that structure's lock for the duration of the call.
 Thus operations on one structure are serialized
 while operations on different structures may run concurrently.
 No state is persisted -- when the server stops, all of it is lost.
+See [about the architecture](about-the-architecture.md)
+for why the server is built this way.
 
 The Python names for these operations are the snake_case forms of the
 RPC names (`MapSet` -> `client.map_set`);
-see [howto-use-the-python-client.md](howto-use-the-python-client.md).
+see the [Python client reference](python-client-reference.md).
 
 ## The key-value store
 
@@ -82,9 +84,6 @@ and tasks of equal priority are dispatched in the order they were added.
 A task moved by `TaskSetPriority` counts as newly added at its new priority:
 it goes behind the tasks with equal priority already waiting there.
 
-A worker polls using `TaskGet` across the queues it cares about,
-runs the work, and reports back with `TaskDone`.
-
 `TaskGet` answers `NOT_FOUND` for a queue with no work ready.
 
 A task belongs to the worker that claimed it,
@@ -93,9 +92,7 @@ Only a `Running` task has a holder to report:
 a `Ready` task has not been claimed,
 a `Complete` one was handed back when it finished,
 and cancelling drops the record.
-`TaskDone` from any other worker is refused with `FAILED_PRECONDITION`,
-so a worker that does not hold the task
-cannot overwrite the result of the worker that does.
+`TaskDone` from any other worker is refused with `FAILED_PRECONDITION`.
 `TaskDone` on a task that is neither `Running` nor `Canceled`
 is refused the same way;
 it neither records the output nor reports success.
@@ -107,25 +104,19 @@ Cancelling never puts a task back on a queue,
 and it never touches a task that has already finished:
 `success = false` says the task was left exactly as it was.
 
-Cancelling is not automatically communicated to the worker running the task.
-The worker may finish the work and call `TaskDone` as usual;
-that call succeeds, but the task stays `Canceled`
+Cancelling is not communicated to the worker running the task.
+That worker may still call `TaskDone`;
+the call succeeds, the task stays `Canceled`,
 and the output is discarded.
-Reporting cancelled work is not the worker's mistake,
-so it is not reported to the worker as an error.
-Cancelling also drops the record of which worker held the task,
-so `TaskDone` on a `Canceled` task is accepted from whoever sends it --
-the ownership rule above has nothing left to check,
-and there is no result to overwrite either way.
+Cancelling drops the record of which worker held the task,
+so `TaskDone` on a `Canceled` task is accepted from any worker.
 
-There is no fault tolerance for a worker that dies mid-task:
-the task stays `Running` for as long as the server lives,
-and nothing hands it automatically to another worker.
-`TaskCancel` only retires such a task.
-No RPC returns a task to `Ready`,
+A worker that dies mid-task leaves its task `Running`
+for the life of the server.
+Nothing hands it to another worker,
+no RPC returns a task to `Ready`,
 and `TaskAdd` refuses a `task_id` that already exists.
-So getting the work done will require submitting it again
-under a new `task_id`.
+`TaskCancel` retires such a task.
 
 `TaskSearchId` searches the task ids --
 the key space the task queue has --
@@ -135,6 +126,11 @@ whatever state it is in.
 Task rows are never reclaimed,
 so the walk covers every task ever added
 rather than the ones still outstanding.
+
+See [about the task queue](about-the-task-queue.md)
+for why the queue behaves this way,
+and [how to write a worker](howto-write-a-worker.md)
+for driving it from Python.
 
 ## The journal store
 
@@ -204,9 +200,8 @@ A mutex belongs to the `worker_id` that acquired it,
 and only that worker can release it.
 The lock is not reentrant --
 the holder asking again is told the mutex is held, like anybody else.
-The `worker_id` is taken at face value,
-so these remain **cooperative** locks between workers that agree
-on who is called what.
+The `worker_id` is taken at face value:
+these are cooperative locks.
 
 A key exists from the first `MutexTryAcquire` that names it,
 whether or not that call acquired it,
@@ -217,22 +212,15 @@ Neither a refused release nor `MutexGetWorkerId` creates anything.
 `MutexGetWorkerId` tells a missing key from a free one:
 a key nobody has ever named is `NOT_FOUND`,
 while one that exists with no holder is `FAILED_PRECONDITION`.
-`MutexRelease` runs the two together,
-because to the caller they mean the same thing --
-you do not hold this.
+`MutexRelease` returns `FAILED_PRECONDITION` for both.
 
 Mutexes have no expiry.
 A worker that acquires a mutex and then dies leaves it held
 for the life of the server.
 
-The Python clients add a waiting
-`mutex_acquire(key, worker_id, timeout=None)`
-on top of `MutexTryAcquire`.
-It retries that call until it succeeds,
-sleeping between attempts, and raises `TimeoutError`
-if `timeout` seconds elapse first (it retries forever when `timeout` is `None`).
-`DsServiceClient` blocks the calling thread while it waits;
-`DsServiceClientAsync` yields to its event loop instead.
+The Python clients add a waiting `mutex_acquire`
+on top of `MutexTryAcquire`;
+see the [Python client reference](python-client-reference.md).
 
 ## Counters
 
