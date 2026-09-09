@@ -5,8 +5,6 @@ on your own machine,
 a Python session talking to it,
 and a task that you submit from one place and complete from another.
 
-We will not build anything from source,
-and we will not run a server in a second terminal.
 We will download a ready-made binary
 and start it from Python,
 which is the quickest way to have something to talk to.
