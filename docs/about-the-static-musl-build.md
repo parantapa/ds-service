@@ -30,8 +30,8 @@ which cannot run on musl.
 
 And `-static` is passed as `CMAKE_EXE_LINKER_FLAGS` on the final configure
 rather than through the profile.
-Passing it through the profile would apply it to every dependency's
-configure-time link checks as well,
+Passing it through the profile
+would apply it to every dependency's configure-time link checks as well,
 where a static link is not what is being tested
 and the check fails for reasons that have nothing to do with the build.
 Scoping it to the final configure applies it to `ds-service` alone.

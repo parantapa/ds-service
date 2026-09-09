@@ -70,7 +70,7 @@ def test_task_get_on_an_unreachable_server_is_not_no_task_available():
 
     A worker sleeps and retries on NoTaskAvailable,
     so a server it cannot reach must raise something else
-    -- otherwise the loop polls a dead address for ever.
+    -- otherwise the loop polls a dead address forever.
     """
     # Bind a port and drop it, so nothing is listening on a known address.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:

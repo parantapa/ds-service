@@ -63,8 +63,8 @@ how long its own tasks should take.
 
 A task keeps its row for the life of the server process,
 including after it reaches `Complete` or `Canceled`.
-A long-lived server therefore accumulates rows in proportion to
-the total number of tasks ever added,
+A long-lived server therefore accumulates rows
+in proportion to the total number of tasks ever added,
 rather than the number currently outstanding,
 and `TaskSearchId` walks all of them.
 

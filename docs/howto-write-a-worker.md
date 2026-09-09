@@ -81,11 +81,13 @@ pass them in the order you want them tried:
 task = client.task_get(worker_id="worker-a", queue=["urgent", "work"])
 ```
 
-`TaskStateError` on `task_done` means the task stopped being yours
-while you were working on it,
-which in practice means somebody cancelled it.
+`TaskStateError` on `task_done` means the task was no longer `Running`
+under your `worker_id`,
+so something else had already completed it.
 Dropping the result is usually right,
-because a cancelled task discards its output anyway.
+because the output that other call recorded is already stored.
+Cancelling does not raise here --
+`task_done` on a cancelled task succeeds, and its output is discarded.
 
 ## Guard a resource that only one worker may touch
 

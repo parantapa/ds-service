@@ -110,9 +110,9 @@ The `dependencies` floors in `pyproject.toml` have to be re-derived
 from the regenerated stubs whenever step 3 runs,
 or the package resolves to a runtime that cannot import it.
 
-Regenerating with a newer `grpcio-tools` than the one that produced
-the committed stubs therefore raises the client's minimum requirements
-for everybody.
+Regenerating with a newer `grpcio-tools`
+than the one that produced the committed stubs
+therefore raises the client's minimum requirements for everybody.
 Pin `grpcio-tools` to the version already recorded in the stubs
 unless raising those floors is the actual intent.
 
@@ -134,11 +134,11 @@ and when an async method is not a coroutine function.
 Add an RPC to one client without the other and it says so.
 
 What is genuinely shared is shared at module level rather than copied:
-`translate_grpc_error`, `GRPC_CLIENT_OPTIONS`, the timeout and mutex
-constants, and the `as_queue_list`, `time_series_get_request` and
-`mutex_retry_delay` helpers.
-Only the stub call and its `await` should differ between the two copies
-of a method.
+`translate_grpc_error`, `GRPC_CLIENT_OPTIONS`,
+the timeout and mutex constants,
+and the `as_queue_list`, `time_series_get_request` and `mutex_retry_delay` helpers.
+Only the stub call and its `await`
+should differ between the two copies of a method.
 
 ## The channel settings are one setting in two languages
 
@@ -186,8 +186,9 @@ so the fixtures cannot drift from the helper the client library ships.
 Startup waits for the port to accept a TCP connection
 and then makes one read-only RPC,
 which confirms the service is registered and answering;
-teardown terminates the process, escalating to a kill if it does not
-exit within the grace period `DsServiceServer` allows
+teardown terminates the process,
+escalating to a kill
+if it does not exit within the grace period `DsServiceServer` allows
 (`TERMINATE_TIMEOUT_S` in `python/ds_service_client/server.py`).
 
 ## Conventions
@@ -220,11 +221,11 @@ so it edits nothing unless all of them are present.
 `TaskTable` rows are never reclaimed.
 A task keeps its row for the life of the server process,
 including after it reaches `Complete` or `Canceled`,
-so a long-lived server accumulates rows in proportion to
-the total number of tasks ever added
+so a long-lived server accumulates rows
+in proportion to the total number of tasks ever added
 rather than the number currently outstanding.
 `TaskSearchId` walks that table,
-so its costs grows the same way.
+so its cost grows the same way.
 
 Compaction is not a local change:
 a row is addressed by its index,

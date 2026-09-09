@@ -2,7 +2,8 @@
 
 ![Futuristic banner image.](misc/banner-image.png "Futuristic banner image.")
 
-`ds-service` is a small, in-memory data structure server that is accessible via [gRPC](https://grpc.io/).
+`ds-service` is a small, in-memory data structure server
+that is accessible via [gRPC](https://grpc.io/).
 
 `ds-service` runs a single server process
 that holds shared state in memory
@@ -20,8 +21,8 @@ Presently, it provides six data structures:
 - **A task queue** -- a priority-based work queue
     that distributes tasks to workers and tracks their state.
 - **A journal store** -- append-only, ordered logs of binary entries.
-- **A time series store** -- append-only series of
-    timestamped floating-point values.
+- **A time series store** -- append-only series
+    of timestamped floating-point values.
 - **Named mutexes** -- worker-owned locks
     for coordinating exclusive resource access across workers.
 - **Counters** -- named monotonic counters
@@ -43,8 +44,6 @@ chmod +x ds-service
 
 It is linked against musl with no dynamic dependencies,
 so it runs on any x86-64 Linux host.
-To pin a version, name its tag instead of `latest`:
-`.../releases/download/v5.0.0/ds-service`.
 
 The Python client comes from PyPI:
 

@@ -33,21 +33,19 @@ def _loopback_interface() -> str:
 
 
 def _probe_grpc(address: str) -> None:
-    """Make one read-only RPC against a server that is already listening.
-
-    A bound port only proves something is listening;
-    this proves the service is registered and answering.
-
-    Two deliberate choices here:
-      - Not grpc.channel_ready_future():
-        it registers a connectivity-state watcher
-        that makes the subsequent channel close block ~200ms per test.
-        An RPC round-trip proves more and costs ~1ms.
-      - Given a short per-RPC deadline rather than the client default,
-        so a port that accepts but never speaks gRPC
-        fails the fixture promptly
-        instead of stalling it for minutes.
-    """
+    """Make one read-only RPC against a server that is already listening."""
+    # A bound port only proves something is listening;
+    # this proves the service is registered and answering.
+    #
+    # Not grpc.channel_ready_future():
+    # it registers a connectivity-state watcher
+    # that makes the subsequent channel close block ~200ms per test.
+    # An RPC round-trip proves more and costs ~1ms.
+    #
+    # The deadline is short rather than the client default,
+    # so a port that accepts but never speaks gRPC
+    # fails the fixture promptly
+    # instead of stalling it for minutes.
     probe = DsServiceClient(address, timeout=GRPC_PROBE_TIMEOUT_S)
     try:
         probe.task_get_count_by_state()

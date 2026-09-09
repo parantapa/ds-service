@@ -120,7 +120,8 @@ def test_time_and_step_filters_combine(stepped_series):
 
 
 def test_start_step_zero_is_a_real_bound(stepped_series):
-    # step=0 must be treated as "provided", not "absent" — here it admits everything.
+    # step=0 must be treated as "provided", not "absent"
+    # -- here it admits everything.
     got = _points(stepped_series, "m", start_step=0)
     assert [s for _, s in got] == [0, 1, 2, 3, 4]
 

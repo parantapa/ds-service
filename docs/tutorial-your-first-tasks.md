@@ -293,8 +293,8 @@ server.close()
 
 ## What you have done
 
-You started a server, stored a value, and moved a task through
-`Ready`, `Running` and `Complete` from two sides.
+You started a server, stored a value,
+and moved a task through `Ready`, `Running` and `Complete` from two sides.
 You saw the server refuse a `task_done` from the wrong worker,
 distinguish an empty queue from an unreachable server,
 and lose everything on restart.

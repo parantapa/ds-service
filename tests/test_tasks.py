@@ -350,8 +350,8 @@ def test_cancel_a_ready_task(client):
     assert client.task_cancel("t") is True
     assert client.task_get_status("t") == TaskState.Canceled
 
-    # The entry left behind in the queue is dead, like any other
-    # entry whose task is no longer Ready.
+    # The entry left behind in the queue is dead,
+    # like any other entry whose task is no longer Ready.
     with pytest.raises(NoTaskAvailable):
         client.task_get(worker_id="w1", queue="work")
 

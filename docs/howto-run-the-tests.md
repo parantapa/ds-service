@@ -17,13 +17,13 @@ and drives it through the Python client over gRPC.
 
     This pulls in `pytest`.
     Installing is not strictly required for the client itself --
-    `pyproject.toml` sets `pythonpath = ["python"]`, so
-    `ds_service_client` imports straight from the source tree.
+    `pyproject.toml` sets `pythonpath = ["python"]`,
+    so `ds_service_client` imports straight from the source tree.
 
 ## Pointing the tests at the binary
 
 The fixtures start the server through
-`DsServiceClient`'s own `DsServiceServer` helper,
+`ds_service_client`'s own `DsServiceServer` helper,
 which locates it in one of two ways, in order:
 
 1. `DS_SERVICE_BIN`, if set. It may be a whole command
@@ -47,8 +47,8 @@ python -m pytest tests/test_journal.py
 python -m pytest tests/test_tasks.py::test_add_get_done_lifecycle
 ```
 
-`testpaths = ["tests"]` in `pyproject.toml` means a bare
-`python -m pytest` picks up the suite from the repository root.
+`testpaths = ["tests"]` in `pyproject.toml`
+means a bare `python -m pytest` picks up the suite from the repository root.
 
 After changing `misc/ds-service.proto` or the C++ server,
 rebuild the binary -- and run `scripts/gen_python_bindings.sh` for a proto change --

@@ -15,8 +15,8 @@ No state is persisted -- when the server stops, all of it is lost.
 See [about the architecture](about-the-architecture.md)
 for why the server is built this way.
 
-The Python names for these operations are the snake_case forms of the
-RPC names (`MapSet` -> `client.map_set`);
+The Python names for these operations
+are the snake_case forms of the RPC names (`MapSet` -> `client.map_set`);
 see the [Python client reference](python-client-reference.md).
 
 ## The key-value store
@@ -134,8 +134,9 @@ for driving it from Python.
 
 ## The journal store
 
-A key-to-journal store, where each journal is an append-only,
-ordered list of opaque binary entries identified by a `string` key.
+A key-to-journal store,
+where each journal is an append-only, ordered list of opaque binary entries
+identified by a `string` key.
 
 | RPC | Description |
 | --- | --- |
@@ -154,8 +155,9 @@ neither is an error.
 
 ## The time series store
 
-A key-to-series store, where each series is an append-only
-list of data points identified by a `string` key.
+A key-to-series store,
+where each series is an append-only list of data points
+identified by a `string` key.
 Each point carries a floating-point `value`, a `datetime`,
 and an integer `step`.
 

@@ -27,8 +27,8 @@ CMAKE_VERSION=$(printf '%s' "$VERSION" | grep -oE '^[0-9]+(\.[0-9]+){0,2}') || {
 # sed reports success even when it matches nothing,
 # so check every line is there before touching any file;
 # a failed check then leaves none of them half updated.
-# The project() block is read on its own because
-# a bare "VERSION" also appears in cmake_minimum_required().
+# The project() block is read on its own
+# because a bare "VERSION" also appears in cmake_minimum_required().
 PROJECT_BLOCK=$(sed -n '/^project(/,/)/p' CMakeLists.txt)
 
 grep -q '^const char\* VERSION = ".*";$' cpp/ds-service.cpp

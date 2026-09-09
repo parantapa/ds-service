@@ -97,8 +97,8 @@ message TaskGetOutputResponse {
 }
 
 // Counts of all tasks in the system by state.
-// Every task is in exactly one of these states, so the four
-// counts sum to the total number of tasks the server knows about.
+// Every task is in exactly one of these states,
+// so the four counts sum to the total number of tasks the server knows about.
 message TaskGetCountByStateResponse {
     uint64 ready = 1;
     uint64 running = 2;
@@ -130,7 +130,7 @@ message TaskGetPriorityResponse {
 }
 
 // Re-prioritizing a Ready task moves it within every queue it waits on,
-// and it goes behind equal priority the tasks already waiting.
+// and it goes behind the tasks with equal priority already waiting.
 message TaskSetPriorityRequest {
     string task_id = 1;
     double priority = 2;
@@ -191,7 +191,7 @@ message JournalAppendRequest {
     bytes value = 2;
 }
 
-// datetime is ISO 8601 UTC datetime string
+// datetime is an ISO 8601 UTC datetime string
 // (e.g. "2024-01-02T03:04:05Z" or "...+00:00").
 // step is optional; when omitted it defaults to 0.
 message TimeSeriesAppendRequest {

@@ -4,7 +4,9 @@ import asyncio
 import os
 import random
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
+from types import TracebackType
 
 from .ds_service_pb2 import *
 from .ds_service_pb2_grpc import *
@@ -60,8 +62,8 @@ class TaskStateError(RuntimeError):
 
 
 class MutexNotHeld(RuntimeError):
-    """Raised when an operation needs a mutex that nobody, or somebody
-    else, holds.
+    """Raised when an operation needs a mutex
+    that nobody, or somebody else, holds.
     """
 
 
@@ -69,7 +71,7 @@ class MutexNotHeld(RuntimeError):
 def translate_grpc_error(
     not_found: type[Exception] = KeyError,
     failed_precondition: type[Exception] = TaskStateError,
-):
+) -> Iterator[None]:
     """Re-raise gRPC status codes as the exceptions this client documents.
 
     `not_found` overrides what NOT_FOUND maps to,
@@ -105,11 +107,9 @@ def translate_grpc_error(
 
 
 def as_queue_list(queue: str | list[str]) -> list[str]:
-    """Return the queue names of a `str | list[str]` argument as a list.
-
-    Every RPC that takes queues accepts one name or several,
-    and the proto field is repeated either way.
-    """
+    """Return the queue names of a queue argument, whether one or several."""
+    # Every RPC that takes queues accepts one name or several,
+    # and the proto field is repeated either way.
     if isinstance(queue, str):
         return [queue]
     return queue
@@ -167,7 +167,7 @@ class DsServiceClient:
         self,
         address: str | None = None,
         timeout: float = DEFAULT_RPC_TIMEOUT_S,
-    ):
+    ) -> None:
         """Open a channel to a ds-service server.
 
         address defaults to the DS_SERVER_ADDRESS environment variable,
@@ -191,7 +191,12 @@ class DsServiceClient:
         """Enter a context manager that closes the channel on the way out."""
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         """Close the channel, whether the block ended normally or raised."""
         self.close()
 
@@ -453,8 +458,9 @@ class DsServiceClient:
     ) -> list[TimeSeriesDataPoint]:
         """Return the points of a series that satisfy every bound given.
 
-        start_time and start_step are inclusive, end_time and end_step
-        exclusive, and a bound left as None imposes no restriction.
+        start_time and start_step are inclusive,
+        end_time and end_step exclusive,
+        and a bound left as None imposes no restriction.
         Points come back in the order they were appended, never sorted,
         and a key that does not exist returns an empty list.
         """
@@ -539,12 +545,12 @@ class DsServiceClient:
     ) -> None:
         """Block until the mutex is acquired for worker_id.
 
-        Retries mutex_try_acquire, sleeping between attempts,
-        and raises TimeoutError once timeout seconds have elapsed.
+        Raises TimeoutError once timeout seconds have elapsed.
         With timeout None, the default, it retries forever.
-
         This timeout bounds the whole loop, sleeps included.
         """
+        # Retries mutex_try_acquire, sleeping between attempts:
+        # the server offers no blocking acquire.
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             if self.mutex_try_acquire(key, worker_id):
@@ -603,7 +609,7 @@ class DsServiceClientAsync:
         self,
         address: str | None = None,
         timeout: float = DEFAULT_RPC_TIMEOUT_S,
-    ):
+    ) -> None:
         """Open a channel to a ds-service server.
 
         address defaults to the DS_SERVER_ADDRESS environment variable,
@@ -633,7 +639,12 @@ class DsServiceClientAsync:
         """Enter a context manager that closes the channel on the way out."""
         return self
 
-    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         """Close the channel, whether the block ended normally or raised."""
         await self.close()
 
@@ -899,8 +910,9 @@ class DsServiceClientAsync:
     ) -> list[TimeSeriesDataPoint]:
         """Return the points of a series that satisfy every bound given.
 
-        start_time and start_step are inclusive, end_time and end_step
-        exclusive, and a bound left as None imposes no restriction.
+        start_time and start_step are inclusive,
+        end_time and end_step exclusive,
+        and a bound left as None imposes no restriction.
         Points come back in the order they were appended, never sorted,
         and a key that does not exist returns an empty list.
         """
@@ -985,14 +997,14 @@ class DsServiceClientAsync:
     ) -> None:
         """Wait until the mutex is acquired for worker_id.
 
-        Retries mutex_try_acquire, sleeping between attempts,
-        and raises TimeoutError once timeout seconds have elapsed.
+        Raises TimeoutError once timeout seconds have elapsed.
         With timeout None, the default, it retries forever.
-
         This timeout bounds the whole loop, sleeps included.
         Only this coroutine waits:
         the sleeps yield to the event loop.
         """
+        # Retries mutex_try_acquire, sleeping between attempts:
+        # the server offers no blocking acquire.
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             if await self.mutex_try_acquire(key, worker_id):

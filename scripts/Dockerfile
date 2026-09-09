@@ -14,7 +14,8 @@
 #     docker build -f scripts/Dockerfile --output type=local,dest=./dist .
 #
 # ConanCenter publishes no musl binaries,
-# so every C++ dependency — gRPC, protobuf, Abseil, OpenSSL, re2, zlib, c-ares —
+# so every C++ dependency
+# -- gRPC, protobuf, Abseil, OpenSSL, re2, zlib, c-ares --
 # is compiled from source.
 # Expect the first build to take a long time.
 #
@@ -37,8 +38,8 @@ ENV CONAN_HOME=/opt/conan_home
 
 # compiler.version tracks the gcc Alpine ships.
 #
-# cmake is declared platform-provided so that Conan uses the apk installed
-# above and never downloads its own.
+# cmake is declared platform-provided
+# so that Conan uses the apk installed above and never downloads its own.
 # ConanCenter's cmake package repackages Kitware's glibc binaries,
 # which cannot run on musl.
 # This is needed even though conanfile.py does not tool_require cmake:

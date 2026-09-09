@@ -9,6 +9,7 @@ import signal
 import socket
 import subprocess
 import time
+from types import TracebackType
 
 import ifaddr
 
@@ -76,34 +77,30 @@ def resolve_interface_ipv4(interface: str) -> str:
 
 
 def _free_port(host: str) -> int:
-    """Reserve an ephemeral IPv4 port on host and return it.
-
-    The socket is closed before the server is started,
-    so the port is only reserved in the sense that
-    the kernel is unlikely to hand it out again immediately.
-    """
+    """Reserve an ephemeral IPv4 port on host and return it."""
+    # The socket is closed before the server is started,
+    # so the port is only reserved in the sense that
+    # the kernel is unlikely to hand it out again immediately.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind((host, 0))
         return sock.getsockname()[1]
 
 
 def _check_port_free(host: str, port: int) -> None:
-    """Raise if something already holds the port, before starting a server.
-
-    A server started on an occupied port loses the race and exits,
-    while the port keeps accepting connections --
-    so without this check
-    the caller would be handed a dead DsServiceServer
-    whose address belongs to somebody else's server,
-    and would read and write that server's state believing it is theirs.
-
-    SO_REUSEADDR is set because gRPC's own listener sets it:
-    without it this probe also fails on a port left in TIME_WAIT
-    by a server that has already exited,
-    which is a port the real server would bind quite happily.
-    It still fails against a live listener, which is what it is here for.
-    """
+    """Raise OSError if something already holds the port."""
+    # A server started on an occupied port loses the race and exits,
+    # while the port keeps accepting connections --
+    # so without this check
+    # the caller would be handed a dead DsServiceServer
+    # whose address belongs to somebody else's server,
+    # and would read and write that server's state believing it is theirs.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        # SO_REUSEADDR is set because gRPC's own listener sets it:
+        # without it this probe also fails on a port left in TIME_WAIT
+        # by a server that has already exited,
+        # which is a port the real server would bind quite happily.
+        # It still fails against a live listener,
+        # which is what it is here for.
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind((host, port))
@@ -128,7 +125,17 @@ class DsServiceServer:
         interface: str,
         port: int | None = None,
         ds_service_bin: str | None = None,
-    ):
+    ) -> None:
+        """Start a ds-service process bound to the interface's IPv4 address.
+
+        port defaults to a free ephemeral port, and 0 means the same.
+        ds_service_bin may be a whole command rather than a path;
+        it defaults to $DS_SERVICE_BIN, then to a ds-service on PATH.
+        Raises ValueError if the interface is unknown
+        or has no IPv4 address,
+        and OSError if an explicitly given port is already in use.
+        Nothing is started when either is raised.
+        """
         host = resolve_interface_ipv4(interface)
 
         ds_service_bin = resolve_ds_service_bin(ds_service_bin)
@@ -263,5 +270,10 @@ class DsServiceServer:
     def __enter__(self) -> "DsServiceServer":
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         self.close()

@@ -73,5 +73,6 @@ and a caller wants `map_get` to return either `bytes` or an awaitable,
 never one dressed as the other.
 
 The cost is that every RPC is written out twice.
-That cost is paid deliberately, and it is defended by a test rather than
-by discipline; see the developer notes for how the two copies are kept in step.
+That cost is paid deliberately,
+and it is defended by a test rather than by discipline;
+see the developer notes for how the two copies are kept in step.

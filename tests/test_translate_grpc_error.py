@@ -46,8 +46,9 @@ def test_failed_precondition_maps_to_task_state_error():
 
 
 def test_failed_precondition_is_overridable_for_mutex_release():
-    # MutexRelease reports a refused release the same way TaskDone reports
-    # a foreign worker, but it is not a task-state problem.
+    # MutexRelease reports a refused release
+    # the same way TaskDone reports a foreign worker,
+    # but it is not a task-state problem.
     with pytest.raises(MutexNotHeld):
         with translate_grpc_error(failed_precondition=MutexNotHeld):
             raise _FakeRpcError(grpc.StatusCode.FAILED_PRECONDITION, "not held")

@@ -1,3 +1,5 @@
+"""Python client for ds-service."""
+
 from .client import (
     DsServiceClient,
     DsServiceClientAsync,

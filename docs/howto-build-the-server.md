@@ -32,8 +32,9 @@ it puts the Conan-provided `protoc` and `grpc_cpp_plugin` on `PATH`,
 and the build fails to configure without them.
 
 The binary is created at `build/Release/ds-service`.
-For a debug build, pass `-s build_type=Debug` to `conan install` and use
-`-DCMAKE_BUILD_TYPE=Debug` with a matching `build/Debug` directory.
+For a debug build,
+pass `-s build_type=Debug` to `conan install`
+and use `-DCMAKE_BUILD_TYPE=Debug` with a matching `build/Debug` directory.
 
 ### After changing the proto
 

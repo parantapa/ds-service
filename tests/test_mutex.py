@@ -19,8 +19,9 @@ def test_try_acquire_second_time_fails(client):
 
 
 def test_try_acquire_is_not_reentrant(client):
-    # The holder gets no special treatment: a mutex it already holds
-    # is held, and asking again does not acquire it a second time.
+    # The holder gets no special treatment:
+    # a mutex it already holds is held,
+    # and asking again does not acquire it a second time.
     assert client.mutex_try_acquire("m", worker_id="w1") is True
     assert client.mutex_try_acquire("m", worker_id="w1") is False
 
