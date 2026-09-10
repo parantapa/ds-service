@@ -11,7 +11,7 @@ For the commands, see
 ## Why it exists
 
 A fully static binary has no loader dependencies,
-so it runs on a host whose libc is older or simply different,
+so it runs on a host whose libc is older or different,
 and it can be dropped onto a cluster node or into an empty image
 without carrying a userland with it.
 That matters most where the deployment target is not the build machine.

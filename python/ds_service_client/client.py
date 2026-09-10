@@ -99,7 +99,7 @@ def translate_grpc_error(
             raise failed_precondition(e.details())
         elif e.code() == grpc.StatusCode.RESOURCE_EXHAUSTED:
             # In practice this is a message larger than MAX_MESSAGE_SIZE_BYTES,
-            # i.e. a caller-side size problem,
+            # that is, a caller-side size problem,
             # so it reads as a ValueError.
             raise ValueError(e.details())
         else:

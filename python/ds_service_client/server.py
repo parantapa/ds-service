@@ -17,7 +17,7 @@ import ifaddr
 DS_SERVICE_BIN_ENV_VAR = "DS_SERVICE_BIN"
 
 # Used when neither the argument nor the environment variable is set,
-# i.e. a ds-service on the PATH.
+# that is, a ds-service on the PATH.
 DEFAULT_DS_SERVICE_BIN = "ds-service"
 
 # How long close() waits for a SIGTERM'd server to exit before SIGKILL.
@@ -79,8 +79,8 @@ def resolve_interface_ipv4(interface: str) -> str:
 def _free_port(host: str) -> int:
     """Reserve an ephemeral IPv4 port on host and return it."""
     # The socket is closed before the server is started,
-    # so the port is only reserved in the sense that
-    # the kernel is unlikely to hand it out again immediately.
+    # so the port is only reserved in the sense
+    # that the kernel is unlikely to hand it out again immediately.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind((host, 0))
         return sock.getsockname()[1]

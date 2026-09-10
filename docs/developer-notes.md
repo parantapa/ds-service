@@ -162,6 +162,34 @@ which callers see as a `TimeoutError` with no mention of pings.
 Raising the ping rate on the client therefore means
 lowering that interval on the server in the same change.
 
+## The server refuses to share its port
+
+gRPC enables `SO_REUSEPORT` by default,
+so a second `ds-service` started on an address that is already bound
+joins the first rather than failing.
+State is in memory and is not shared between processes,
+so the result is not one server with two listeners:
+it is two servers with divergent state,
+and clients split between them with nothing to indicate it.
+
+`cpp/ds-service.cpp` therefore sets `GRPC_ARG_ALLOW_REUSEPORT` to `0`,
+and a second server on a bound address exits with a bind failure.
+
+`DsServiceServer` enforces the same rule from the client side.
+An explicitly given port is probed before the process is started,
+in `_check_port_free` in `python/ds_service_client/server.py`,
+so the caller gets an `OSError` from the constructor
+rather than a helper object addressing somebody else's server.
+That probe sets `SO_REUSEADDR` because gRPC's own listener sets it:
+without it the probe would also refuse a port left in `TIME_WAIT`
+by a server that has already exited,
+which the real server binds without complaint.
+
+Two tests hold this in place:
+`test_second_server_on_the_same_port_fails` in `tests/test_grpc_options.py`,
+and `test_explicit_port_already_in_use_is_refused`
+in `tests/test_server_helper.py`.
+
 ## The test harness
 
 The fixtures live in `tests/conftest.py`:

@@ -16,19 +16,10 @@ or agree on a number,
 and the state only has to live as long as the run does.
 
 Presently, it provides six data structures:
-- **A key-value store** -- a shared `string -> bytes` store
-    for passing data between processes.
-- **A task queue** -- a priority-based work queue
-    that distributes tasks to workers and tracks their state.
-- **A journal store** -- append-only, ordered logs of binary entries.
-- **A time series store** -- append-only series
-    of timestamped floating-point values.
-- **Named mutexes** -- worker-owned locks
-    for coordinating exclusive resource access across workers.
-- **Counters** -- named monotonic counters
-    that hand out successive integers.
-
-Each of these is a separate key space with its own set of RPCs.
+a key-value store, a task queue, a journal store, a time series store,
+named mutexes, and counters.
+Each is a separate key space with its own set of RPCs,
+described in the [data structure reference](docs/data-structure-reference.md).
 
 ## Installation
 
@@ -93,7 +84,9 @@ with DsServiceClient("127.0.0.1:5051") as client:
 | [About the architecture](docs/about-the-architecture.md) | The three pieces, why state is not persisted, one lock per structure, and why there are two Python clients. |
 | [About the task queue](docs/about-the-task-queue.md) | Task ownership, what cancelling does and does not do, and why there is no fault tolerance. |
 | [About the static musl build](docs/about-the-static-musl-build.md) | Why the static image exists and why its Conan profile differs. |
-| [Developer notes](docs/developer-notes.md) | Working on `ds-service` itself: the source map, the generated code workflow, the test harness, conventions, versioning, and known limitations. |
+
+- [Developer notes](docs/developer-notes.md)
+- [Report a bug](https://github.com/parantapa/ds-service/issues)
 
 ## License
 

@@ -66,7 +66,7 @@ def server_binary() -> str:
 
 @pytest.fixture(scope="session")
 def loopback_interface() -> str:
-    """The interface test servers bind, i.e. the one holding 127.0.0.1.
+    """The interface test servers bind, that is, the one holding 127.0.0.1.
 
     Session-scoped because the machine's interfaces
     do not change under the suite.

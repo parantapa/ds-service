@@ -578,7 +578,7 @@ struct DsServiceImpl final : public DsService::Service {
         const auto& series = it->second;
         for (std::size_t index = 0; index < series.value.size(); index++) {
             // start bounds are inclusive, end bounds exclusive;
-            // unset bounds don't filter.
+            // unset bounds do not filter.
             if (start_time && series.time[index] < *start_time) {
                 continue;
             }
