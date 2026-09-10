@@ -77,7 +77,6 @@ with DsServiceClient("127.0.0.1:5051") as client:
 | [Tutorial: run your first tasks](docs/tutorial-your-first-tasks.md) | Start a server, store a value, and take a task from `Ready` to `Complete`. Start here. |
 | [How to build the server](docs/howto-build-the-server.md) | Requirements, the Conan + CMake build, installing, running, and the static musl build. |
 | [How to write a worker](docs/howto-write-a-worker.md) | The claim-work-report loop, mutexes around shared resources, progress reporting, and the asyncio variant. |
-| [How to run the tests](docs/howto-run-the-tests.md) | The pytest integration suite and pointing it at the binary. |
 | [Data structure reference](docs/data-structure-reference.md) | Every RPC, its arguments and error statuses, and the exact semantics of each data structure. |
 | [Python client reference](docs/python-client-reference.md) | `DsServiceClient` and `DsServiceClientAsync`: constructors, method names, the gRPC-status-to-exception mapping, and examples. |
 | [Server helper reference](docs/server-helper-reference.md) | `DsServiceServer`, which runs a private `ds-service` process for the life of the object. |
