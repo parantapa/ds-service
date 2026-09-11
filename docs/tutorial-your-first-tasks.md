@@ -25,7 +25,7 @@ Check that it runs:
 ./ds-service --version
 ```
 
-It prints a version number, such as `5.1.0`.
+It prints a version number.
 You will not have to start it yourself.
 Python starts it in step 3.
 
