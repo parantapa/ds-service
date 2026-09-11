@@ -746,7 +746,7 @@ constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
 // The server cancels anything still running when the deadline passes.
 constexpr int SHUTDOWN_GRACE_S = 5;
 
-const char* VERSION = "5.1.0";
+const char* VERSION = "5.2.0";
 
 // How often await_shutdown_signal looks for a delivered signal.
 // It bounds how long shutdown takes to start, so keep it short.
