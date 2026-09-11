@@ -1,9 +1,8 @@
 """Tests that the async client mirrors the synchronous one.
 
-Every RPC is written out twice, once per client class,
-and nothing except these tests stops one class
-from gaining a method, or changing an argument,
-that the other never hears about.
+Each RPC appears twice, once per client class.
+Only these tests stop one class from gaining a method,
+or changing an argument, that the other never hears about.
 
 See "Two clients, one API" in docs/developer-notes.md
 for why the two classes are separate.
@@ -20,9 +19,10 @@ from ds_service_client import DsServiceClient, DsServiceClientAsync
 def public_methods(cls: type) -> dict[str, Callable[..., Any]]:
     """The methods a caller uses, keyed by name.
 
-    Dunders are left out:
-    the context manager protocol is spelled differently
-    on each side, and is checked on its own below.
+    This leaves out the dunder methods.
+    Each side spells the context manager protocol differently,
+    so test_each_client_supports_its_own_context_manager_protocol
+    checks it on its own.
     """
     return {
         name: member
@@ -35,9 +35,9 @@ SYNC_METHODS = public_methods(DsServiceClient)
 ASYNC_METHODS = public_methods(DsServiceClientAsync)
 
 # Only the methods both classes have.
-# A method missing from one of them
-# is reported by test_the_two_clients_offer_the_same_methods,
-# rather than as a KeyError from every other test here.
+# test_the_two_clients_offer_the_same_methods reports a method
+# missing from one of them,
+# rather than a KeyError from every other test here.
 SHARED_METHOD_NAMES = sorted(SYNC_METHODS.keys() & ASYNC_METHODS.keys())
 
 
@@ -54,17 +54,17 @@ def test_the_two_clients_offer_the_same_methods():
 def test_shared_methods_take_the_same_arguments(name: str):
     """Parameter names, order, kinds, defaults and annotations must match.
 
-    Comparing Parameter objects covers all five at once.
+    One comparison of Parameter objects covers all five.
     """
     assert parameters(SYNC_METHODS[name]) == parameters(ASYNC_METHODS[name])
 
 
 @pytest.mark.parametrize("name", SHARED_METHOD_NAMES)
 def test_shared_methods_return_the_same_type(name: str):
-    """An async method is annotated with what awaiting it yields,
-    so the two annotations should read the same.
+    """An async method annotates the type that an await returns,
+    so the two annotations must read the same.
 
-    Only checked where both are annotated,
+    This test runs only where both clients annotate the method,
     because an un-annotated method is not a mismatch to fix here.
     """
     sync_return = inspect.signature(SYNC_METHODS[name]).return_annotation

@@ -1,7 +1,7 @@
 """Tests for DsServiceServer, the helper that runs temporary servers.
 
 The rest of the suite starts its servers through this class,
-so a fault here shows up everywhere at once.
+so a fault here appears everywhere at once.
 """
 
 import ifaddr
@@ -19,8 +19,8 @@ from ds_service_client.server import (
 def test_blank_env_var_falls_back_to_the_default(monkeypatch):
     """An exported but empty DS_SERVICE_BIN means "unset", not "".
 
-    Taken literally the command would start at `--address`,
-    and the failure would name that flag as the missing executable.
+    Taken literally the command starts at `--address`,
+    and the failure names that flag as the missing executable.
     """
     monkeypatch.setenv(DS_SERVICE_BIN_ENV_VAR, "")
     assert resolve_ds_service_bin() == DEFAULT_DS_SERVICE_BIN
@@ -69,7 +69,7 @@ def test_server_binds_the_address_of_its_interface(loopback_interface):
 
 
 def test_constructing_with_an_unknown_interface_starts_nothing():
-    """The interface is resolved before any process is started."""
+    """DsServiceServer resolves the interface before it starts any process."""
     with pytest.raises(ValueError):
         DsServiceServer("definitely-not-an-interface")
 
@@ -92,10 +92,10 @@ def test_explicit_port_already_in_use_is_refused(server, loopback_interface):
     """Starting on an occupied port must fail, not silently adopt it.
 
     The server that loses the race for the port exits,
-    while the port keeps accepting connections,
-    so a caller handed that address
-    would read and write the other server's state
-    believing it were their own.
+    while the port keeps accepting connections.
+    A caller handed that address
+    then reads and writes the other server's state
+    as if it were their own.
     """
     _, port = server.rsplit(":", 1)
 
@@ -140,7 +140,7 @@ def test_dead_process_reported_as_runtime_error(loopback_interface):
 
 
 def test_close_is_safe_to_call_twice(loopback_interface):
-    """The second close() must not signal a pid that has been recycled.
+    """The second close() must not signal a recycled pid.
 
     The first call reaps the child and frees its pid,
     and that pid is the process group id close() signals.
@@ -165,12 +165,12 @@ def test_context_manager_exit_after_explicit_close(loopback_interface):
 
 
 def test_fixed_port_is_reusable_after_the_server_exits(loopback_interface):
-    """A port left in TIME_WAIT is free as far as the real server is concerned.
+    """A port left in TIME_WAIT is free for the real server.
 
-    The probe socket sets SO_REUSEADDR for exactly this reason:
-    without it, restarting on a fixed port
-    right after a client disconnected was refused
-    even though nothing was listening.
+    The probe socket sets SO_REUSEADDR for exactly this reason.
+    Without it, the kernel refused a restart on a fixed port
+    right after a client disconnected,
+    even though nothing listened there.
     """
     first = DsServiceServer(loopback_interface)
     try:

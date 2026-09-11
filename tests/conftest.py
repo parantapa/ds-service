@@ -22,7 +22,7 @@ def _loopback_interface() -> str:
 
     Looked up rather than hardcoded to `lo`,
     because DsServiceServer is given an interface name
-    and the name of the loopback one is the platform's business.
+    and the name of the loopback one depends on the platform.
     """
     for adapter in ifaddr.get_adapters():
         for ip in adapter.ips:
@@ -34,16 +34,16 @@ def _loopback_interface() -> str:
 
 def _probe_grpc(address: str) -> None:
     """Make one read-only RPC against a server that is already listening."""
-    # A bound port only proves something is listening;
-    # this proves the service is registered and answering.
+    # A bound port only proves something is listening.
+    # This RPC proves the server registered the service and answers.
     #
     # Not grpc.channel_ready_future():
     # it registers a connectivity-state watcher
     # that makes the subsequent channel close block ~200ms per test.
     # An RPC round-trip proves more and costs ~1ms.
     #
-    # The deadline is short rather than the client default,
-    # so a port that accepts but never speaks gRPC
+    # The deadline is short rather than the client default.
+    # A port that accepts but never speaks gRPC
     # fails the fixture promptly
     # instead of stalling it for minutes.
     probe = DsServiceClient(address, timeout=GRPC_PROBE_TIMEOUT_S)
@@ -57,8 +57,8 @@ def _probe_grpc(address: str) -> None:
 def server_binary() -> str:
     """How to start the server under test.
 
-    Resolved by DsServiceServer's own helper,
-    so it may be a whole command line rather than a path:
+    DsServiceServer's own helper resolves it,
+    so it can be a whole command line rather than a path:
     split it with ``shlex.split`` before running it.
     """
     return resolve_ds_service_bin()
@@ -78,9 +78,9 @@ def loopback_interface() -> str:
 def server_process(loopback_interface):
     """Start a ds-service process on a free port and yield (proc, address).
 
-    Most tests want just the address and use the ``server`` fixture;
-    this one is for tests that drive the process itself,
-    such as signalling it.
+    Most tests want only the address and use the ``server`` fixture.
+    This one is for tests that drive the process itself,
+    such as signaling it.
     """
     server = DsServiceServer(loopback_interface)
     try:

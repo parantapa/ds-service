@@ -1,8 +1,9 @@
 # Ship only the client module plus the project's README and license.
 # The repository holds the server too, so start from nothing
 # and add back exactly what belongs in the client distribution.
-# pyproject.toml must be listed explicitly or the sdist cannot be rebuilt;
-# setup.cfg and PKG-INFO are injected by setuptools itself.
+# List pyproject.toml explicitly.
+# The sdist cannot be rebuilt without pyproject.toml in this list.
+# setuptools injects setup.cfg and PKG-INFO itself.
 global-exclude *
 recursive-include python/ds_service_client *.py *.pyi
 include README.md

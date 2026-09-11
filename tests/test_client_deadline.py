@@ -13,11 +13,10 @@ from ds_service_client import DsServiceClient, NoTaskAvailable
 def mute_address():
     """A listening socket that accepts connections but never speaks gRPC.
 
-    The kernel completes the TCP handshake from the listen backlog on its own,
-    so the client connects
-    and then sits waiting on a response that never arrives
-    -- which is what the deadline has to cut off.
-    Nothing ever calls accept(), so no server thread is needed.
+    The kernel completes the TCP handshake from the listen backlog on its own.
+    The client connects, and then waits on a response that never arrives.
+    The deadline has to cut that wait off.
+    Nothing ever calls accept(), so the test needs no server thread.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
@@ -36,16 +35,16 @@ def test_unresponsive_server_raises_timeout_error(mute_address):
         client.close()
 
     # Bounded on both sides on purpose.
-    # Without the deadline the call still eventually raises TimeoutError
-    # -- the connection fails with UNAVAILABLE,
-    # which maps to the same exception
-    # -- so only the timing distinguishes
+    # Without the deadline the call still eventually raises TimeoutError,
+    # because the connection fails with UNAVAILABLE,
+    # which maps to the same exception.
+    # So only the timing distinguishes
     # "the deadline cut it off" from "it failed for some other reason".
     assert 0.4 <= elapsed < 5.0
 
 
 def test_deadline_does_not_leak_grpc_errors(mute_address):
-    # The caller should never have to know about grpc's exception types.
+    # The caller never has to know about grpc's exception types.
     client = DsServiceClient(mute_address, timeout=0.5)
     try:
         start = time.monotonic()
@@ -69,8 +68,8 @@ def test_task_get_on_an_unreachable_server_is_not_no_task_available():
     """The distinction the worker loop depends on.
 
     A worker sleeps and retries on NoTaskAvailable,
-    so a server it cannot reach must raise something else
-    -- otherwise the loop polls a dead address forever.
+    so a server it cannot reach must raise something else.
+    Otherwise the loop polls a dead address forever.
     """
     # Bind a port and drop it, so nothing is listening on a known address.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:

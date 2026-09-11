@@ -48,7 +48,7 @@ class DsServiceRecipe(ConanFile):
 
     def package_info(self):
         # This package ships an executable, not a library:
-        # CMakeLists.txt installs only the ds-service target,
-        # so advertising ds-service-grpc here
-        # would hand consumers an unresolvable -lds-service-grpc.
+        # CMakeLists.txt installs only the ds-service target.
+        # An entry for ds-service-grpc here
+        # hands consumers an unresolvable -lds-service-grpc.
         self.cpp_info.libs = []

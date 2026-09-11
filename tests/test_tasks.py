@@ -72,7 +72,6 @@ def test_get_status_return_shape_follows_input(client):
     assert client.task_get_status("t") == TaskState.Ready
     assert not isinstance(client.task_get_status("t"), list)
 
-    # A one-element list returns a one-element list.
     assert client.task_get_status(["t"]) == [TaskState.Ready]
 
 
@@ -83,7 +82,7 @@ def test_output_of_unknown_task_raises_keyerror(client):
 
 def test_output_before_done_is_empty(client):
     client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
-    # The task exists but has produced no output yet.
+    # The task exists, but has no output yet.
     assert client.task_get_output("t") == b""
 
 
@@ -115,8 +114,8 @@ def test_claimed_task_is_not_handed_out_again(client):
     client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
     client.task_get(worker_id="w1", queue="work")  # now Running
 
-    # A Running task stays with the worker that claimed it;
-    # nothing hands it back to the queue.
+    # A Running task stays with the worker that claimed it.
+    # Nothing hands it back to the queue.
     with pytest.raises(NoTaskAvailable):
         client.task_get(worker_id="w2", queue="work")
 
@@ -137,20 +136,19 @@ def test_count_by_state_tracks_lifecycle(client):
     counts = client.task_get_count_by_state()
     assert (counts.ready, counts.running, counts.complete) == (3, 0, 0)
 
-    # Claim one (Ready -> Running) and complete another.
     client.task_get(worker_id="w1", queue="work")
     claimed = client.task_get(worker_id="w2", queue="work")
     client.task_done(claimed.task_id, worker_id="w2", output=b"out")
 
     counts = client.task_get_count_by_state()
     assert (counts.ready, counts.running, counts.complete) == (1, 1, 1)
-    # The four counts always sum to the total number of tasks;
-    # nothing here was cancelled, so that count is zero.
+    # The four counts always sum to the total number of tasks.
+    # Nothing here was canceled, so that count is zero.
     assert counts.ready + counts.running + counts.complete + counts.canceled == 3
 
 
 def test_equal_priority_is_dispatched_in_insertion_order(client):
-    # Equal priorities used to come back in reverse insertion order,
+    # Equal priorities once came back in reverse insertion order,
     # because the heap broke ties on the row index, largest first.
     for name in ["a", "b", "c", "d"]:
         client.task_add(name, queue="work", priority=1.0, function=b"", input=b"")
@@ -253,7 +251,8 @@ def test_raising_priority_moves_a_waiting_task_forward(client):
 
 def test_lowering_priority_moves_a_waiting_task_back(client):
     # The entry pushed by task_add outranks the new one,
-    # so this only works if the older entry is retired rather than skipped.
+    # so this only works if the server retires the older entry
+    # rather than skipping it.
     client.task_add("a", queue="work", priority=9.0, function=b"", input=b"")
     client.task_add("b", queue="work", priority=1.0, function=b"", input=b"")
 
@@ -297,7 +296,7 @@ def test_set_priority_on_a_running_task_does_not_queue_it_again(client):
 
     client.task_set_priority("t", 9.0)
 
-    # The new priority is recorded, but the task stays with its worker.
+    # The server records the new priority, but the task stays with its worker.
     assert client.task_get_priority("t") == 9.0
     assert client.task_get_status("t") == TaskState.Running
     with pytest.raises(NoTaskAvailable):
@@ -314,7 +313,7 @@ def test_get_worker_id_of_a_running_task(client):
 def test_get_worker_id_of_a_ready_task_raises(client):
     client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
 
-    # Nobody has claimed it, so there is no holder to name.
+    # Nobody claimed it, so there is no holder to name.
     with pytest.raises(TaskStateError):
         client.task_get_worker_id("t")
 
@@ -324,7 +323,7 @@ def test_get_worker_id_of_a_complete_task_raises(client):
     client.task_get(worker_id="w1", queue="work")
     client.task_done("t", worker_id="w1", output=b"result")
 
-    # The task was handed back when it completed.
+    # The server released the task when it completed.
     with pytest.raises(TaskStateError):
         client.task_get_worker_id("t")
 
@@ -334,7 +333,7 @@ def test_get_worker_id_of_a_canceled_task_raises(client):
     client.task_get(worker_id="w1", queue="work")
     client.task_cancel("t")
 
-    # Cancelling drops the record of who held it.
+    # Canceling drops the record of who held it.
     with pytest.raises(TaskStateError):
         client.task_get_worker_id("t")
 
@@ -363,7 +362,7 @@ def test_cancel_a_running_task(client):
     assert client.task_cancel("t") is True
     assert client.task_get_status("t") == TaskState.Canceled
 
-    # Cancelling does not put the task back on its queue.
+    # Canceling does not put the task back on its queue.
     with pytest.raises(NoTaskAvailable):
         client.task_get(worker_id="w2", queue="work")
 
@@ -373,7 +372,8 @@ def test_cancel_a_complete_task_fails(client):
     client.task_get(worker_id="w1", queue="work")
     client.task_done("t", worker_id="w1", output=b"result")
 
-    # A finished task keeps its result; nothing was moved.
+    # A finished task keeps its result.
+    # Nothing was moved.
     assert client.task_cancel("t") is False
     assert client.task_get_status("t") == TaskState.Complete
     assert client.task_get_output("t") == b"result"
@@ -383,7 +383,8 @@ def test_cancel_twice_fails_the_second_time(client):
     client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
 
     assert client.task_cancel("t") is True
-    # The second call did not move the task; the first one did.
+    # The second call did not move the task.
+    # The first one did.
     assert client.task_cancel("t") is False
     assert client.task_get_status("t") == TaskState.Canceled
 
@@ -394,7 +395,7 @@ def test_cancel_unknown_task_raises_keyerror(client):
 
 
 def test_done_on_a_canceled_task_is_accepted_and_ignored(client):
-    """A worker reporting work that was cancelled is not an error."""
+    """A worker reporting work that was canceled is not an error."""
     client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
     client.task_get(worker_id="w1", queue="work")
     client.task_cancel("t")
@@ -402,7 +403,7 @@ def test_done_on_a_canceled_task_is_accepted_and_ignored(client):
     # w1 finishes and reports, not knowing about the cancellation.
     client.task_done("t", worker_id="w1", output=b"result")
 
-    # The call succeeded, but nothing was recorded.
+    # The call succeeded, but the server recorded nothing.
     assert client.task_get_status("t") == TaskState.Canceled
     assert client.task_get_output("t") == b""
 
@@ -424,13 +425,13 @@ def test_count_by_state_counts_canceled_tasks(client):
 
 
 def test_multi_queue_task_is_dispatched_once(client):
-    """A task in several queues is handed out once, not once per queue."""
+    """The server hands out a task in several queues once, not once per queue."""
     client.task_add("t", queue=["alpha", "beta"], priority=1.0, function=b"", input=b"")
 
     assert client.task_get(worker_id="w1", queue=["alpha", "beta"]).task_id == "t"
 
-    # The claim leaves an entry behind on the queue it was not taken from;
-    # that entry is dead, because the task is no longer Ready.
+    # The claim leaves an entry behind on the queue it was not taken from.
+    # That entry is dead, because the task is no longer Ready.
     with pytest.raises(NoTaskAvailable):
         client.task_get(worker_id="w2", queue=["alpha", "beta"])
 
@@ -480,7 +481,7 @@ def test_search_id_invalid_pattern_raises_valueerror(client):
 
 
 def test_reads_do_not_create_task(client):
-    # None of these is allowed to add a row for the id it asks about.
+    # None of these reads adds a row for the id it asks about.
     assert client.task_get_status("never-seen") == TaskState.Undefined
     for read in (
         client.task_get_output,

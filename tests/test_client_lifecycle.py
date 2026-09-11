@@ -17,15 +17,15 @@ def test_context_manager_closes_the_channel(server):
 
     # grpc refuses calls on a closed channel
     # rather than quietly reconnecting,
-    # so this is how the close is observed.
+    # so this is how the test observes the close.
     with pytest.raises(ValueError, match="closed channel"):
         client.map_get("k")
 
 
 def test_exception_in_the_block_still_closes_the_channel(server):
-    # Bound before the with statement,
-    # so the channel can still be reached
-    # after the block has raised.
+    # The test binds the client before the with statement,
+    # so it can still reach the channel
+    # after the block raises.
     client = DsServiceClient(server)
 
     with pytest.raises(RuntimeError):

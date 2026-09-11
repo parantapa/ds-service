@@ -68,7 +68,7 @@ message TaskAddRequest {
     bytes input = 5;
 }
 
-// Undefined is reported by TaskGetStatus for a task_id that does not exist.
+// TaskGetStatus reports Undefined for a task_id that does not exist.
 enum TaskState {
     Ready = 0;
     Running = 1;
@@ -79,7 +79,7 @@ enum TaskState {
 
 // TaskGetStatus reports the state of every requested task_id,
 // in the same order as the request.
-// A task_id that does not exist reports Undefined.
+// TaskGetStatus reports Undefined for a task_id that does not exist.
 message TaskGetStatusRequest {
     repeated string task_id = 1;
 }
@@ -106,9 +106,8 @@ message TaskGetCountByStateResponse {
     uint64 canceled = 4;
 }
 
-// Cancelling a Ready task stops it being dispatched from any queue
-// it was waiting on;
-// cancelling a Running task takes it away from the worker holding it.
+// TaskCancel on a Ready task stops every queue from dispatching it.
+// Canceling a Running task takes it away from the worker holding it.
 message TaskCancelRequest {
     string task_id = 1;
 }
@@ -116,7 +115,7 @@ message TaskCancelRequest {
 // success is true if the task was Ready or Running
 // and this call moved it to Canceled,
 // false if it was already Complete or Canceled
-// and so was left as it was.
+// and this call left it alone.
 message TaskCancelResponse {
     bool success = 1;
 }
@@ -129,7 +128,7 @@ message TaskGetPriorityResponse {
     double priority = 1;
 }
 
-// Re-prioritizing a Ready task moves it within every queue it waits on,
+// TaskSetPriority on a Ready task moves it within every queue it waits on,
 // and it goes behind the tasks with equal priority already waiting.
 message TaskSetPriorityRequest {
     string task_id = 1;
@@ -191,9 +190,10 @@ message JournalAppendRequest {
     bytes value = 2;
 }
 
-// datetime is an ISO 8601 UTC datetime string
-// (e.g. "2024-01-02T03:04:05Z" or "...+00:00").
-// step is optional; when omitted it defaults to 0.
+// datetime is an ISO 8601 UTC datetime string,
+// for example "2024-01-02T03:04:05Z" or "...+00:00".
+// step is optional.
+// When the request omits it, step defaults to 0.
 message TimeSeriesAppendRequest {
     string key = 1;
     double value = 2;
@@ -224,8 +224,8 @@ message TimeSeriesGetResponse {
     repeated TimeSeriesDataPoint point = 1;
 }
 
-// Acquiring a mutex that does not exist creates it first.
-// worker_id is recorded as the holder of a mutex this call acquires,
+// MutexTryAcquire creates a mutex that does not exist.
+// The server records worker_id as the holder of a mutex this call acquires,
 // and it is what MutexRelease must present to release it again.
 message MutexTryAcquireRequest {
     string key = 1;
@@ -233,15 +233,15 @@ message MutexTryAcquireRequest {
 }
 
 // acquired is true if the mutex was acquired by this call,
-// false if it was already held --
-// by any worker, this one included, since the lock is not reentrant.
+// false if any worker already holds it, this one included.
+// The lock is not reentrant.
 message MutexTryAcquireResponse {
     bool acquired = 1;
 }
 
 // worker_id must be the one that acquired the mutex.
-// Releasing clears the recorded holder, leaving the mutex free.
-// Every other case is refused with FAILED_PRECONDITION:
+// MutexRelease clears the recorded holder, leaving the mutex free.
+// The server refuses every other case with FAILED_PRECONDITION:
 // a mutex held by another worker, one that is already free,
 // and one that does not exist.
 message MutexReleaseRequest {
@@ -260,8 +260,8 @@ message MutexGetWorkerIdResponse {
     string worker_id = 1;
 }
 
-// The first call for a given key creates the counter and returns 1;
-// each subsequent call returns the previous value plus one.
+// The first call for a given key creates the counter and returns 1.
+// Each later call returns the previous value plus one.
 message CounterGetNextValueRequest {
     string key = 1;
 }
@@ -271,7 +271,8 @@ message CounterGetNextValueResponse {
 }
 
 // Read-only: returns the counter's current value without changing it,
-// or 0 if the counter does not exist (it is not created).
+// or 0 if the counter does not exist.
+// The call does not create the counter.
 message CounterGetCurrentValueRequest {
     string key = 1;
 }

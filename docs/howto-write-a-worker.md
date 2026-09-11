@@ -11,8 +11,8 @@ If you do not, see
 or start a private one with
 [`DsServiceServer`](server-helper-reference.md).
 
-For the full client API, see the
-[Python client reference](python-client-reference.md).
+For the full client API, see
+the [Python client reference](python-client-reference.md).
 
 ## Connect
 
@@ -27,10 +27,11 @@ client = DsServiceClient("127.0.0.1:5051")
 ```
 
 If you deploy the same code to many machines,
-leave the address out and set `DS_SERVER_ADDRESS` in the environment instead.
+omit the address and set `DS_SERVER_ADDRESS` in the environment instead.
 
-Use the client as a context manager when the worker has a definite end,
-so the channel is closed whether the block finishes or raises:
+When the worker has a definite end,
+use the client as a context manager.
+The client then closes the channel whether the block finishes or raises:
 
 ```python
 with DsServiceClient("127.0.0.1:5051") as client:
@@ -41,8 +42,8 @@ with DsServiceClient("127.0.0.1:5051") as client:
 
 Pick a `worker_id` that is unique to this process.
 The server uses it to decide who owns a claimed task,
-and it takes the name at face value,
-so two processes sharing a name can complete each other's tasks.
+and takes the name at face value.
+Two processes that share a name can complete each other's tasks.
 
 ```python
 import time
@@ -66,16 +67,17 @@ while True:
         pass
 ```
 
-Two failures are worth separating in this loop.
-`NoTaskAvailable` means the queue is empty and the worker should wait.
-`TimeoutError` means the server could not be reached,
-so let it propagate rather than retrying forever against a dead server.
+Separate two failures in this loop.
+`NoTaskAvailable` means the queue is empty and the worker must wait.
+`TimeoutError` means the client cannot reach the server.
+Let it propagate.
+Do not retry forever against a dead server.
 
-If the worker should drain a queue and exit rather than wait for more,
-break out of the loop on `NoTaskAvailable` instead of sleeping.
+To drain the queue and exit rather than wait,
+break out of the loop on `NoTaskAvailable`.
 
 To take work from several queues in priority order,
-pass them in the order you want them tried:
+pass them in the order you want the server to try them:
 
 ```python
 task = client.task_get(worker_id="worker-a", queue=["urgent", "work"])
@@ -83,18 +85,17 @@ task = client.task_get(worker_id="worker-a", queue=["urgent", "work"])
 
 `TaskStateError` on `task_done` means the task was no longer `Running`
 under your `worker_id`,
-so something else had already completed it.
-Dropping the result is usually right,
-because the output that other call recorded is already stored.
-Cancelling does not raise here --
-`task_done` on a cancelled task succeeds, and its output is discarded.
+so something else already completed it.
+Drop the result.
+The server already stored the output that the other call recorded.
+`task_done` on a canceled task succeeds, and the server discards its output.
 
-## Guard a resource that only one worker may touch
+## Guard a resource that only one worker can touch
 
-If the work needs exclusive access to something outside the server --
-a file, a device, an external service --
-take a named mutex around it.
-To give up rather than wait when it is busy:
+Some work needs exclusive access to something outside the server:
+a file, a device, or an external service.
+Take a named mutex around that access.
+To return rather than wait when the mutex is busy:
 
 ```python
 if client.mutex_try_acquire("resource-a", worker_id="worker-a"):
@@ -114,10 +115,10 @@ finally:
     client.mutex_release("resource-a", worker_id="worker-a")
 ```
 
-Always release in a `finally`.
-A mutex has no expiry,
-so a worker that dies while holding one blocks the others
-until the server is restarted.
+Release the mutex in a `finally`.
+A mutex has no expiry.
+A worker that dies with the mutex held blocks every other worker
+until you restart the server.
 Use the same `worker_id` for both calls:
 only the holder can release.
 
@@ -133,20 +134,20 @@ client.journal_append(f"log/{task.task_id}", b"started")
 client.time_series_append("loss", 0.9, datetime.now(timezone.utc).isoformat(), step=0)
 ```
 
-Both create the key on first append,
-so no setup is needed before the worker starts.
+Both calls create the key on first append,
+so the worker needs no setup before it starts.
 
-## Hand out unique names
+## Generate unique ids
 
-If workers need ids that no other worker will produce -- output filenames,
-run numbers, task ids for work they submit themselves --
-use a counter rather than random values:
+Some workers need ids that no other worker produces:
+output filenames, run numbers, or task ids for work they submit.
+Use a counter for those ids rather than random values:
 
 ```python
 run_id = client.counter_get_next_value("runs")
 ```
 
-Counter values are serialized under a single lock,
+The server serializes counter values under a single lock,
 so concurrent callers always get distinct, gap-free numbers.
 
 ## Run the loop on an event loop
@@ -154,7 +155,7 @@ so concurrent callers always get distinct, gap-free numbers.
 If the worker is already asyncio-based,
 use `DsServiceClientAsync`.
 The method names, arguments and exceptions are the same,
-and every call is awaited:
+and you await every call:
 
 ```python
 import asyncio
@@ -172,15 +173,16 @@ async def worker() -> None:
             ...
 ```
 
-Construct it inside a coroutine, not at import time.
-See the
-[Python client reference](python-client-reference.md#dsserviceclientasync)
+Construct `DsServiceClientAsync` inside a coroutine, not at import time.
+See
+the [Python client reference](python-client-reference.md#dsserviceclientasync)
 for the differences from the blocking client.
 
 ## Know what the queue will not do for you
 
+Decide who recovers a task that a dead worker left `Running`.
+The queue does not do it for you.
 A worker that dies mid-task leaves that task `Running` forever.
-Nothing reassigns it, and `task_add` refuses to reuse the id,
-so recovery means cancelling the task and submitting the work under a new id.
-Decide who does that -- it is not the queue.
+Nothing reassigns it, and `task_add` refuses to reuse the id.
+To recover the work, cancel the task and submit it under a new id.
 See [about the task queue](about-the-task-queue.md).

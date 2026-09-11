@@ -13,7 +13,7 @@ def test_append_then_get_returns_in_append_order(client):
     client.time_series_append("m", 2.0, "2024-01-01T00:00:01Z")
     client.time_series_append("m", 3.0, "2024-01-01T00:00:02Z")
 
-    # Append order is preserved, not sorted by time.
+    # The store keeps append order, and does not sort by time.
     assert [p.value for p in client.time_series_get("m")] == [1.0, 2.0, 3.0]
 
 
@@ -109,7 +109,8 @@ def test_step_window(stepped_series):
 
 
 def test_time_and_step_filters_combine(stepped_series):
-    # start_time keeps steps 2..4; end_step keeps 0..2; intersection is step 2.
+    # start_time keeps steps 2..4, end_step keeps 0..2,
+    # and the intersection is step 2.
     got = _points(
         stepped_series,
         "m",
@@ -120,8 +121,8 @@ def test_time_and_step_filters_combine(stepped_series):
 
 
 def test_start_step_zero_is_a_real_bound(stepped_series):
-    # step=0 must be treated as "provided", not "absent"
-    # -- here it admits everything.
+    # The server must treat step=0 as "provided", not "absent".
+    # Here it admits everything.
     got = _points(stepped_series, "m", start_step=0)
     assert [s for _, s in got] == [0, 1, 2, 3, 4]
 
@@ -162,7 +163,7 @@ def test_search_key_invalid_pattern_raises_valueerror(client):
 
 
 def test_get_does_not_create_series(client):
-    # Reading a missing series must not add it to the store.
+    # A read of a missing series must not add it to the store.
     assert client.time_series_get("never-seen") == []
 
     assert client.time_series_search_key(".*") == []

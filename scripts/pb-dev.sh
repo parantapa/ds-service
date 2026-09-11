@@ -102,8 +102,8 @@ run_make-release() {
     fi
 
     # A pre-release suffix keeps its separator in the binary's version
-    # but loses it in the PEP 440 name of a built package,
-    # so 2.3.0-rc1 has to match ds_service_client-2.3.0rc1 as well.
+    # but loses it in the PEP 440 name of a built package.
+    # So 2.3.0-rc1 must match ds_service_client-2.3.0rc1 as well.
     local pyversion="${version//-/}"
 
     local versions=("$version")
@@ -111,8 +111,9 @@ run_make-release() {
         versions+=("$pyversion")
     fi
 
-    # The sdist name is fixed, so it is tested rather than globbed;
-    # only the wheel has a trailing build tag to match.
+    # The sdist name is fixed,
+    # so the script tests for it rather than globbing.
+    # Only the wheel has a trailing build tag to match.
     local sdists=() whls=() v
     shopt -s nullglob
     for v in "${versions[@]}"; do

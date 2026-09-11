@@ -20,7 +20,7 @@ DS_SERVICE_BIN_ENV_VAR = "DS_SERVICE_BIN"
 # that is, a ds-service on the PATH.
 DEFAULT_DS_SERVICE_BIN = "ds-service"
 
-# How long close() waits for a SIGTERM'd server to exit before SIGKILL.
+# How long close() waits for a server to exit after SIGTERM, before SIGKILL.
 TERMINATE_TIMEOUT_S = 10.0
 
 # Gap between connection attempts in wait_until_ready.
@@ -34,9 +34,8 @@ def resolve_ds_service_bin(ds_service_bin: str | None = None) -> str:
     """How to start the server: the argument, $DS_SERVICE_BIN, or the default.
 
     A blank value counts as unset.
-    An exported but empty DS_SERVICE_BIN is how a shell says "no value",
-    and taking it literally
-    would leave the command starting at `--address`,
+    An exported but empty DS_SERVICE_BIN is how a shell says "no value".
+    If the command takes it literally, it starts at `--address`,
     which fails as a missing-executable error naming a flag.
     """
     for candidate in (ds_service_bin, os.environ.get(DS_SERVICE_BIN_ENV_VAR)):
@@ -51,9 +50,9 @@ def resolve_interface_ipv4(interface: str) -> str:
 
     Raises ValueError if this machine has no such interface,
     or has it but with no IPv4 address on it.
-    Neither case has an address to bind,
-    and binding some other one
-    would put the server on a network the caller did not ask for.
+    Neither case has an address to bind.
+    A bind to some other address puts the server on a network
+    the caller did not ask for.
     """
     known = []
     for adapter in ifaddr.get_adapters():
@@ -78,9 +77,9 @@ def resolve_interface_ipv4(interface: str) -> str:
 
 def _free_port(host: str) -> int:
     """Reserve an ephemeral IPv4 port on host and return it."""
-    # The socket is closed before the server is started,
-    # so the port is only reserved in the sense
-    # that the kernel is unlikely to hand it out again immediately.
+    # This function closes the socket before the server starts.
+    # Nothing holds the port after that,
+    # and the kernel is only unlikely to hand it out again immediately.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind((host, 0))
         return sock.getsockname()[1]
@@ -89,17 +88,17 @@ def _free_port(host: str) -> int:
 def _check_port_free(host: str, port: int) -> None:
     """Raise OSError if something already holds the port."""
     # A server started on an occupied port loses the race and exits,
-    # while the port keeps accepting connections --
-    # so without this check
-    # the caller would be handed a dead DsServiceServer
-    # whose address belongs to somebody else's server,
-    # and would read and write that server's state believing it is theirs.
+    # while the port keeps accepting connections.
+    # Without this check,
+    # the constructor hands the caller a dead DsServiceServer
+    # whose address belongs to somebody else's server.
+    # The caller then reads and writes that server's state as its own.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        # SO_REUSEADDR is set because gRPC's own listener sets it:
-        # without it this probe also fails on a port left in TIME_WAIT
-        # by a server that has already exited,
-        # which is a port the real server would bind quite happily.
-        # It still fails against a live listener,
+        # This probe sets SO_REUSEADDR because gRPC's own listener sets it.
+        # Without it, the probe also fails on a port left in TIME_WAIT
+        # by a server that already exited.
+        # The real server can bind such a port.
+        # The probe still fails against a live listener,
         # which is what it is here for.
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
@@ -114,9 +113,9 @@ def _check_port_free(host: str, port: int) -> None:
 class DsServiceServer:
     """A ds-service process that runs for as long as this object does.
 
-    The process is started by the constructor,
-    so the server is already coming up when it returns;
-    use wait_until_ready() before connecting,
+    The constructor starts the process,
+    so the server is already starting when it returns.
+    Call wait_until_ready() before connecting,
     and close() to stop it.
     """
 
@@ -129,18 +128,18 @@ class DsServiceServer:
         """Start a ds-service process bound to the interface's IPv4 address.
 
         port defaults to a free ephemeral port, and 0 means the same.
-        ds_service_bin may be a whole command rather than a path;
-        it defaults to $DS_SERVICE_BIN, then to a ds-service on PATH.
+        ds_service_bin can be a whole command rather than a path.
+        It defaults to $DS_SERVICE_BIN, then to a ds-service on PATH.
         Raises ValueError if the interface is unknown
         or has no IPv4 address,
         and OSError if an explicitly given port is already in use.
-        Nothing is started when either is raised.
+        The constructor starts nothing when it raises either error.
         """
         host = resolve_interface_ipv4(interface)
 
         ds_service_bin = resolve_ds_service_bin(ds_service_bin)
 
-        # Port 0 is how the kernel is asked for an ephemeral port,
+        # Port 0 asks the kernel for an ephemeral port,
         # so it means the same here as passing port = None.
         if not port:
             port = _free_port(host)
@@ -157,21 +156,20 @@ class DsServiceServer:
 
         # start_new_session puts the server in its own process group,
         # so close() can signal the whole group.
-        # A container runtime or a wrapper script may leave children behind,
-        # and signalling only the process we started
-        # would orphan the server.
+        # A container runtime or a wrapper script can leave children behind.
+        # A signal to the started process alone orphans the server.
         self.process = subprocess.Popen(
             shlex.split(self.command), start_new_session=True
         )
 
         # start_new_session makes the child a session and group leader,
         # so its pid is the group id.
-        # Kept because os.getpgid() stops working
-        # once the process is reaped,
-        # and close() may run after that.
+        # The pid is kept because os.getpgid() stops
+        # after the process is reaped,
+        # and close() can run after that.
         self.pgid = self.process.pid
 
-        # Guards close() against running twice -- see its docstring.
+        # Guards close() against running twice. See its docstring.
         self._closed = False
 
     def wait_until_ready(self, timeout: int = 30) -> None:
@@ -191,10 +189,10 @@ class DsServiceServer:
                 time.sleep(READY_POLL_INTERVAL_S)
                 continue
 
-            # Something is listening -- check it is still us.
-            # A process that has exited by now
-            # lost the port to another server,
-            # and returning would hand the caller that one.
+            # Something is listening.
+            # Check that it is still this server.
+            # A process that exited by now lost the port to another server.
+            # A return then hands the caller that one.
             self._raise_if_exited()
             return
 
@@ -213,21 +211,21 @@ class DsServiceServer:
             )
 
     def close(self) -> None:
-        """Stop the server: SIGTERM, then SIGKILL if it has not exited.
+        """Stop the server: SIGTERM, then SIGKILL if it did not exit.
 
-        The whole process group is signalled,
-        not just the process that was started,
-        so a server left behind by a wrapper that has since exited
-        is stopped too.
+        This method signals the whole process group,
+        not just the process the constructor started.
+        A group signal also stops a server left behind
+        by a wrapper that exited earlier.
 
         Safe to call more than once: the second call does nothing.
         """
         if self._closed:
             return
 
-        # Set before the teardown, not after,
-        # so a failure partway through still bars a second run
-        # rather than leaving the group id live to be signalled again.
+        # close() sets the flag before the teardown, not after.
+        # A failure partway through then still bars a second run,
+        # so nothing signals the group again.
         self._closed = True
 
         deadline = time.monotonic() + TERMINATE_TIMEOUT_S
@@ -250,7 +248,10 @@ class DsServiceServer:
             self.process.wait()
 
     def _signal_process_group(self, signal_number: int) -> None:
-        """Signal the server's process group, ignoring one that has exited."""
+        """Signal the server's process group.
+
+        Do nothing if the group already exited.
+        """
         try:
             os.killpg(self.pgid, signal_number)
         except ProcessLookupError:
@@ -259,7 +260,7 @@ class DsServiceServer:
     def _process_group_alive(self) -> bool:
         """Whether any process is left in the server's process group.
 
-        Signal 0 checks for the group without signalling it.
+        Signal 0 checks for the group without signaling it.
         """
         try:
             os.killpg(self.pgid, 0)

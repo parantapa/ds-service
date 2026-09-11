@@ -1,4 +1,4 @@
-"""Ds Service Client."""
+"""Client for the ds-service server."""
 
 import asyncio
 import os
@@ -13,30 +13,31 @@ from .ds_service_pb2_grpc import *
 
 # Largest single request or response accepted, in bytes.
 # Must match MAX_MESSAGE_SIZE_BYTES in cpp/ds-service.cpp:
-# if the two disagree, one side rejects what the other happily sends.
+# if the two disagree, one side rejects what the other sends.
 # gRPC's own default is 4 MiB.
 MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024
 
 # Several of these options are only correct
 # as a matched pair with the server's channel arguments
-# in cpp/ds-service.cpp;
-# tests/test_grpc_options.py is what keeps the two sides in step.
+# in cpp/ds-service.cpp.
+# tests/test_grpc_options.py keeps the two sides in step.
 GRPC_CLIENT_OPTIONS = [
     # This ping interval must stay above the server's
     # GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS
-    # (10s in cpp/ds-service.cpp),
+    # (10 seconds in cpp/ds-service.cpp),
     # or the server answers pings with GOAWAY/ENHANCE_YOUR_CALM
     # and drops the connection.
     # Callers see that as a TimeoutError with no mention of pings.
     ("grpc.keepalive_time_ms", 120 * 1000),
     ("grpc.keepalive_timeout_ms", 30 * 1000),
     # 0 means "unlimited".
-    # This caps the number of keepalive pings sent while no RPC is in flight
-    # -- it is a total, not a rate --
-    # so any finite value makes the client stop pinging
-    # on a long-idle connection,
-    # which is exactly the connection
-    # keepalive_permit_without_calls is meant to protect.
+    # This caps the number of keepalive pings
+    # sent while no RPC is in flight.
+    # The cap is a total, not a rate.
+    # Any finite value makes the client stop pinging
+    # on a long-idle connection.
+    # That is exactly the connection
+    # keepalive_permit_without_calls protects.
     ("grpc.http2.max_pings_without_data", 0),
     ("grpc.keepalive_permit_without_calls", 1),
     ("grpc.max_receive_message_length", MAX_MESSAGE_SIZE_BYTES),
@@ -78,9 +79,11 @@ def translate_grpc_error(
     because the code means "no such key" on most RPCs
     but "no task is ready" on TaskGet.
     `failed_precondition` does the same for the code
-    the server uses to refuse an operation on ownership grounds:
-    a task held by another worker on TaskDone,
-    a mutex held by another worker on MutexRelease.
+    the server uses to refuse an operation on ownership grounds.
+    That code covers two cases:
+
+    * A task held by another worker on TaskDone.
+    * A mutex held by another worker on MutexRelease.
     """
     try:
         yield
@@ -124,8 +127,8 @@ def time_series_get_request(
 ) -> TimeSeriesGetRequest:
     """Build a TimeSeriesGetRequest carrying only the bounds that were given.
 
-    A bound passed as None is left off the request,
-    which is how the caller says "no restriction on this end".
+    This function omits a bound passed as None.
+    The caller uses None to say "no restriction on this end".
     """
     request = TimeSeriesGetRequest(key=key)
     if start_time is not None:
@@ -143,10 +146,10 @@ def mutex_retry_delay(key: str, deadline: float | None) -> float:
     """How long to wait before the next mutex_try_acquire attempt.
 
     deadline is a time.monotonic() reading, or None for "retry forever".
-    Raises TimeoutError once it has passed,
-    and otherwise shortens the delay as needed
-    so that the wait does not overshoot it:
-    the deadline bounds the sleeps, not just the attempts.
+    Raises TimeoutError once the deadline passes,
+    and otherwise shortens the delay
+    so that the wait does not overshoot it.
+    The deadline bounds the sleeps, not just the attempts.
     """
     delay = MUTEX_ACQUIRE_SLEEP_S + random.uniform(
         -MUTEX_ACQUIRE_JITTER_S, MUTEX_ACQUIRE_JITTER_S
@@ -171,8 +174,8 @@ class DsServiceClient:
         """Open a channel to a ds-service server.
 
         address defaults to the DS_SERVER_ADDRESS environment variable,
-        and a KeyError is raised when neither is set.
-        timeout, in seconds, is applied as the deadline of every RPC.
+        and this raises KeyError when neither is set.
+        The client applies timeout, in seconds, as the deadline of every RPC.
         """
         if address is None:
             self.address = os.environ["DS_SERVER_ADDRESS"]
@@ -188,7 +191,7 @@ class DsServiceClient:
         self.channel.close()
 
     def __enter__(self) -> "DsServiceClient":
-        """Enter a context manager that closes the channel on the way out."""
+        """Return the client itself, for use as the target of a with block."""
         return self
 
     def __exit__(
@@ -201,7 +204,10 @@ class DsServiceClient:
         self.close()
 
     def map_set(self, key: str, value: bytes) -> None:
-        """Store value under key, overwriting any value already there."""
+        """Store value under key.
+
+        The new value replaces any value already there.
+        """
         with translate_grpc_error():
             self.stub.MapSet(MapSetRequest(key=key, value=value), timeout=self.timeout)
 
@@ -219,9 +225,9 @@ class DsServiceClient:
     def map_search_key(self, pattern: str) -> list[str]:
         """Return the map keys matching the RE2 regular expression pattern.
 
-        The match is unanchored, so it succeeds on any substring of a key;
-        use ^ and $ to anchor it.
-        Keys come back in unspecified order.
+        The match is unanchored, so it succeeds on any substring of a key.
+        Use ^ and $ to anchor it.
+        The server returns the keys in unspecified order.
         Raises ValueError if the pattern does not compile.
         """
         with translate_grpc_error():
@@ -260,8 +266,8 @@ class DsServiceClient:
     def task_get_status(self, task_id: str | list[str]) -> TaskState | list[TaskState]:
         """Return the state of one task, or of each task in a list.
 
-        A single string returns a single TaskState;
-        a list returns a list of them, one per id in the same order.
+        A single string returns a single TaskState.
+        A list returns a list of them, one per id in the same order.
         An id the server does not know reports TaskState.Undefined
         rather than raising.
         """
@@ -278,7 +284,7 @@ class DsServiceClient:
     def task_get_output(self, task_id: str) -> bytes:
         """Return the output recorded for a task.
 
-        A task that has not completed has empty output.
+        A task that is not Complete has empty output.
         Raises KeyError for a task_id the server does not know.
         """
         with translate_grpc_error():
@@ -336,8 +342,8 @@ class DsServiceClient:
         """Return the worker holding a Running task.
 
         Raises KeyError for a task_id the server does not know,
-        and TaskStateError if the task is not Running --
-        a task that is Ready, Complete, or Canceled has no holder.
+        and TaskStateError if the task is not Running.
+        A task that is Ready, Complete, or Canceled has no holder.
         """
         with translate_grpc_error():
             response: TaskGetWorkerIdResponse = self.stub.TaskGetWorkerId(
@@ -348,8 +354,8 @@ class DsServiceClient:
     def task_search_id(self, pattern: str) -> list[str]:
         """Return the task ids matching the RE2 pattern.
 
-        Same semantics as map_search_key, over the task ids;
-        tasks in every state are searched.
+        Same semantics as map_search_key, over the task ids.
+        The server searches tasks in every state.
         """
         with translate_grpc_error():
             response: SearchKeyResponse = self.stub.TaskSearchId(
@@ -360,8 +366,8 @@ class DsServiceClient:
     def task_get(self, worker_id: str, queue: str | list[str]) -> TaskGetResponse:
         """Claim a task for worker_id from the first queue holding one.
 
-        Queues are tried in the order given.
-        Raises NoTaskAvailable -- not TimeoutError --
+        The server tries the queues in the order given.
+        Raises NoTaskAvailable, not TimeoutError,
         when none of them has a task ready,
         so that an unreachable server stays distinguishable from idle work.
         """
@@ -378,9 +384,9 @@ class DsServiceClient:
         Raises TaskStateError if the task is not Running,
         or if it is held by a different worker.
 
-        A cancelled task is the exception:
+        A canceled task is the exception:
         the call succeeds, but the task stays Canceled
-        and the output is discarded.
+        and the server discards the output.
         """
         with translate_grpc_error():
             self.stub.TaskDone(
@@ -403,9 +409,9 @@ class DsServiceClient:
         """Return the entries in the half-open index range [start, end).
 
         The range is clamped to the journal's bounds,
-        so reading past the end returns only the entries that exist,
-        and an empty range -- or a journal that does not exist --
-        returns an empty list rather than raising.
+        so a read past the end returns only the entries that exist.
+        An empty range returns an empty list rather than raising.
+        A journal that does not exist also returns an empty list.
         """
         with translate_grpc_error():
             response: JournalReadResponse = self.stub.JournalRead(
@@ -414,7 +420,10 @@ class DsServiceClient:
             return list(response.entry)
 
     def journal_append(self, key: str, value: bytes) -> None:
-        """Append one entry to a journal, creating it if it does not exist."""
+        """Append one entry to a journal.
+
+        The server creates the journal if it does not exist.
+        """
         with translate_grpc_error():
             self.stub.JournalAppend(
                 JournalAppendRequest(key=key, value=value), timeout=self.timeout
@@ -434,10 +443,11 @@ class DsServiceClient:
     def time_series_append(
         self, key: str, value: float, datetime: str, step: int = 0
     ) -> None:
-        """Append a point to a series, creating it if it does not exist.
+        """Append a point to a series.
 
-        datetime is an ISO 8601 UTC string;
-        the Z form, an offset form, and a bare datetime are all accepted.
+        The server creates the series if it does not exist.
+        datetime is an ISO 8601 UTC string.
+        The server accepts the Z form, an offset form, and a bare datetime.
         Raises ValueError if it does not parse.
         """
         with translate_grpc_error():
@@ -461,8 +471,9 @@ class DsServiceClient:
         start_time and start_step are inclusive,
         end_time and end_step exclusive,
         and a bound left as None imposes no restriction.
-        Points come back in the order they were appended, never sorted,
-        and a key that does not exist returns an empty list.
+        The server returns the points in the order the caller appended them.
+        The server never sorts them.
+        A key that does not exist returns an empty list.
         """
         request = time_series_get_request(
             key, start_time, end_time, start_step, end_step
@@ -477,7 +488,7 @@ class DsServiceClient:
     def time_series_search_key(self, pattern: str) -> list[str]:
         """Return the series keys matching the RE2 pattern.
 
-        Same semantics as map_search_key, over the time series key space.
+        Same semantics as map_search_key, over the keys of the time series.
         """
         with translate_grpc_error():
             response: SearchKeyResponse = self.stub.TimeSeriesSearchKey(
@@ -516,9 +527,9 @@ class DsServiceClient:
     def mutex_get_worker_id(self, key: str) -> str:
         """Return the worker holding the mutex.
 
-        Raises KeyError if the mutex does not exist
-        -- no mutex_try_acquire has ever named the key --
+        Raises KeyError if the mutex does not exist,
         and MutexNotHeld if it exists but is free.
+        The mutex does not exist until a mutex_try_acquire call names the key.
         """
         with translate_grpc_error(failed_precondition=MutexNotHeld):
             response: MutexGetWorkerIdResponse = self.stub.MutexGetWorkerId(
@@ -531,8 +542,8 @@ class DsServiceClient:
 
         Same semantics as map_search_key, over the mutex key space.
         A key exists from the first mutex_try_acquire that names it,
-        whether or not that call acquired it,
-        so a free mutex is listed like a held one.
+        whether or not that call acquired it.
+        A free mutex is listed like a held one.
         """
         with translate_grpc_error():
             response: SearchKeyResponse = self.stub.MutexSearchKey(
@@ -543,14 +554,14 @@ class DsServiceClient:
     def mutex_acquire(
         self, key: str, worker_id: str, timeout: float | None = None
     ) -> None:
-        """Block until the mutex is acquired for worker_id.
+        """Block until worker_id acquires the mutex.
 
-        Raises TimeoutError once timeout seconds have elapsed.
+        Raises TimeoutError once timeout seconds elapse.
         With timeout None, the default, it retries forever.
         This timeout bounds the whole loop, sleeps included.
         """
-        # Retries mutex_try_acquire, sleeping between attempts:
-        # the server offers no blocking acquire.
+        # The server offers no blocking acquire,
+        # so this loop polls mutex_try_acquire.
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             if self.mutex_try_acquire(key, worker_id):
@@ -562,8 +573,8 @@ class DsServiceClient:
     def counter_get_next_value(self, key: str) -> int:
         """Advance a counter and return its new value.
 
-        The first call for a key creates the counter and returns 1;
-        each later call returns the previous value plus one.
+        The first call for a key creates the counter and returns 1.
+        Each later call returns the previous value plus one.
         Concurrent callers receive distinct, gap-free values.
         """
         with translate_grpc_error():
@@ -598,9 +609,8 @@ class DsServiceClient:
 class DsServiceClientAsync:
     """An asyncio connection to a ds-service server, and the RPCs it offers.
 
-    The same API as DsServiceClient,
-    with every RPC awaited rather than blocking the event loop,
-    and `async with` in place of `with`.
+    This class offers the same API as DsServiceClient.
+    Each method is a coroutine, and `async with` replaces `with`.
     The exceptions raised, and the meaning of every argument,
     are unchanged.
     """
@@ -613,11 +623,11 @@ class DsServiceClientAsync:
         """Open a channel to a ds-service server.
 
         address defaults to the DS_SERVER_ADDRESS environment variable,
-        and a KeyError is raised when neither is set.
-        timeout, in seconds, is applied as the deadline of every RPC.
+        and this raises KeyError when neither is set.
+        The client applies timeout, in seconds, as the deadline of every RPC.
 
-        The channel is created here rather than on first use,
-        so this must be called with a running event loop:
+        This constructor creates the channel, rather than the first RPC,
+        so construct the client from a running event loop.
         grpc.aio binds the channel to the loop that is current.
         """
         if address is None:
@@ -632,11 +642,14 @@ class DsServiceClientAsync:
         self.stub = DsServiceStub(self.channel)
 
     async def close(self) -> None:
-        """Close the underlying gRPC channel, cancelling in-flight RPCs."""
+        """Close the underlying gRPC channel.
+
+        The channel cancels in-flight RPCs.
+        """
         await self.channel.close()
 
     async def __aenter__(self) -> "DsServiceClientAsync":
-        """Enter a context manager that closes the channel on the way out."""
+        """Return the client itself, for use as the target of an async with block."""
         return self
 
     async def __aexit__(
@@ -649,7 +662,10 @@ class DsServiceClientAsync:
         await self.close()
 
     async def map_set(self, key: str, value: bytes) -> None:
-        """Store value under key, overwriting any value already there."""
+        """Store value under key.
+
+        The new value replaces any value already there.
+        """
         with translate_grpc_error():
             await self.stub.MapSet(
                 MapSetRequest(key=key, value=value), timeout=self.timeout
@@ -669,9 +685,9 @@ class DsServiceClientAsync:
     async def map_search_key(self, pattern: str) -> list[str]:
         """Return the map keys matching the RE2 regular expression pattern.
 
-        The match is unanchored, so it succeeds on any substring of a key;
-        use ^ and $ to anchor it.
-        Keys come back in unspecified order.
+        The match is unanchored, so it succeeds on any substring of a key.
+        Use ^ and $ to anchor it.
+        The server returns the keys in unspecified order.
         Raises ValueError if the pattern does not compile.
         """
         with translate_grpc_error():
@@ -712,8 +728,8 @@ class DsServiceClientAsync:
     ) -> TaskState | list[TaskState]:
         """Return the state of one task, or of each task in a list.
 
-        A single string returns a single TaskState;
-        a list returns a list of them, one per id in the same order.
+        A single string returns a single TaskState.
+        A list returns a list of them, one per id in the same order.
         An id the server does not know reports TaskState.Undefined
         rather than raising.
         """
@@ -730,7 +746,7 @@ class DsServiceClientAsync:
     async def task_get_output(self, task_id: str) -> bytes:
         """Return the output recorded for a task.
 
-        A task that has not completed has empty output.
+        A task that is not Complete has empty output.
         Raises KeyError for a task_id the server does not know.
         """
         with translate_grpc_error():
@@ -788,8 +804,8 @@ class DsServiceClientAsync:
         """Return the worker holding a Running task.
 
         Raises KeyError for a task_id the server does not know,
-        and TaskStateError if the task is not Running --
-        a task that is Ready, Complete, or Canceled has no holder.
+        and TaskStateError if the task is not Running.
+        A task that is Ready, Complete, or Canceled has no holder.
         """
         with translate_grpc_error():
             response: TaskGetWorkerIdResponse = await self.stub.TaskGetWorkerId(
@@ -800,8 +816,8 @@ class DsServiceClientAsync:
     async def task_search_id(self, pattern: str) -> list[str]:
         """Return the task ids matching the RE2 pattern.
 
-        Same semantics as map_search_key, over the task ids;
-        tasks in every state are searched.
+        Same semantics as map_search_key, over the task ids.
+        The server searches tasks in every state.
         """
         with translate_grpc_error():
             response: SearchKeyResponse = await self.stub.TaskSearchId(
@@ -812,8 +828,8 @@ class DsServiceClientAsync:
     async def task_get(self, worker_id: str, queue: str | list[str]) -> TaskGetResponse:
         """Claim a task for worker_id from the first queue holding one.
 
-        Queues are tried in the order given.
-        Raises NoTaskAvailable -- not TimeoutError --
+        The server tries the queues in the order given.
+        Raises NoTaskAvailable, not TimeoutError,
         when none of them has a task ready,
         so that an unreachable server stays distinguishable from idle work.
         """
@@ -830,9 +846,9 @@ class DsServiceClientAsync:
         Raises TaskStateError if the task is not Running,
         or if it is held by a different worker.
 
-        A cancelled task is the exception:
+        A canceled task is the exception:
         the call succeeds, but the task stays Canceled
-        and the output is discarded.
+        and the server discards the output.
         """
         with translate_grpc_error():
             await self.stub.TaskDone(
@@ -855,9 +871,9 @@ class DsServiceClientAsync:
         """Return the entries in the half-open index range [start, end).
 
         The range is clamped to the journal's bounds,
-        so reading past the end returns only the entries that exist,
-        and an empty range -- or a journal that does not exist --
-        returns an empty list rather than raising.
+        so a read past the end returns only the entries that exist.
+        An empty range returns an empty list rather than raising.
+        A journal that does not exist also returns an empty list.
         """
         with translate_grpc_error():
             response: JournalReadResponse = await self.stub.JournalRead(
@@ -866,7 +882,10 @@ class DsServiceClientAsync:
             return list(response.entry)
 
     async def journal_append(self, key: str, value: bytes) -> None:
-        """Append one entry to a journal, creating it if it does not exist."""
+        """Append one entry to a journal.
+
+        The server creates the journal if it does not exist.
+        """
         with translate_grpc_error():
             await self.stub.JournalAppend(
                 JournalAppendRequest(key=key, value=value), timeout=self.timeout
@@ -886,10 +905,11 @@ class DsServiceClientAsync:
     async def time_series_append(
         self, key: str, value: float, datetime: str, step: int = 0
     ) -> None:
-        """Append a point to a series, creating it if it does not exist.
+        """Append a point to a series.
 
-        datetime is an ISO 8601 UTC string;
-        the Z form, an offset form, and a bare datetime are all accepted.
+        The server creates the series if it does not exist.
+        datetime is an ISO 8601 UTC string.
+        The server accepts the Z form, an offset form, and a bare datetime.
         Raises ValueError if it does not parse.
         """
         with translate_grpc_error():
@@ -913,8 +933,9 @@ class DsServiceClientAsync:
         start_time and start_step are inclusive,
         end_time and end_step exclusive,
         and a bound left as None imposes no restriction.
-        Points come back in the order they were appended, never sorted,
-        and a key that does not exist returns an empty list.
+        The server returns the points in the order the caller appended them.
+        The server never sorts them.
+        A key that does not exist returns an empty list.
         """
         request = time_series_get_request(
             key, start_time, end_time, start_step, end_step
@@ -929,7 +950,7 @@ class DsServiceClientAsync:
     async def time_series_search_key(self, pattern: str) -> list[str]:
         """Return the series keys matching the RE2 pattern.
 
-        Same semantics as map_search_key, over the time series key space.
+        Same semantics as map_search_key, over the keys of the time series.
         """
         with translate_grpc_error():
             response: SearchKeyResponse = await self.stub.TimeSeriesSearchKey(
@@ -968,9 +989,9 @@ class DsServiceClientAsync:
     async def mutex_get_worker_id(self, key: str) -> str:
         """Return the worker holding the mutex.
 
-        Raises KeyError if the mutex does not exist
-        -- no mutex_try_acquire has ever named the key --
+        Raises KeyError if the mutex does not exist,
         and MutexNotHeld if it exists but is free.
+        The mutex does not exist until a mutex_try_acquire call names the key.
         """
         with translate_grpc_error(failed_precondition=MutexNotHeld):
             response: MutexGetWorkerIdResponse = await self.stub.MutexGetWorkerId(
@@ -983,8 +1004,8 @@ class DsServiceClientAsync:
 
         Same semantics as map_search_key, over the mutex key space.
         A key exists from the first mutex_try_acquire that names it,
-        whether or not that call acquired it,
-        so a free mutex is listed like a held one.
+        whether or not that call acquired it.
+        A free mutex is listed like a held one.
         """
         with translate_grpc_error():
             response: SearchKeyResponse = await self.stub.MutexSearchKey(
@@ -995,16 +1016,16 @@ class DsServiceClientAsync:
     async def mutex_acquire(
         self, key: str, worker_id: str, timeout: float | None = None
     ) -> None:
-        """Wait until the mutex is acquired for worker_id.
+        """Wait until worker_id acquires the mutex.
 
-        Raises TimeoutError once timeout seconds have elapsed.
+        Raises TimeoutError once timeout seconds elapse.
         With timeout None, the default, it retries forever.
         This timeout bounds the whole loop, sleeps included.
         Only this coroutine waits:
         the sleeps yield to the event loop.
         """
-        # Retries mutex_try_acquire, sleeping between attempts:
-        # the server offers no blocking acquire.
+        # The server offers no blocking acquire,
+        # so this loop polls mutex_try_acquire.
         deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             if await self.mutex_try_acquire(key, worker_id):
@@ -1016,8 +1037,8 @@ class DsServiceClientAsync:
     async def counter_get_next_value(self, key: str) -> int:
         """Advance a counter and return its new value.
 
-        The first call for a key creates the counter and returns 1;
-        each later call returns the previous value plus one.
+        The first call for a key creates the counter and returns 1.
+        Each later call returns the previous value plus one.
         Concurrent callers receive distinct, gap-free values.
         """
         with translate_grpc_error():

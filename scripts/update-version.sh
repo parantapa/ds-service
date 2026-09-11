@@ -25,9 +25,9 @@ CMAKE_VERSION=$(printf '%s' "$VERSION" | grep -oE '^[0-9]+(\.[0-9]+){0,2}') || {
 }
 
 # sed reports success even when it matches nothing,
-# so check every line is there before touching any file;
-# a failed check then leaves none of them half updated.
-# The project() block is read on its own
+# so check that every line is there before touching any file.
+# A failed check then leaves none of them half updated.
+# The script reads the project() block on its own
 # because a bare "VERSION" also appears in cmake_minimum_required().
 PROJECT_BLOCK=$(sed -n '/^project(/,/)/p' CMakeLists.txt)
 
@@ -40,7 +40,7 @@ sed -i -E "s|^const char\* VERSION = \".*\";$|const char* VERSION = \"${VERSION}
 sed -i -E "/^project\(/,/\)/ s|^  VERSION .*$|  VERSION ${CMAKE_VERSION}|" CMakeLists.txt
 
 # The [project] version is the only unindented one in pyproject.toml,
-# and the recipe attribute the only indented one in conanfile.py.
+# and the recipe attribute is the only indented one in conanfile.py.
 sed -i -E "s|^version = \".*\"$|version = \"${VERSION}\"|" pyproject.toml
 sed -i -E "s|^    version = \".*\"$|    version = \"${VERSION}\"|" conanfile.py
 

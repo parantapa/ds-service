@@ -19,8 +19,8 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-# The grpcio and protobuf floors are dictated by the committed stubs,
-# which scripts/gen_python_bindings.sh regenerates:
+# The committed stubs set the grpcio and protobuf floors,
+# and scripts/gen_python_bindings.sh regenerates the stubs:
 # ds_service_pb2_grpc.py raises at import
 # when grpcio is older than its GRPC_GENERATED_VERSION,
 # and ds_service_pb2.py raises at import
@@ -55,12 +55,11 @@ testpaths = ["tests"]
 pythonpath = ["python"]
 
 # Check the hand-written code only.
-# The generated stubs are excluded because they are not ours to fix
-# -- protoc emits calls into `grpc.experimental`,
-# which grpc's own type stubs do not declare --
-# and the build tree is excluded
-# because it holds stale copies of the same files,
-# which would otherwise be reported twice.
+# The generated stubs are excluded because they are not ours to fix.
+# protoc emits calls into `grpc.experimental`,
+# which grpc's own type stubs do not declare.
+# The build tree is excluded because it holds stale copies of the same files,
+# which are otherwise reported twice.
 [tool.pyright]
 include = ["python", "tests"]
 exclude = [
@@ -73,3 +72,8 @@ exclude = [
 ]
 extraPaths = ["python"]
 pythonVersion = "3.12"
+
+# Never rewrite the generated stubs.
+# They carry a "DO NOT EDIT" banner and the next regeneration replaces them.
+[tool.black]
+force-exclude = "python/ds_service_client/ds_service_pb2.*"

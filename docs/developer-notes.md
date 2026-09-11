@@ -1,4 +1,4 @@
-# Developer Notes
+# Developer notes
 
 Notes for people working on `ds-service` itself.
 
@@ -7,7 +7,7 @@ Notes for people working on `ds-service` itself.
 The documents indexed in the README describe how the service behaves.
 Read the one covering an area before changing code in it.
 
-When behaviour changes, update the document that covers it.
+When behavior changes, update the document that covers it.
 
 ## Map of the source
 
@@ -22,7 +22,7 @@ When behaviour changes, update the document that covers it.
 | `python/ds_service_client/server.py` | `DsServiceServer`, which runs a `ds-service` process for the life of the object. |
 | `python/ds_service_client/ds_service_pb2*.py`, `*.pyi` | Generated Python stubs, committed. Never edited by hand. |
 | `python/ds_service_client/ds-service.proto` | A copy of `misc/ds-service.proto`, placed there by the generator script. Not the source of truth. |
-| `tests/` | The pytest integration suite. `conftest.py` holds the fixtures; one `test_*.py` per data structure, plus client, lifecycle and gRPC-option tests. |
+| `tests/` | The pytest integration suite. `conftest.py` holds the fixtures. One `test_*.py` per data structure, plus client, lifecycle, gRPC-option, server-helper, shutdown and error-translation tests. |
 | `scripts/gen_python_bindings.sh` | Regenerates the committed Python stubs. |
 | `scripts/update-version.sh` | Sets every version string in the repository. |
 | `scripts/Dockerfile` | The static musl build. |
@@ -30,14 +30,17 @@ When behaviour changes, update the document that covers it.
 
 ## Building, running, and testing
 
-Building and running the server, including the static musl image,
-is covered in [how to build the server](howto-build-the-server.md).
+The [how to build the server](howto-build-the-server.md) guide
+covers how to build and run the server, including the static musl image.
 
 The suite in `tests/` is an integration suite driven by
 [pytest](https://pytest.org/).
-Every test starts a real `ds-service` process
-and drives it through the Python client over gRPC;
-there are no unit tests of the C++ in isolation.
+Almost every test starts a real `ds-service` process
+and drives it through the Python client over gRPC.
+There are no unit tests of the C++ in isolation.
+The exceptions run in process and need no binary:
+`test_client_parity.py`, `test_translate_grpc_error.py`,
+and the resolver tests in `test_server_helper.py`.
 So the tests need a built server,
 and the test dependencies installed:
 
@@ -46,9 +49,9 @@ pip install -e ".[test]"
 ```
 
 That pulls in `pytest`.
-Installing is not strictly required for the client itself --
-`pyproject.toml` sets `pythonpath = ["python"]`,
-so `ds_service_client` imports straight from the source tree.
+You do not have to install the package to use the client itself.
+`pyproject.toml` sets `pythonpath = ["python"]` for pytest,
+so the suite imports `ds_service_client` straight from the source tree.
 
 ### Pointing the tests at the binary
 
@@ -56,8 +59,8 @@ The fixtures start the server through
 `ds_service_client`'s own `DsServiceServer` helper,
 which locates it in one of two ways, in order:
 
-1. `DS_SERVICE_BIN`, if set. It may be a whole command
-    -- `docker run --rm --network host ds-service` -- not just a path.
+1. `DS_SERVICE_BIN`, if set. It can be a whole command,
+    such as `docker run --rm --network host ds-service`, not only a path.
 2. Otherwise, a `ds-service` found on `PATH`.
 
 After an in-tree build, point the variable at the binary:
@@ -67,7 +70,7 @@ export DS_SERVICE_BIN=build/Release/ds-service
 ```
 
 If neither is available,
-every test fails with a `FileNotFoundError`.
+every test that needs the binary fails with a `FileNotFoundError`.
 
 ### Running the suite
 
@@ -78,13 +81,14 @@ python -m pytest tests/test_tasks.py::test_add_get_done_lifecycle
 ```
 
 `testpaths = ["tests"]` in `pyproject.toml`
-means a bare `python -m pytest` picks up the suite from the repository root.
+means a bare `python -m pytest` finds the suite in the repository root.
 
-After changing `misc/ds-service.proto` or the C++ server,
-rebuild the binary -- and run `scripts/gen_python_bindings.sh` for a proto change --
-before running the suite, or it exercises stale code.
+After a change to `misc/ds-service.proto` or the C++ server,
+rebuild the binary before you run the suite.
+After a proto change, also run `scripts/gen_python_bindings.sh`.
+Without these steps, the suite exercises stale code.
 
-For the fixtures themselves, see [the test harness](#the-test-harness) below.
+For the fixtures themselves, see [the test harness](#the-test-harness).
 
 ## Tools, libraries, and frameworks
 
@@ -100,138 +104,150 @@ against a C++23 toolchain:
 | `argparse` | Command-line parsing in `main`. |
 
 Client, on Python 3.12+:
-`grpcio` and `protobuf` for the generated stubs,
-`ifaddr` for resolving an interface name to an address in `server.py`,
-`pytest` for the suite,
-`grpcio-tools` for `scripts/gen_python_bindings.sh`.
 
-Checked with clangd and pyright; formatted with clang-format and black.
+| Library | Used for |
+| --- | --- |
+| `grpcio` and `protobuf` | The generated stubs. |
+| `ifaddr` | Resolving an interface name to an address in `server.py`. |
+| `pytest` | The suite. |
+| `grpcio-tools` | `scripts/gen_python_bindings.sh`. |
+
+Check the C++ with clangd and the Python with pyright.
+Format the C++ with clang-format and the Python with black.
 
 ## Generated code
 
 `misc/ds-service.proto` is the source of truth for the wire format.
 Two generators consume it, and they behave differently.
 
-The C++ protobuf and gRPC stubs
+The build generates the C++ protobuf and gRPC stubs
 (`ds-service.pb.*`, `ds-service.grpc.pb.*`)
-are generated **automatically during the build**, into the build tree.
+into the build tree.
 There is no manual step and they are not committed.
 
-The Python stubs
-(`ds_service_pb2.py`, `ds_service_pb2.pyi`, `ds_service_pb2_grpc.py`)
-are **not** covered by the C++ build.
-They are produced by `scripts/gen_python_bindings.sh`
-and committed to the repository,
-so they only need regenerating when the proto changes.
+The C++ build does not cover the Python stubs
+(`ds_service_pb2.py`, `ds_service_pb2.pyi`, `ds_service_pb2_grpc.py`).
+`scripts/gen_python_bindings.sh` produces them,
+and the repository keeps them in version control,
+so you regenerate them only when the proto changes.
 
 Two rules follow.
 
-**Never edit a generated file directly.**
-The Python stubs carry a "DO NOT EDIT" banner and are committed anyway,
-which makes them easy to edit by mistake
-and easy to have an edit silently overwritten.
+### Never edit a generated file directly
 
-**A proto change is a four-step job,**
-and only the first two happen on their own:
+Two of the three Python stubs carry a "DO NOT EDIT" banner,
+and the repository holds them anyway.
+That makes them easy to edit by mistake,
+and the next regeneration overwrites the edit without a warning.
+
+### A proto change is a four-step job
+
+Only step 2 generates code on its own.
 
 1. Edit `misc/ds-service.proto`.
 2. Rebuild the C++,
     which regenerates `ds-service.pb.*` and `ds-service.grpc.pb.*`.
 3. Run `scripts/gen_python_bindings.sh`.
-    This one is **manual**;
-    skip it and the Python client silently goes stale.
-4. Hand-update `cpp/ds-service.cpp` and
-    `python/ds_service_client/client.py`
+    This one is manual. If you skip it, the Python client goes stale.
+4. Hand-update `cpp/ds-service.cpp`
+    and `python/ds_service_client/client.py`
     to implement and expose the change.
-    A new RPC means a method on **both** clients in `client.py`;
-    see "Two clients, one API" below.
+    A new RPC means a method on both clients in `client.py`.
+    See "Two clients, one API".
 
-### Regenerating moves the client's dependency floors
+### Regeneration moves the client's dependency floors
 
-Step 3 stamps the toolchain's own version into the committed stubs,
-and both stubs refuse to import against an older runtime:
-`ds_service_pb2_grpc.py` raises when `grpcio` is below its
-`GRPC_GENERATED_VERSION`,
-and `ds_service_pb2.py` raises when the `protobuf` runtime
-is older than the gencode it was built from.
-The `dependencies` floors in `pyproject.toml` have to be re-derived
-from the regenerated stubs whenever step 3 runs,
-or the package resolves to a runtime that cannot import it.
+Step 3 stamps the toolchain's own version into the committed stubs.
+Both stubs then refuse to import against an older runtime:
 
-Regenerating with a newer `grpcio-tools`
-than the one that produced the committed stubs
-therefore raises the client's minimum requirements for everybody.
-Pin `grpcio-tools` to the version already recorded in the stubs
-unless raising those floors is the actual intent.
+- `ds_service_pb2_grpc.py` raises
+    when `grpcio` is below its `GRPC_GENERATED_VERSION`.
+- `ds_service_pb2.py` raises
+    when the `protobuf` runtime is older than the gencode it came from.
+
+After step 3, re-derive the `dependencies` floors in `pyproject.toml`
+from the regenerated stubs.
+Otherwise the package resolves to a runtime that cannot import it.
+
+If you regenerate with a newer `grpcio-tools`
+than the one that produced the committed stubs,
+the client's minimum requirements rise for everybody.
+Unless you intend to raise those floors,
+pin `grpcio-tools` to the version already recorded in the stubs.
 
 ## Two clients, one API
 
 `client.py` holds two hand-written clients,
 `DsServiceClient` over grpc's blocking channel
 and `DsServiceClientAsync` over `grpc.aio`.
-They are separate classes on purpose --
-the two channels are different objects,
-and one class returning either `bytes` or an awaitable
-would defeat both the reader and pyright --
-which leaves every RPC written out twice.
+They are separate classes on purpose.
+The two channels are different objects,
+and one class that returns either `bytes` or an awaitable
+defeats both the reader and pyright.
+That leaves every RPC written out twice.
 
 `tests/test_client_parity.py` is what keeps the copies in step.
-It fails when the two classes stop offering the same method names,
-when a shared method's parameters or return annotation drift apart,
-and when an async method is not a coroutine function.
+It fails in four cases:
+
+- The two classes stop offering the same method names.
+- A shared method's parameters or return annotation drift apart.
+- An async method is not a coroutine function.
+- A class loses its own context manager protocol.
+
 Add an RPC to one client without the other and it says so.
 
-What is genuinely shared is shared at module level rather than copied:
+`client.py` keeps the shared parts at module level rather than copying them:
 `translate_grpc_error`, `GRPC_CLIENT_OPTIONS`,
 the timeout and mutex constants,
 and the `as_queue_list`, `time_series_get_request` and `mutex_retry_delay` helpers.
 Only the stub call and its `await`
-should differ between the two copies of a method.
+must differ between the two copies of a method.
+`mutex_acquire` is the exception, because its retry sleep differs as well.
 
 ## The channel settings are one setting in two languages
 
 Two pieces of configuration are only correct as a matched pair
 between `cpp/ds-service.cpp` and `python/ds_service_client/client.py`,
 and neither language can check the other.
-`tests/test_grpc_options.py` is what keeps them in step;
-change either side and run it.
+`tests/test_grpc_options.py` is what keeps them in step.
+Change either side and run it.
 
 **The maximum message size.**
 `MAX_MESSAGE_SIZE_BYTES` exists in both files and must hold the same value.
-If the two disagree, one side rejects what the other happily sends,
-and the sender sees a `RESOURCE_EXHAUSTED` it did nothing to earn.
+If the two disagree, one side rejects what the other sends,
+and the sender sees a `RESOURCE_EXHAUSTED` error
+with no cause in its own code.
 
 **The keepalive settings.**
 The client's ping interval must stay above the server's
 `GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS`.
-Below it, the server answers pings with GOAWAY/ENHANCE_YOUR_CALM
+Below that interval, the server answers pings with GOAWAY/ENHANCE_YOUR_CALM
 and drops the connection,
 which callers see as a `TimeoutError` with no mention of pings.
-Raising the ping rate on the client therefore means
-lowering that interval on the server in the same change.
+If you raise the ping rate on the client,
+lower that interval on the server in the same change.
 
 ## The server refuses to share its port
 
 gRPC enables `SO_REUSEPORT` by default,
 so a second `ds-service` started on an address that is already bound
 joins the first rather than failing.
-State is in memory and is not shared between processes,
-so the result is not one server with two listeners:
-it is two servers with divergent state,
-and clients split between them with nothing to indicate it.
+State is in memory, and the processes do not share it.
+The result is two servers with divergent state.
+Clients split between them, and nothing indicates it.
 
 `cpp/ds-service.cpp` therefore sets `GRPC_ARG_ALLOW_REUSEPORT` to `0`,
 and a second server on a bound address exits with a bind failure.
 
 `DsServiceServer` enforces the same rule from the client side.
-An explicitly given port is probed before the process is started,
-in `_check_port_free` in `python/ds_service_client/server.py`,
-so the caller gets an `OSError` from the constructor
-rather than a helper object addressing somebody else's server.
-That probe sets `SO_REUSEADDR` because gRPC's own listener sets it:
-without it the probe would also refuse a port left in `TIME_WAIT`
-by a server that has already exited,
-which the real server binds without complaint.
+`_check_port_free` in `python/ds_service_client/server.py`
+probes an explicit port before the constructor starts the process.
+The caller then gets an `OSError` from the constructor
+rather than a helper object that addresses somebody else's server.
+That probe sets `SO_REUSEADDR` because gRPC's own listener sets it.
+Without it, the probe also refuses a port left in `TIME_WAIT`
+by a server that already exited.
+The real server binds such a port without complaint.
 
 Two tests hold this in place:
 `test_second_server_on_the_same_port_fails` in `tests/test_grpc_options.py`,
@@ -244,46 +260,45 @@ The fixtures live in `tests/conftest.py`:
 
 | Fixture | Yields |
 | --- | --- |
-| `server_binary` | How to start the server under test -- a path, or a whole command line. |
+| `server_binary` | How to start the server under test: a path, or a whole command line. |
 | `loopback_interface` | The name of the interface holding `127.0.0.1`, which is what test servers bind. |
-| `server_process` | `(proc, address)` for a running server -- for tests that drive the process itself, such as signalling it. |
+| `server_process` | `(proc, address)` for a running server. For tests that drive the process itself, such as signaling it. |
 | `server` | The address of a running server. |
 | `client` | A connected `DsServiceClient`, closed at the end of the test. |
 
-Each test gets a **fresh server process on its own free port**,
-so the server's in-memory state is isolated between tests
-and the suite can run without a fixed port.
+Each test gets a fresh server process on its own free port.
+That isolates the server's in-memory state between tests,
+and it lets the suite run without a fixed port.
 Every one of them binds the loopback interface,
 so a test run is never reachable from another machine.
 
-Starting and stopping the process is `DsServiceServer`'s job,
-not the harness's,
+`DsServiceServer` starts and stops the process, not the harness,
 so the fixtures cannot drift from the helper the client library ships.
-Startup waits for the port to accept a TCP connection
-and then makes one read-only RPC,
-which confirms the service is registered and answering;
-teardown terminates the process,
-escalating to a kill
-if it does not exit within the grace period `DsServiceServer` allows
+Startup waits for the port to accept a TCP connection.
+Startup then makes one read-only RPC,
+which confirms that the service is registered and answers.
+Teardown terminates the process.
+If the process does not exit within the grace period `DsServiceServer` allows,
+teardown kills it
 (`TERMINATE_TIMEOUT_S` in `python/ds_service_client/server.py`).
 
 ## Conventions
 
 - After changing C++, check it with clangd.
-    Pass `--compile-commands-dir` explicitly;
-    do not update the top-level `compile_commands.json` symlink.
-- C++ formatting is enforced by `.clang-format` in the repository root.
+    Pass `--compile-commands-dir` explicitly.
+    Do not update the top-level `compile_commands.json` symlink.
+- `.clang-format` in the repository root sets the C++ formatting.
 - After changing Python, check it with pyright and format it with black.
-    Both are configured in `pyproject.toml`;
-    the generated stubs are excluded from pyright
-    and are not black-formatted.
+    `pyproject.toml` configures both.
+    It excludes the generated stubs from pyright,
+    and black does not format them.
 - Use semantic line breaks in documentation, block comments,
     and docstrings.
 
 ## Versioning
 
-Every version string in the repository is set by
-`scripts/update-version.sh <version>`:
+`scripts/update-version.sh <version>`
+sets every version string in the repository:
 `cpp/ds-service.cpp`, `CMakeLists.txt`, `pyproject.toml`,
 and `conanfile.py`.
 Set them through the script rather than by hand.
@@ -294,29 +309,28 @@ so it edits nothing unless all of them are present.
 
 ## Known limitations
 
-`TaskTable` rows are never reclaimed.
+The server never reclaims `TaskTable` rows.
 A task keeps its row for the life of the server process,
-including after it reaches `Complete` or `Canceled`,
-so a long-lived server accumulates rows
-in proportion to the total number of tasks ever added
-rather than the number currently outstanding.
+even after it reaches `Complete` or `Canceled`.
+A long-lived server therefore holds one row per task ever added,
+rather than one per task still outstanding.
 `TaskSearchId` walks that table,
 so its cost grows the same way.
 
-Compaction is not a local change:
-a row is addressed by its index,
-and that index is held by `TaskManager::task_index`
-and by every queue entry in `TaskManager::queue`,
-so moving a row means rewriting both.
+Compaction is not a local change.
+The index of a row is its address,
+and `TaskManager::task_index` and every queue entry in `TaskManager::queue`
+hold that index.
+If you move a row, you rewrite both.
 
-Dead queue entries are not reclaimed either.
-Nothing can be erased from the middle of a heap,
-so `TaskGet` discards dead entries only as it pops them,
-and an entry that sorts below the live work is never popped.
-`TaskSetPriority` is the way to accumulate them:
-raising a task's priority leaves an entry at the old, lower value
-that a busy queue never reaches,
-so a client that re-prioritizes on a loop grows the heap
+The server does not reclaim dead queue entries either.
+A heap does not allow an erase from the middle.
+`TaskGet` therefore discards dead entries only as it pops them,
+and it never pops an entry that sorts below the live work.
+`TaskSetPriority` is the way to accumulate them.
+A rise in a task's priority leaves an entry at the old, lower value,
+and a busy queue never reaches that entry.
+A client that reprioritizes on a loop therefore grows the heap
 by one entry per call per queue.
 
 The user-facing consequences of both are in

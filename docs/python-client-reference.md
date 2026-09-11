@@ -1,14 +1,14 @@
 # Python client reference
 
 `ds_service_client` is a Python 3.12+ library
-that wraps the generated gRPC stubs
-and presents the server's data structures as ordinary methods
+that wraps the generated gRPC stubs.
+It presents the server's data structures as ordinary methods
 on a `DsServiceClient` object,
 or on a `DsServiceClientAsync` object for asyncio callers.
 
 This document describes the client library.
-For what each underlying RPC does, see the
-[data structure reference](data-structure-reference.md).
+For what each underlying RPC does, see
+the [data structure reference](data-structure-reference.md).
 For the process helper that starts a server,
 see the [server helper reference](server-helper-reference.md).
 
@@ -34,12 +34,12 @@ client = DsServiceClient("127.0.0.1:5051")
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `address` | `$DS_SERVER_ADDRESS` | `<host>:<port>` of the server. A `KeyError` is raised when neither the argument nor the variable is set. |
+| `address` | `$DS_SERVER_ADDRESS` | `<host>:<port>` of the server. The client raises `KeyError` when neither the argument nor the variable is set. |
 | `timeout` | `300` | Seconds, applied as the deadline of every RPC the client makes. |
 
 `client.close()` closes the underlying gRPC channel.
 The object is also a context manager,
-which closes the channel on the way out
+which closes the channel when the block exits,
 whether the block ends normally or raises:
 
 ```python
@@ -56,8 +56,8 @@ Every method is the snake_case form of the RPC it calls
 with one addition:
 `mutex_acquire` has no RPC of its own.
 It retries `MutexTryAcquire` in a loop with the same `worker_id`,
-sleeping between attempts,
-and raises `TimeoutError` once `timeout` seconds have elapsed.
+and sleeps between attempts.
+It raises `TimeoutError` once `timeout` seconds elapse.
 With `timeout=None` (the default) it retries forever.
 
 ## Exceptions
@@ -70,30 +70,29 @@ The client translates gRPC status codes into ordinary Python exceptions:
 | `ALREADY_EXISTS` | `ValueError` |
 | `INVALID_ARGUMENT` | `ValueError` |
 | `RESOURCE_EXHAUSTED` | `ValueError` |
-| `FAILED_PRECONDITION` | `TaskStateError`, or `MutexNotHeld` from the `mutex_*` methods |
+| `FAILED_PRECONDITION` | `TaskStateError`, or `MutexNotHeld` from `mutex_release` and `mutex_get_worker_id` |
 | `UNAVAILABLE` | `TimeoutError` |
 | `DEADLINE_EXCEEDED` | `TimeoutError` |
 
 A missing key raises `KeyError`,
-and a bad regular expression or an over-sized message raises `ValueError`.
+and a bad regular expression or an oversized message raises `ValueError`.
 Any other status reaches the caller as a raw `grpc.RpcError`.
 
-`NoTaskAvailable` is raised by `task_get` when no work is ready.
+`task_get` raises `NoTaskAvailable` when no work is ready.
 It is not a `TimeoutError`.
 
-`TaskStateError` is raised by `task_done`
-for a task that is not `Running`,
-or one that is held by a different worker,
-and by `task_get_worker_id` for a task that is not `Running`.
-A cancelled task is the exception on `task_done`:
+`task_done` raises `TaskStateError` for a task that is not `Running`,
+or one that a different worker holds.
+`task_get_worker_id` raises it for a task that is not `Running`.
+A canceled task is the exception on `task_done`:
 that call succeeds,
-but the task stays `Canceled` and the output is discarded.
+but the task stays `Canceled` and the server ignores the output.
 
-`MutexNotHeld` is raised by `mutex_release`
-when the caller is not the mutex's holder,
-which covers a mutex that is already free and one that does not exist.
-`mutex_get_worker_id` raises it for a mutex that exists but is free;
-a key that does not exist at all raises `KeyError` there.
+`mutex_release` raises `MutexNotHeld`
+when the caller is not the mutex's holder.
+That covers a mutex that is already free and one that does not exist.
+`mutex_get_worker_id` raises it for a mutex that exists but is free.
+A key that does not exist at all raises `KeyError` there.
 
 `NoTaskAvailable`, `TaskStateError`, `MutexNotHeld` and `TaskState`
 are importable from `ds_service_client`.
@@ -205,11 +204,11 @@ assert client.counter_search_key("^ids$") == ["ids"]
 
 ## `DsServiceClientAsync`
 
-`DsServiceClientAsync` is the same API over `grpc.aio`:
-the same method names, the same arguments,
-and the same exceptions as the table above,
-with every RPC awaited instead of blocking the caller.
-Every example above works against it by awaiting each call.
+`DsServiceClientAsync` is the same API over `grpc.aio`.
+It has the same method names, the same arguments,
+and the same exceptions as the exceptions table.
+The caller awaits every RPC instead of blocking.
+Every example in this document works against it by awaiting each call.
 
 ```python
 import asyncio
@@ -237,9 +236,9 @@ Three things differ from `DsServiceClient`:
 
 - `close()` is a coroutine, so it is `await client.close()`,
     and the context manager is `async with`, not `with`.
-- The constructor must run with an event loop already running --
-    inside a coroutine, not at import time --
-    because `grpc.aio` binds the channel
+- The constructor must run with an event loop already running,
+    inside a coroutine rather than at import time.
+    The reason is that `grpc.aio` binds the channel
     to the loop that is current when the channel is created.
 - An RPC attempted after `close()` raises `grpc.aio.UsageError`,
     where the blocking client raises `ValueError`.
@@ -249,5 +248,5 @@ so only the coroutine that called it waits
 while the rest of the loop keeps running.
 `timeout` still bounds the whole loop, sleeps included.
 
-The two clients are separate classes rather than one class with two modes;
-see [about the architecture](about-the-architecture.md#two-python-clients-one-api).
+The two clients are separate classes rather than one class with two modes.
+See [about the architecture](about-the-architecture.md#two-python-clients-one-api).

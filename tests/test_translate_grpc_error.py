@@ -1,9 +1,9 @@
 """Tests for translate_grpc_error, the client's status-code mapping.
 
-These check the mapping directly, without a server:
-a fake RpcError carries the status code,
-so every branch can be reached
-whether or not a real server produces it easily.
+These tests check the mapping directly, without a server.
+A fake RpcError carries the status code,
+so a test can reach every branch,
+whether or not a real server produces it.
 """
 
 import grpc
@@ -14,7 +14,7 @@ from ds_service_client.client import translate_grpc_error
 
 
 class _FakeRpcError(grpc.RpcError):
-    """Stands in for a real RpcError so the mapping can be checked directly."""
+    """Replaces a real RpcError so a test can check the mapping directly."""
 
     def __init__(self, code, details):
         self._code = code
@@ -69,8 +69,8 @@ def test_not_found_is_overridable_for_task_get():
 
 
 def test_unavailable_still_maps_to_timeout_error():
-    # Reserved for a server that cannot be reached,
-    # now that an idle queue no longer uses it.
+    # UNAVAILABLE now marks a server the client cannot reach,
+    # because an idle queue no longer uses it.
     with pytest.raises(TimeoutError):
         with translate_grpc_error():
             raise _FakeRpcError(grpc.StatusCode.UNAVAILABLE, "unreachable")

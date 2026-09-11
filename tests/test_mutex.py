@@ -9,7 +9,7 @@ from ds_service_client import MutexNotHeld
 
 
 def test_try_acquire_creates_and_acquires(client):
-    # A mutex that does not exist is created and acquired by the first call.
+    # The first call creates and acquires a mutex that does not exist.
     assert client.mutex_try_acquire("m", worker_id="w1") is True
 
 
@@ -21,7 +21,7 @@ def test_try_acquire_second_time_fails(client):
 def test_try_acquire_is_not_reentrant(client):
     # The holder gets no special treatment:
     # a mutex it already holds is held,
-    # and asking again does not acquire it a second time.
+    # and a second call does not acquire it again.
     assert client.mutex_try_acquire("m", worker_id="w1") is True
     assert client.mutex_try_acquire("m", worker_id="w1") is False
 
@@ -50,7 +50,8 @@ def test_release_clears_the_holder(client):
     client.mutex_release("m", worker_id="w1")
     client.mutex_try_acquire("m", worker_id="w2")
 
-    # The mutex belongs to w2 now; w1's claim on it is gone.
+    # The mutex belongs to w2 now.
+    # w1's claim on it is gone.
     with pytest.raises(MutexNotHeld):
         client.mutex_release("m", worker_id="w1")
 
@@ -125,7 +126,7 @@ def test_get_worker_id_of_unknown_mutex_raises_keyerror(client):
     with pytest.raises(KeyError):
         client.mutex_get_worker_id("never-created")
 
-    # Asking must not create the key.
+    # A failed read must not create the key.
     assert client.mutex_search_key(".*") == []
 
 
@@ -138,9 +139,9 @@ def test_get_worker_id_follows_the_holder(client):
 
 
 def test_empty_worker_id_is_a_holder_like_any_other(client):
-    # The server tracks "held" separately from the holder's name,
-    # so a worker that calls itself "" holds the mutex
-    # rather than leaving it looking free to everybody else.
+    # The server tracks "held" separately from the holder's name.
+    # A worker that calls itself "" holds the mutex,
+    # and the mutex does not look free to everybody else.
     assert client.mutex_try_acquire("m", worker_id="") is True
     assert client.mutex_try_acquire("m", worker_id="") is False
     assert client.mutex_try_acquire("m", worker_id="w1") is False

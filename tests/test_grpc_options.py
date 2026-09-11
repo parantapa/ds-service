@@ -1,8 +1,8 @@
 """Tests for the gRPC channel options on both sides of the wire.
 
 Several of these options only work as a matched pair
-between the Python client and the C++ server,
-and nothing but these tests ties the two together.
+between the Python client and the C++ server.
+Nothing but these tests ties the two together.
 """
 
 import re
@@ -21,8 +21,8 @@ SERVER_SOURCE = Path(__file__).resolve().parents[1] / "cpp" / "ds-service.cpp"
 def _server_source() -> str:
     """The server source with C-style comments stripped.
 
-    The constants below are written with inline /* ... */ notes,
-    which would otherwise confuse the arithmetic these tests evaluate.
+    The constants below carry inline /* ... */ notes,
+    which otherwise confuse the arithmetic these tests evaluate.
     """
     return re.sub(r"/\*.*?\*/", "", SERVER_SOURCE.read_text(), flags=re.DOTALL)
 
@@ -32,7 +32,8 @@ def _client_option(name: str):
 
 
 def test_message_size_limits_match_the_server():
-    # If these drift apart, one side rejects what the other happily sends.
+    # If these two constants drift apart,
+    # one side rejects what the other happily sends.
     match = re.search(
         r"constexpr int MAX_MESSAGE_SIZE_BYTES\s*=\s*([^;]+);", _server_source()
     )
@@ -41,8 +42,8 @@ def test_message_size_limits_match_the_server():
 
 
 def test_client_ping_interval_clears_the_server_floor():
-    # A client that pings faster than the server's floor
-    # is answered with GOAWAY/ENHANCE_YOUR_CALM,
+    # The server answers a client that pings faster than its floor
+    # with GOAWAY/ENHANCE_YOUR_CALM,
     # which drops every long-lived connection.
     match = re.search(
         r"GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS,\s*([^)]+)\)",
@@ -54,8 +55,8 @@ def test_client_ping_interval_clears_the_server_floor():
 
 
 def test_idle_keepalive_is_not_capped():
-    # A finite cap is a total, not a rate:
-    # the client would stop pinging on a long-idle connection,
+    # A finite cap is a total, not a rate.
+    # The client then stops pinging on a long-idle connection,
     # which is the one keepalive is there to protect.
     assert _client_option("grpc.http2.max_pings_without_data") == 0
     assert _client_option("grpc.keepalive_permit_without_calls") == 1
@@ -82,12 +83,12 @@ def test_oversized_value_does_not_leak_grpc_errors(client):
 
 
 def test_second_server_on_the_same_port_fails(server, server_binary):
-    # SO_REUSEPORT is on by default in gRPC,
-    # so without ALLOW_REUSEPORT=0
-    # this second process binds silently alongside the first
-    # and clients get split across two divergent in-memory states.
-    # server_binary may be a whole command line, not just a path,
-    # so it is split the way DsServiceServer splits it.
+    # SO_REUSEPORT is on by default in gRPC.
+    # So without ALLOW_REUSEPORT=0
+    # this second process binds silently alongside the first,
+    # and clients then land on two divergent in-memory states.
+    # server_binary can be a whole command line, not only a path,
+    # so this test splits it the way DsServiceServer does.
     second = subprocess.run(
         shlex.split(f"{server_binary} --address {server}"),
         capture_output=True,

@@ -56,7 +56,7 @@ def test_current_value_of_missing_counter_is_zero(client):
 
 
 def test_current_value_does_not_create_counter(client):
-    # Peeking must not create the counter: the first get_next still returns 1.
+    # A peek must not create the counter: the first get_next still returns 1.
     assert client.counter_get_current_value("c") == 0
     assert client.counter_get_next_value("c") == 1
 

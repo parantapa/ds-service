@@ -16,7 +16,7 @@ def test_shutdown_signal_exits_cleanly(server_process, signum):
     """SIGTERM and SIGINT shut the server down instead of killing it.
 
     A signal handled by its default disposition
-    would leave the process reporting -signum rather than 0.
+    leaves the process reporting -signum rather than 0.
     """
     proc, _ = server_process
 

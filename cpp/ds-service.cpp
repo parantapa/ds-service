@@ -62,7 +62,7 @@ struct TaskManager {
 
     // Queue name -> the rows waiting on it, ordered by priority.
     // std::priority_queue is a max-heap,
-    // so the highest priority is dispatched first.
+    // so TaskGet dispatches the highest priority row first.
     Map<std::string, TaskQueue> queue;
 };
 
@@ -126,8 +126,8 @@ std::optional<std::chrono::system_clock::time_point> parse_iso8601_utc(const std
 }
 
 // Format a system_clock time_point as an ISO 8601 UTC datetime string.
-// Whole seconds are rendered without a fractional part;
-// otherwise microseconds are used.
+// This function prints whole seconds without a fractional part.
+// Otherwise it prints microseconds.
 std::string format_iso8601_utc(const std::chrono::system_clock::time_point& tp) {
     auto secs = std::chrono::floor<std::chrono::seconds>(tp);
     if (secs == tp) {
@@ -218,7 +218,8 @@ struct DsServiceImpl final : public DsService::Service {
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
         for (const auto& task_id : request->task_id()) {
             auto it = task_manager.task_index.find(task_id);
-            // An unknown task_id reports Undefined rather than being an error.
+            // TaskGetStatus reports Undefined for an unknown task_id.
+            // That is not an error.
             if (it == task_manager.task_index.end()) {
                 response->add_state(TaskState::Undefined);
             } else {
@@ -389,13 +390,12 @@ struct DsServiceImpl final : public DsService::Service {
     grpc::Status TaskGet(grpc::ServerContext*, const TaskGetRequest* request, TaskGetResponse* response) override {
         std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
 
-        // Queues are searched in the order the caller listed them:
+        // TaskGet searches the queues in the order the caller listed them:
         // the first one holding a Ready task wins.
         //
         // Dead queue entries are discarded lazily here,
-        // as they reach the top of the heap
-        // -- which is why a popped entry that is not usable
-        // is dropped rather than skipped.
+        // as they reach the top of the heap.
+        // A popped entry that is not usable is dropped rather than skipped.
         // See "Known limitations" in docs/developer-notes.md
         // for why they accumulate in the first place.
         auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
@@ -411,11 +411,10 @@ struct DsServiceImpl final : public DsService::Service {
                 const auto entry = queue.top();
                 queue.pop();
 
-                // Two ways an entry can be dead:
-                // its row has left Ready
-                // -- claimed through another of its queues, or finished --
-                // or TaskSetPriority has since pushed a newer entry
-                // that supersedes it.
+                // An entry can be dead in two ways:
+                // - Its row left Ready,
+                //   either claimed through another of its queues or finished.
+                // - TaskSetPriority pushed a newer entry that supersedes it.
                 if (tasks.state[entry.index] != TaskState::Ready || entry.seq != tasks.seq[entry.index]) {
                     continue;
                 }
@@ -547,8 +546,8 @@ struct DsServiceImpl final : public DsService::Service {
 
     grpc::Status TimeSeriesGet(grpc::ServerContext*, const TimeSeriesGetRequest* request,
                                TimeSeriesGetResponse* response) override {
-        // An empty time string means "no bound";
-        // a non-empty one that fails to parse is an error.
+        // An empty time string means "no bound".
+        // A non-empty one that fails to parse is an error.
         std::optional<std::chrono::system_clock::time_point> start_time{}, end_time{};
         if (request->has_start_time() && !request->start_time().empty()) {
             start_time = parse_iso8601_utc(request->start_time());
@@ -577,8 +576,8 @@ struct DsServiceImpl final : public DsService::Service {
 
         const auto& series = it->second;
         for (std::size_t index = 0; index < series.value.size(); index++) {
-            // start bounds are inclusive, end bounds exclusive;
-            // unset bounds do not filter.
+            // start bounds are inclusive, end bounds exclusive.
+            // Unset bounds do not filter.
             if (start_time && series.time[index] < *start_time) {
                 continue;
             }
@@ -737,28 +736,28 @@ struct DsServiceImpl final : public DsService::Service {
 
 // Largest single request or response accepted, in bytes.
 // gRPC's default is 4 MiB.
-// The Python client sets the same limit;
-// the two must be changed together,
+// The Python client sets the same limit.
+// Change the two together,
 // or one side rejects what the other sends.
 // tests/test_grpc_options.py checks that they still agree.
 constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
 
 // How long in-flight RPCs are given to finish once shutdown starts.
-// Anything still running when the deadline passes is cancelled.
+// The server cancels anything still running when the deadline passes.
 constexpr int SHUTDOWN_GRACE_S = 5;
 
 const char* VERSION = "5.1.0";
 
-// How often the thread below looks for a delivered signal.
+// How often await_shutdown_signal looks for a delivered signal.
 // It bounds how long shutdown takes to start, so keep it short.
 constexpr auto SHUTDOWN_POLL_INTERVAL = std::chrono::milliseconds(100);
 
 // Set by the signal handler, read by the shutdown thread.
 volatile std::sig_atomic_t SHUTDOWN_SIGNAL = 0;
 
-// A signal handler may touch nothing but a volatile sig_atomic_t.
-// It records the signal and leaves the work to the thread below.
-// Calling Shutdown(), or logging, from here would be undefined behaviour.
+// A signal handler must touch nothing but a volatile sig_atomic_t.
+// It records the signal and leaves the work to await_shutdown_signal.
+// A call to Shutdown(), or a log write, from here is undefined behavior.
 extern "C" void handle_shutdown_signal(int signum) {
     SHUTDOWN_SIGNAL = signum;
 }
@@ -801,9 +800,9 @@ int main(int argc, char* argv[]) {
 
     spdlog::info("server_address = {}", server_address);
 
-    // Installed before the server starts,
-    // so a signal arriving during startup is recorded
-    // and acted on as soon as the shutdown thread runs.
+    // main installs the handlers before the server starts.
+    // The handler records a signal that arrives during startup,
+    // and the shutdown thread acts on it as soon as it runs.
     if (std::signal(SIGINT, handle_shutdown_signal) == SIG_ERR ||
         std::signal(SIGTERM, handle_shutdown_signal) == SIG_ERR) {
         spdlog::error("Failed to install shutdown signal handlers");
@@ -819,31 +818,31 @@ int main(int argc, char* argv[]) {
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
 
-    // Keepalive, in the order the arguments appear below:
-    // ping an idle connection every 10 minutes,
-    // give each ping 20 seconds to be answered,
-    // and keep pinging even with no calls in flight.
+    // Keepalive, in the order of the AddChannelArgument calls:
+    // - Ping an idle connection every 10 minutes.
+    // - Give each ping 20 seconds to be answered.
+    // - Keep pinging even with no calls in flight.
     //
     // The fourth argument is different in kind:
-    // it is a floor on how often a *client* may ping.
-    // The client's keepalive_time_ms (120s in client.py) must stay above it,
+    // it is a floor on how often a client can ping.
+    // The client's keepalive_time_ms (120 seconds in client.py)
+    // must stay above it,
     // or the server answers the pings with GOAWAY/ENHANCE_YOUR_CALM
-    // and kills every long-lived connection
-    // -- which reaches callers as a TimeoutError
-    // that says nothing about pings.
+    // and kills every long-lived connection.
+    // That reaches callers as a TimeoutError that says nothing about pings.
     // tests/test_grpc_options.py checks the two stay ordered.
-    builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIME_MS, 10 * 60 * 1000 /*10 min*/);
-    builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIMEOUT_MS, 20 * 1000 /*20 sec*/);
+    builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIME_MS, 10 * 60 * 1000 /*10 minutes*/);
+    builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIMEOUT_MS, 20 * 1000 /*20 seconds*/);
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
-    builder.AddChannelArgument(GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS, 10 * 1000 /*10 sec*/);
+    builder.AddChannelArgument(GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS, 10 * 1000 /*10 seconds*/);
 
     // Refuse to share the port.
     // gRPC enables SO_REUSEPORT by default,
-    // so without this
+    // so without this argument
     // a second ds-service started on an occupied address
     // binds silently alongside the first.
     // State is in-memory and non-persistent,
-    // so that splits clients across two divergent instances
+    // so the second instance splits clients across two divergent copies
     // instead of failing.
     builder.AddChannelArgument(GRPC_ARG_ALLOW_REUSEPORT, 0);
 
@@ -859,8 +858,8 @@ int main(int argc, char* argv[]) {
     }
     GLOBAL_SYSTEM_STATE->server = server.get();
 
-    // Started only once the server pointer is published,
-    // which is what this thread calls Shutdown() on.
+    // This thread calls Shutdown() on the server pointer.
+    // Start it only after main publishes that pointer.
     std::thread shutdown_thread{await_shutdown_signal};
 
     spdlog::info("starting server ...");
