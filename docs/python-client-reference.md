@@ -12,18 +12,6 @@ the [data structure reference](data-structure-reference.md).
 For the process helper that starts a server,
 see the [server helper reference](server-helper-reference.md).
 
-## Installing
-
-```sh
-pip install ds-service-client
-```
-
-From a checkout of this repository:
-
-```sh
-pip install .
-```
-
 ## `DsServiceClient`
 
 ```python

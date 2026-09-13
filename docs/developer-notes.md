@@ -31,7 +31,8 @@ When behavior changes, update the document that covers it.
 ## Building, running, and testing
 
 The [how to build the server](howto-build-the-server.md) guide
-covers how to build and run the server, including the static musl image.
+covers how to build and run the server.
+It also covers the static musl image.
 
 The suite in `tests/` is an integration suite driven by
 [pytest](https://pytest.org/).
@@ -324,7 +325,7 @@ hold that index.
 If you move a row, you rewrite both.
 
 The server does not reclaim dead queue entries either.
-A heap does not allow an erase from the middle.
+A heap cannot erase an entry from the middle.
 `TaskGet` therefore discards dead entries only as it pops them,
 and it never pops an entry that sorts below the live work.
 `TaskSetPriority` is the way to accumulate them.

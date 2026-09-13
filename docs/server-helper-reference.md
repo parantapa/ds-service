@@ -17,7 +17,7 @@ with DsServiceServer("lo") as server:
 
 ## Constructor
 
-The process starts as soon as you construct the object.
+The process starts as soon as the object is constructed.
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
@@ -62,7 +62,7 @@ server.address   # -> "172.17.0.2:45999", the address to hand to remote clients
 
 Polls until the port accepts a TCP connection.
 Raises `RuntimeError` if the process exits first,
-and `TimeoutError` if the server is not listening within `timeout` seconds.
+and `TimeoutError` if the server does not listen within `timeout` seconds.
 `wait_until_ready` reports the server ready
 only while the process it started still runs.
 

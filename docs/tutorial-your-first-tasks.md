@@ -5,7 +5,7 @@ you will have a `ds-service` server running on your own machine.
 A Python session talks to it,
 and you submit a task in one place and complete it in another.
 
-You download a ready-made binary and start it from Python.
+We download a ready-made binary and start it from Python.
 That is the quickest way to have something to talk to.
 All you need is Python 3.12 or newer, on an x86-64 Linux machine.
 
@@ -26,7 +26,7 @@ Check that it runs:
 ```
 
 It prints a version number.
-You will not have to start it yourself.
+We will not start it by hand.
 Python starts it in step 3.
 
 The binary is statically linked,
@@ -38,7 +38,7 @@ so there is nothing else to install and nothing to put on your `PATH`.
 pip install ds-service-client
 ```
 
-Now tell the library where the binary you downloaded is:
+Now tell the library where the binary we downloaded is:
 
 ```sh
 export DS_SERVICE_BIN=./ds-service
@@ -61,7 +61,7 @@ server.address
 ```
 
 The last line prints something like `'127.0.0.1:45999'`.
-Notice the port: you never chose it.
+Notice the port: we never chose it.
 The helper picked a free one,
 which is what lets you run several servers side by side later.
 
@@ -73,7 +73,7 @@ The server runs for as long as the `server` object lives.
 
 ## Step 4: store and read a value
 
-Connect a client to the address you printed:
+Connect a client to the address we printed:
 
 ```python
 from ds_service_client import DsServiceClient
@@ -110,7 +110,7 @@ That raises `KeyError`.
 The server answered with a gRPC `NOT_FOUND` status.
 The client turned it into the exception
 that an ordinary Python mapping raises.
-Every error you meet from here on arrives the same way.
+Every error we meet from here on arrives the same way.
 
 ## Step 5: add a task
 
@@ -159,7 +159,7 @@ TaskState.Name(client.task_get_status("job-1"))
 ```
 
 `'Ready'`.
-The rest of this tutorial uses that form,
+We use that form for the rest of this tutorial,
 because it is easier to follow.
 
 ## Step 6: claim it and finish it
@@ -187,7 +187,7 @@ The task also has an owner:
 client.task_get_worker_id("job-1")
 ```
 
-`'worker-a'`, the name you passed to `task_get`.
+`'worker-a'`, the name we passed to `task_get`.
 
 Now do the work.
 Then report the result.
@@ -286,9 +286,9 @@ client.task_search_id("^job-")
 ```
 
 An empty list.
-The server persists nothing:
-every value, task, journal and counter lived in the memory of a process
-that no longer exists.
+The server persists nothing.
+Every value, task, journal and counter lived in the memory
+of a process that no longer exists.
 Remember this about `ds-service`, above everything else.
 You just watched it happen.
 

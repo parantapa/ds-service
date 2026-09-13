@@ -12,22 +12,22 @@ from .ds_service_pb2 import *
 from .ds_service_pb2_grpc import *
 
 # Largest single request or response accepted, in bytes.
-# Must match MAX_MESSAGE_SIZE_BYTES in cpp/ds-service.cpp:
-# if the two disagree, one side rejects what the other sends.
+# Must match MAX_MESSAGE_SIZE_BYTES in cpp/ds-service.cpp.
 # gRPC's own default is 4 MiB.
+# See "The channel settings are one setting in two languages"
+# in docs/developer-notes.md.
 MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024
 
 # Several of these options are only correct
 # as a matched pair with the server's channel arguments
 # in cpp/ds-service.cpp.
 # tests/test_grpc_options.py keeps the two sides in step.
+# See "The channel settings are one setting in two languages"
+# in docs/developer-notes.md.
 GRPC_CLIENT_OPTIONS = [
     # This ping interval must stay above the server's
     # GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS
-    # (10 seconds in cpp/ds-service.cpp),
-    # or the server answers pings with GOAWAY/ENHANCE_YOUR_CALM
-    # and drops the connection.
-    # Callers see that as a TimeoutError with no mention of pings.
+    # (10 seconds in cpp/ds-service.cpp).
     ("grpc.keepalive_time_ms", 120 * 1000),
     ("grpc.keepalive_timeout_ms", 30 * 1000),
     # 0 means "unlimited".
@@ -191,7 +191,6 @@ class DsServiceClient:
         self.channel.close()
 
     def __enter__(self) -> "DsServiceClient":
-        """Return the client itself, for use as the target of a with block."""
         return self
 
     def __exit__(
@@ -200,7 +199,6 @@ class DsServiceClient:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        """Close the channel, whether the block ended normally or raised."""
         self.close()
 
     def map_set(self, key: str, value: bytes) -> None:
@@ -626,9 +624,7 @@ class DsServiceClientAsync:
         and this raises KeyError when neither is set.
         The client applies timeout, in seconds, as the deadline of every RPC.
 
-        This constructor creates the channel, rather than the first RPC,
-        so construct the client from a running event loop.
-        grpc.aio binds the channel to the loop that is current.
+        This constructor requires a running event loop.
         """
         if address is None:
             self.address = os.environ["DS_SERVER_ADDRESS"]
@@ -636,6 +632,8 @@ class DsServiceClientAsync:
             self.address = address
         self.timeout = timeout
 
+        # grpc.aio binds the channel to the loop that is current,
+        # and this constructor creates the channel rather than the first RPC.
         self.channel = grpc.aio.insecure_channel(
             self.address, options=GRPC_CLIENT_OPTIONS
         )
@@ -649,7 +647,6 @@ class DsServiceClientAsync:
         await self.channel.close()
 
     async def __aenter__(self) -> "DsServiceClientAsync":
-        """Return the client itself, for use as the target of an async with block."""
         return self
 
     async def __aexit__(
@@ -658,7 +655,6 @@ class DsServiceClientAsync:
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
-        """Close the channel, whether the block ended normally or raised."""
         await self.close()
 
     async def map_set(self, key: str, value: bytes) -> None:

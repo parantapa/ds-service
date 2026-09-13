@@ -34,10 +34,10 @@ def resolve_ds_service_bin(ds_service_bin: str | None = None) -> str:
     """How to start the server: the argument, $DS_SERVICE_BIN, or the default.
 
     A blank value counts as unset.
-    An exported but empty DS_SERVICE_BIN is how a shell says "no value".
-    If the command takes it literally, it starts at `--address`,
-    which fails as a missing-executable error naming a flag.
     """
+    # An exported but empty DS_SERVICE_BIN is how a shell says "no value".
+    # If the command takes it literally, it starts at `--address`,
+    # which fails as a missing-executable error naming a flag.
     for candidate in (ds_service_bin, os.environ.get(DS_SERVICE_BIN_ENV_VAR)):
         if candidate and candidate.strip():
             return candidate.strip()
@@ -50,10 +50,10 @@ def resolve_interface_ipv4(interface: str) -> str:
 
     Raises ValueError if this machine has no such interface,
     or has it but with no IPv4 address on it.
-    Neither case has an address to bind.
-    A bind to some other address puts the server on a network
-    the caller did not ask for.
     """
+    # Neither case has an address to bind.
+    # A bind to some other address puts the server on a network
+    # the caller did not ask for.
     known = []
     for adapter in ifaddr.get_adapters():
         known.append(adapter.name)
@@ -87,19 +87,12 @@ def _free_port(host: str) -> int:
 
 def _check_port_free(host: str, port: int) -> None:
     """Raise OSError if something already holds the port."""
-    # A server started on an occupied port loses the race and exits,
-    # while the port keeps accepting connections.
-    # Without this check,
-    # the constructor hands the caller a dead DsServiceServer
-    # whose address belongs to somebody else's server.
-    # The caller then reads and writes that server's state as its own.
+    # See "The server refuses to share its port" in docs/developer-notes.md
+    # for why the constructor probes the port before it starts anything.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        # This probe sets SO_REUSEADDR because gRPC's own listener sets it.
-        # Without it, the probe also fails on a port left in TIME_WAIT
-        # by a server that already exited.
-        # The real server can bind such a port.
-        # The probe still fails against a live listener,
-        # which is what it is here for.
+        # SO_REUSEADDR, because gRPC's own listener sets it:
+        # the probe has to fail against a live listener,
+        # and not against a port left in TIME_WAIT.
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind((host, port))
@@ -113,8 +106,7 @@ def _check_port_free(host: str, port: int) -> None:
 class DsServiceServer:
     """A ds-service process that runs for as long as this object does.
 
-    The constructor starts the process,
-    so the server is already starting when it returns.
+    The constructor starts the process before it returns.
     Call wait_until_ready() before connecting,
     and close() to stop it.
     """
@@ -175,7 +167,7 @@ class DsServiceServer:
     def wait_until_ready(self, timeout: int = 30) -> None:
         """Block until the server accepts TCP connections.
 
-        Raises TimeoutError if it is not listening within timeout seconds,
+        Raises TimeoutError if it does not listen within timeout seconds,
         and RuntimeError if the process exits before then.
         """
         deadline = time.monotonic() + timeout
@@ -189,7 +181,7 @@ class DsServiceServer:
                 time.sleep(READY_POLL_INTERVAL_S)
                 continue
 
-            # Something is listening.
+            # Something listens on the port.
             # Check that it is still this server.
             # A process that exited by now lost the port to another server.
             # A return then hands the caller that one.
@@ -258,11 +250,9 @@ class DsServiceServer:
             pass
 
     def _process_group_alive(self) -> bool:
-        """Whether any process is left in the server's process group.
-
-        Signal 0 checks for the group without signaling it.
-        """
+        """Whether any process is left in the server's process group."""
         try:
+            # Signal 0 checks for the group without signaling it.
             os.killpg(self.pgid, 0)
             return True
         except ProcessLookupError:

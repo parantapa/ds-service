@@ -4,6 +4,9 @@ Each test runs against a freshly started ``ds-service`` process.
 Starting and stopping it is left to ``ds_service_client.DsServiceServer``.
 """
 
+import subprocess
+from collections.abc import Iterator
+
 import ifaddr
 import pytest
 
@@ -18,12 +21,10 @@ LOOPBACK_IP = "127.0.0.1"
 
 
 def _loopback_interface() -> str:
-    """The name of the interface holding 127.0.0.1.
-
-    Looked up rather than hardcoded to `lo`,
-    because DsServiceServer is given an interface name
-    and the name of the loopback one depends on the platform.
-    """
+    """The name of the interface holding 127.0.0.1."""
+    # DsServiceServer takes an interface name,
+    # and the name of the loopback interface depends on the platform.
+    # So this function looks it up rather than hardcode `lo`.
     for adapter in ifaddr.get_adapters():
         for ip in adapter.ips:
             if ip.is_IPv4 and ip.ip == LOOPBACK_IP:
@@ -33,8 +34,8 @@ def _loopback_interface() -> str:
 
 
 def _probe_grpc(address: str) -> None:
-    """Make one read-only RPC against a server that is already listening."""
-    # A bound port only proves something is listening.
+    """Make one read-only RPC against a server that already listens."""
+    # A bound port only proves something listens there.
     # This RPC proves the server registered the service and answers.
     #
     # Not grpc.channel_ready_future():
@@ -64,18 +65,18 @@ def server_binary() -> str:
     return resolve_ds_service_bin()
 
 
+# Session-scoped because the machine's interfaces
+# do not change under the suite.
 @pytest.fixture(scope="session")
 def loopback_interface() -> str:
-    """The interface test servers bind, that is, the one holding 127.0.0.1.
-
-    Session-scoped because the machine's interfaces
-    do not change under the suite.
-    """
+    """The interface test servers bind, that is, the one holding 127.0.0.1."""
     return _loopback_interface()
 
 
 @pytest.fixture
-def server_process(loopback_interface):
+def server_process(
+    loopback_interface: str,
+) -> Iterator[tuple[subprocess.Popen[bytes], str]]:
     """Start a ds-service process on a free port and yield (proc, address).
 
     Most tests want only the address and use the ``server`` fixture.
@@ -100,7 +101,7 @@ def server_process(loopback_interface):
 
 
 @pytest.fixture
-def server(server_process):
+def server(server_process: tuple[subprocess.Popen[bytes], str]) -> str:
     """The address of a running ds-service process.
 
     A fresh process per test keeps the (non-persistent) server state isolated.
@@ -110,7 +111,7 @@ def server(server_process):
 
 
 @pytest.fixture
-def client(server):
+def client(server: str) -> Iterator[DsServiceClient]:
     """A connected DsServiceClient for the per-test server."""
     c = DsServiceClient(server)
     try:

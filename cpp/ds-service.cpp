@@ -736,10 +736,10 @@ struct DsServiceImpl final : public DsService::Service {
 
 // Largest single request or response accepted, in bytes.
 // gRPC's default is 4 MiB.
-// The Python client sets the same limit.
-// Change the two together,
-// or one side rejects what the other sends.
-// tests/test_grpc_options.py checks that they still agree.
+// The Python client sets the same limit, and the two must agree.
+// tests/test_grpc_options.py checks that they still do.
+// See "The channel settings are one setting in two languages"
+// in docs/developer-notes.md.
 constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
 
 // How long in-flight RPCs are given to finish once shutdown starts.
@@ -826,11 +826,10 @@ int main(int argc, char* argv[]) {
     // The fourth argument is different in kind:
     // it is a floor on how often a client can ping.
     // The client's keepalive_time_ms (120 seconds in client.py)
-    // must stay above it,
-    // or the server answers the pings with GOAWAY/ENHANCE_YOUR_CALM
-    // and kills every long-lived connection.
-    // That reaches callers as a TimeoutError that says nothing about pings.
+    // must stay above it.
     // tests/test_grpc_options.py checks the two stay ordered.
+    // See "The channel settings are one setting in two languages"
+    // in docs/developer-notes.md.
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIME_MS, 10 * 60 * 1000 /*10 minutes*/);
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIMEOUT_MS, 20 * 1000 /*20 seconds*/);
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
@@ -841,9 +840,8 @@ int main(int argc, char* argv[]) {
     // so without this argument
     // a second ds-service started on an occupied address
     // binds silently alongside the first.
-    // State is in-memory and non-persistent,
-    // so the second instance splits clients across two divergent copies
-    // instead of failing.
+    // See "The server refuses to share its port"
+    // in docs/developer-notes.md.
     builder.AddChannelArgument(GRPC_ARG_ALLOW_REUSEPORT, 0);
 
     builder.SetMaxReceiveMessageSize(MAX_MESSAGE_SIZE_BYTES);
