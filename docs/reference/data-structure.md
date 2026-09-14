@@ -14,14 +14,14 @@ while operations on different structures can run concurrently.
 
 The server persists no state.
 When it stops, every structure is lost.
-See [about the architecture](about-the-architecture.md)
+See [about the architecture](../explanation/the-architecture.md)
 for why the server is built this way.
 
 The Python names for these operations
 are the snake_case forms of the RPC names (`MapSet` -> `client.map_set`).
-See the [Python client reference](python-client-reference.md).
+See the [Python client reference](python-client.md).
 
-## The key-value store
+## Key-value store
 
 A flat `string -> bytes` key-value store.
 
@@ -56,7 +56,7 @@ Each has identical RE2 semantics and the same cost:
 a walk over every key under that store's lock.
 The task queue does the same over its task ids with `TaskSearchId`.
 
-## The task queue
+## Task queue
 
 Tasks are units of work identified by a unique `task_id`.
 Each task carries an opaque `function` and `input` payload,
@@ -117,8 +117,7 @@ and it never touches a task that has already finished:
 That worker can still call `TaskDone`.
 The call succeeds, the task stays `Canceled`,
 and the server discards the output.
-`TaskDone` on a `Canceled` task is accepted from any worker,
-because the server returns on the canceled state before it checks ownership.
+`TaskDone` on a `Canceled` task is accepted from any worker.
 `TaskCancel` also drops the record of which worker held the task.
 
 A worker that dies mid-task leaves its task `Running`
@@ -137,12 +136,12 @@ Task rows are never reclaimed,
 so the walk covers every task ever added
 rather than the ones still outstanding.
 
-See [about the task queue](about-the-task-queue.md)
+See [about the task queue](../explanation/the-task-queue.md)
 for why the queue behaves this way,
-and [how to write a worker](howto-write-a-worker.md)
+and [how to write a worker](../how-to-guides/write-a-worker.md)
 for driving it from Python.
 
-## The journal store
+## Journal store
 
 A store of journals, each identified by a `string` key.
 Each journal is an append-only, ordered list of opaque binary entries.
@@ -162,7 +161,7 @@ A read past the end returns only the entries that exist.
 A range with `start >= end` returns an empty list,
 and so does a journal that does not exist.
 
-## The time series store
+## Time series store
 
 A store of series, each identified by a `string` key.
 Each series is an append-only list of data points.
@@ -234,7 +233,7 @@ for the life of the server.
 
 The Python clients add a waiting `mutex_acquire`
 on top of `MutexTryAcquire`.
-See the [Python client reference](python-client-reference.md).
+See the [Python client reference](python-client.md).
 
 ## Counters
 

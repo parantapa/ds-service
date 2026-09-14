@@ -43,7 +43,7 @@ Run the build commands again.
 The C++ build does not cover the Python client stubs.
 Run `scripts/gen_python_bindings.sh` from the repository root as well.
 It needs `grpcio-tools` installed.
-See the [developer notes](developer-notes.md#generated-code)
+See the [developer notes](../developer-notes.md#generated-code)
 for the full inventory of generated files.
 
 ## Install the binary
@@ -86,5 +86,5 @@ The first build compiles the whole dependency tree from source.
 It takes longer than the normal build.
 
 The Conan profile and linker flags used here differ from the normal build.
-See [about the static musl build](about-the-static-musl-build.md)
+See [about the static musl build](../explanation/the-static-musl-build.md)
 for the differences, and for the reason the build needs them.

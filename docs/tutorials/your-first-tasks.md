@@ -1,4 +1,4 @@
-# Tutorial: run your first tasks through ds-service
+# Run your first tasks through ds-service
 
 By the end of this tutorial
 you will have a `ds-service` server running on your own machine.
@@ -49,7 +49,13 @@ and falls back to a `ds-service` on your `PATH`.
 
 ## Step 3: start a server
 
-Open a Python session.
+In the same terminal, start Python:
+
+```sh
+python
+```
+
+The export from step 2 reaches this session, and only this one.
 Start a server of your own:
 
 ```python
@@ -97,8 +103,7 @@ client.map_set("greeting", "hello")
 
 That raises a `TypeError` from the client before anything reaches the server.
 Encode anything you want to store.
-For example, use `"hello".encode()`, `json.dumps(...).encode()`,
-or `pickle.dumps(...)`.
+For `"hello"`, that is `"hello".encode()`.
 
 Ask for a key that was never set:
 
@@ -291,6 +296,8 @@ Every value, task, journal and counter lived in the memory
 of a process that no longer exists.
 Remember this about `ds-service`, above everything else.
 You just watched it happen.
+For why the server is built this way, see
+[about the architecture](../explanation/the-architecture.md).
 
 ```python
 client.close()
@@ -312,6 +319,6 @@ The loop becomes familiar quickly.
 It is the same loop every real worker runs.
 
 When you are ready to write one for real, see
-[how to write a worker](howto-write-a-worker.md).
+[how to write a worker](../how-to-guides/write-a-worker.md).
 The server also holds journals, time series, mutexes and counters.
-For those, see the [data structure reference](data-structure-reference.md).
+For those, see the [data structure reference](../reference/data-structure.md).

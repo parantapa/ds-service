@@ -4,7 +4,7 @@ Why the task queue behaves as it does,
 and what it leaves to the caller.
 
 For the RPCs themselves, see
-the [data structure reference](data-structure-reference.md#the-task-queue).
+the [data structure reference](../reference/data-structure.md#task-queue).
 
 ## A task belongs to the worker that claimed it
 
@@ -74,4 +74,5 @@ that a busy queue never pops.
 
 Both are consequences of addressing a task row by its index,
 and both are limitations, not design.
-The developer notes explain what compaction costs.
+The [developer notes](../developer-notes.md#known-limitations)
+explain what compaction costs.

@@ -30,7 +30,7 @@ When behavior changes, update the document that covers it.
 
 ## Building, running, and testing
 
-The [how to build the server](howto-build-the-server.md) guide
+The [how to build the server](how-to-guides/build-the-server.md) guide
 covers how to build and run the server.
 It also covers the static musl image.
 
@@ -335,4 +335,4 @@ A client that reprioritizes on a loop therefore grows the heap
 by one entry per call per queue.
 
 The user-facing consequences of both are in
-[about the task queue](about-the-task-queue.md).
+[about the task queue](explanation/the-task-queue.md).

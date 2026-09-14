@@ -7,12 +7,12 @@ and the coordination problems that come with running several of them.
 
 It assumes you have a server to talk to.
 If you do not, see
-[how to build the server](howto-build-the-server.md),
+[how to build the server](build-the-server.md),
 or start a private one with
-[`DsServiceServer`](server-helper-reference.md).
+[`DsServiceServer`](../reference/server-helper.md).
 
 For the full client API, see
-the [Python client reference](python-client-reference.md).
+the [Python client reference](../reference/python-client.md).
 
 ## Connect
 
@@ -175,7 +175,7 @@ async def worker() -> None:
 
 Construct `DsServiceClientAsync` inside a coroutine, not at import time.
 See
-the [Python client reference](python-client-reference.md#dsserviceclientasync)
+the [Python client reference](../reference/python-client.md#dsserviceclientasync)
 for the differences from the blocking client.
 
 ## Know what the queue will not do for you
@@ -185,4 +185,4 @@ The queue does not do it for you.
 A worker that dies mid-task leaves that task `Running` forever.
 Nothing reassigns it, and `task_add` refuses to reuse the id.
 To recover the work, cancel the task and submit it under a new id.
-See [about the task queue](about-the-task-queue.md).
+See [about the task queue](../explanation/the-task-queue.md).

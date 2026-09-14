@@ -4,7 +4,7 @@ How `ds-service` is put together,
 and why it has that shape.
 
 For what each RPC does, see
-the [data structure reference](data-structure-reference.md).
+the [data structure reference](../reference/data-structure.md).
 
 ## Three pieces
 
@@ -80,4 +80,5 @@ never one dressed as the other.
 The cost is that every RPC appears twice.
 That cost is paid deliberately,
 and it is defended by a test rather than by discipline.
-See the developer notes for how the two copies are kept in step.
+See the [developer notes](../developer-notes.md#two-clients-one-api)
+for how the two copies are kept in step.

@@ -8,8 +8,8 @@ that is accessible via [gRPC](https://grpc.io/).
 `ds-service` runs a single server process
 that holds shared state in memory
 and lets many distributed clients and workers coordinate using it.
-Use it when several processes need to hand work to each other.
-The processes run on one machine or across a cluster.
+Use it when several processes must coordinate,
+on one machine or across a cluster.
 It covers four cases:
 
 - The processes hand work to each other.
@@ -23,7 +23,7 @@ Presently, it provides six data structures:
 a key-value store, a task queue, a journal store, a time series store,
 named mutexes, and counters.
 Each is a separate key space with its own set of RPCs,
-described in the [data structure reference](docs/data-structure-reference.md).
+described in the [data structure reference](docs/reference/data-structure.md).
 
 ## Installation
 
@@ -47,7 +47,7 @@ pip install ds-service-client
 ```
 
 To build the server from source instead,
-see [how to build the server](docs/howto-build-the-server.md).
+see [how to build the server](docs/how-to-guides/build-the-server.md).
 
 ## Usage
 
@@ -78,18 +78,20 @@ with DsServiceClient("127.0.0.1:5051") as client:
 
 | Document | What it covers |
 | --- | --- |
-| [Tutorial: run your first tasks through ds-service](docs/tutorial-your-first-tasks.md) | Start a server, store a value, and take a task from `Ready` to `Complete`. Start here. |
-| [How to build the ds-service server](docs/howto-build-the-server.md) | Requirements, the Conan and CMake build, how to install and run the binary, and the static musl build. |
-| [How to write a worker](docs/howto-write-a-worker.md) | The claim-work-report loop, mutexes around shared resources, progress reporting, and the asyncio variant. |
-| [Data structure reference](docs/data-structure-reference.md) | Every RPC, its arguments and error statuses, and the exact semantics of each data structure. |
-| [Python client reference](docs/python-client-reference.md) | `DsServiceClient` and `DsServiceClientAsync`: constructors, method names, the mapping from a gRPC status to an exception, and examples. |
-| [Server helper reference](docs/server-helper-reference.md) | `DsServiceServer`, which runs a private `ds-service` process for the life of the object. |
-| [About the architecture](docs/about-the-architecture.md) | The three pieces, why the server does not persist state, one lock per structure, and why there are two Python clients. |
-| [About the task queue](docs/about-the-task-queue.md) | Task ownership, what canceling does and does not do, and why there is no fault tolerance. |
-| [About the static musl build](docs/about-the-static-musl-build.md) | Why the static image exists and why its Conan profile differs. |
+| [Run your first tasks through ds-service](docs/tutorials/your-first-tasks.md) | Start a server, store a value, and take a task from `Ready` to `Complete`. Start here. |
+| [How to build the ds-service server](docs/how-to-guides/build-the-server.md) | Requirements, the Conan and CMake build, how to install and run the binary, and the static musl build. |
+| [How to write a worker](docs/how-to-guides/write-a-worker.md) | The claim-work-report loop, mutexes around shared resources, progress reporting, and the asyncio variant. |
+| [Data structure reference](docs/reference/data-structure.md) | Every RPC, its arguments and error statuses, and the exact semantics of each data structure. |
+| [Python client reference](docs/reference/python-client.md) | `DsServiceClient` and `DsServiceClientAsync`: constructors, method names, the mapping from a gRPC status to an exception, and examples. |
+| [Server helper reference](docs/reference/server-helper.md) | `DsServiceServer`, which runs a private `ds-service` process for the life of the object. |
+| [About the architecture](docs/explanation/the-architecture.md) | The three pieces, why the server does not persist state, one lock per structure, and why there are two Python clients. |
+| [About the task queue](docs/explanation/the-task-queue.md) | Task ownership, what canceling does and does not do, and why there is no fault tolerance. |
+| [About the static musl build](docs/explanation/the-static-musl-build.md) | Why the static image exists and why its Conan profile differs. |
 
-- [Developer notes](docs/developer-notes.md)
-- [Report a bug](https://github.com/parantapa/ds-service/issues)
+| Document | What it covers |
+| --- | --- |
+| [Developer notes](docs/developer-notes.md) | A map of the source, the build and the test suite, the generated code, and the invariants that span C++ and Python. |
+| [Report a bug](https://github.com/parantapa/ds-service/issues) | The issue tracker. |
 
 ## License
 

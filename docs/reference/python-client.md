@@ -8,9 +8,9 @@ or on a `DsServiceClientAsync` object for asyncio callers.
 
 This document describes the client library.
 For what each underlying RPC does, see
-the [data structure reference](data-structure-reference.md).
+the [data structure reference](data-structure.md).
 For the process helper that starts a server,
-see the [server helper reference](server-helper-reference.md).
+see the [server helper reference](server-helper.md).
 
 ## `DsServiceClient`
 
@@ -237,4 +237,4 @@ while the rest of the loop keeps running.
 `timeout` still bounds the whole loop, sleeps included.
 
 The two clients are separate classes rather than one class with two modes.
-See [about the architecture](about-the-architecture.md#two-python-clients-one-api).
+See [about the architecture](../explanation/the-architecture.md#two-python-clients-one-api).

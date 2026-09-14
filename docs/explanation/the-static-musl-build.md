@@ -6,7 +6,7 @@ The final stage is `FROM scratch`,
 so the resulting image holds nothing but the binary.
 
 For the commands, see
-[how to build the server](howto-build-the-server.md#static-musl-binary).
+[how to build the server](../how-to-guides/build-the-server.md#static-musl-binary).
 
 ## Why the static build exists
 
