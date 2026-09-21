@@ -43,8 +43,23 @@ target_sources(
 target_link_libraries(ds-service-grpc PUBLIC protobuf::protobuf grpc::grpc)
 target_compile_features(ds-service-grpc PRIVATE cxx_std_17)
 
-add_executable(ds-service cpp/ds-service.cpp)
-target_sources(ds-service PRIVATE FILE_SET HEADERS BASE_DIRS cpp)
+add_executable(
+  ds-service
+  cpp/ds-service.cpp
+  cpp/counters.cpp
+  cpp/journal-map.cpp
+  cpp/map.cpp
+  cpp/mutexes.cpp
+  cpp/task-manager.cpp
+  cpp/time-series.cpp)
+target_sources(
+  ds-service
+  PRIVATE FILE_SET
+          HEADERS
+          BASE_DIRS
+          cpp
+          FILES
+          cpp/ds-service.hpp)
 target_link_libraries(
   ds-service
   PRIVATE spdlog::spdlog

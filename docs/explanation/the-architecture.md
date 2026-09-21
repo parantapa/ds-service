@@ -8,9 +8,12 @@ the [data structure reference](../reference/data-structure.md).
 
 ## Three pieces
 
-- **Server** (`cpp/ds-service.cpp`): a C++23 gRPC service.
+- **Server** (`cpp/`): a C++23 gRPC service.
     All state lives in memory.
-    A separate lock guards each top-level data structure.
+    Each top-level data structure is a struct that carries
+    the lock that guards it,
+    declared in `cpp/ds-service.hpp`
+    and implemented in a source file of its own.
     The lock serializes operations on one structure,
     while operations on different structures can run concurrently.
     Each RPC touches a single structure,

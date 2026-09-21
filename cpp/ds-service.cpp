@@ -1,99 +1,29 @@
-#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <csignal>
-#include <cstddef>
-#include <cstdint>
-#include <format>
-#include <mutex>
-#include <optional>
-#include <queue>
-#include <sstream>
+#include <memory>
 #include <string>
 #include <thread>
-#include <vector>
 
 #include <spdlog/spdlog.h>
 #include <argparse/argparse.hpp>
-#include <parallel_hashmap/phmap.h>
-#include <re2/re2.h>
 #include <grpcpp/grpcpp.h>
 
 #include <ds-service.grpc.pb.h>
 
-template <typename K, typename V>
-using Map = phmap::parallel_flat_hash_map<K, V>;
-
-struct TaskQueueEntry {
-    double priority;
-    std::uint64_t seq;
-    std::size_t index;
-};
-
-struct TaskQueueEntryOrder {
-    bool operator()(const TaskQueueEntry& a, const TaskQueueEntry& b) const {
-        if (a.priority != b.priority) {
-            return a.priority < b.priority;
-        }
-        return a.seq > b.seq;
-    }
-};
-
-using TaskQueue = std::priority_queue<TaskQueueEntry, std::vector<TaskQueueEntry>, TaskQueueEntryOrder>;
-
-struct TaskTable {
-    std::vector<std::string> task_id;
-    std::vector<std::string> function;
-    std::vector<std::string> input;
-    std::vector<std::string> output;
-    std::vector<TaskState> state;
-    std::vector<std::string> worker_id;
-    std::vector<double> priority;
-    std::vector<std::vector<std::string>> queues;
-    std::vector<std::uint64_t> seq;
-};
-
-struct TaskManager {
-    TaskTable tasks;
-
-    Map<std::string, std::size_t> task_index;
-
-    std::uint64_t next_seq = 0;
-
-    // Queue name -> the rows waiting on it, ordered by priority.
-    // std::priority_queue is a max-heap,
-    // so TaskGet dispatches the highest priority row first.
-    Map<std::string, TaskQueue> queue;
-};
-
-struct MutexState {
-    bool held = false;
-    std::string worker_id;
-};
-
-struct TimeSeries {
-    std::vector<double> value;
-    std::vector<std::chrono::system_clock::time_point> time;
-    std::vector<std::int64_t> step;
-};
+#include "ds-service.hpp"
 
 struct SystemState {
-    std::mutex map_lock{};
-    Map<std::string, std::string> map{};
+    Map map{};
 
-    std::mutex journal_map_lock{};
-    Map<std::string, std::vector<std::string>> journal_map{};
+    JournalMap journal_map{};
 
-    std::mutex time_series_lock{};
-    Map<std::string, TimeSeries> time_series{};
+    TimeSeriesMap time_series{};
 
-    std::mutex mutexes_lock{};
-    Map<std::string, MutexState> mutexes{};
+    Mutexes mutexes{};
 
-    std::mutex counters_lock{};
-    Map<std::string, std::uint64_t> counters{};
+    Counters counters{};
 
-    std::mutex task_manager_lock{};
     TaskManager task_manager{};
 
     grpc::Server* server{nullptr};
@@ -102,635 +32,143 @@ struct SystemState {
     std::atomic<bool> shutdown{false};
 };
 
-// Parse an ISO 8601 UTC datetime string into a system_clock time_point.
-// Accepts a '+HH:MM'/'+HHMM' offset (converted to UTC),
-// a trailing 'Z', or no designator (interpreted as UTC).
-// Returns nullopt if the string does not parse.
-std::optional<std::chrono::system_clock::time_point> parse_iso8601_utc(const std::string& s) {
-    for (const char* fmt : {
-             "%Y-%m-%dT%H:%M:%S%Ez",
-             "%Y-%m-%dT%H:%M:%S%z",
-             "%Y-%m-%dT%H:%M:%SZ",
-             "%Y-%m-%dT%H:%M:%S",
-         }) {
-        std::istringstream ss{s};
-        std::chrono::system_clock::time_point tp{};
-        if (ss >> std::chrono::parse(std::string{fmt}, tp)) {
-            ss >> std::ws;
-            if (ss.eof()) {
-                return tp;
-            }
-        }
-    }
-    return std::nullopt;
-}
-
-// Format a system_clock time_point as an ISO 8601 UTC datetime string.
-// This function prints whole seconds without a fractional part.
-// Otherwise it prints microseconds.
-std::string format_iso8601_utc(const std::chrono::system_clock::time_point& tp) {
-    auto secs = std::chrono::floor<std::chrono::seconds>(tp);
-    if (secs == tp) {
-        return std::format("{:%Y-%m-%dT%H:%M:%S}Z", secs);
-    }
-    return std::format("{:%Y-%m-%dT%H:%M:%S}Z", std::chrono::floor<std::chrono::microseconds>(tp));
-}
-
 SystemState* GLOBAL_SYSTEM_STATE = nullptr;
 
+// Each method here does nothing but hand the call
+// to the data structure that owns the state.
+// The locking and the logic live on that structure.
 struct DsServiceImpl final : public DsService::Service {
-    grpc::Status MapSet(grpc::ServerContext*, const MapSetRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->map_lock};
-
-        GLOBAL_SYSTEM_STATE->map[request->key()] = request->value();
-        return grpc::Status::OK;
+    grpc::Status MapSet(grpc::ServerContext*, const MapSetRequest* request, Empty* response) override {
+        return GLOBAL_SYSTEM_STATE->map.set(request, response);
     }
 
     grpc::Status MapGet(grpc::ServerContext*, const MapGetRequest* request, MapGetResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->map_lock};
-
-        auto& map = GLOBAL_SYSTEM_STATE->map;
-        auto it = map.find(request->key());
-        if (it == map.end()) {
-            return grpc::Status(grpc::StatusCode::NOT_FOUND, fmt::format("Key {} not found.", request->key()));
-        } else {
-            response->set_value(it->second);
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->map.get(request, response);
     }
 
     grpc::Status MapSearchKey(grpc::ServerContext*, const SearchKeyRequest* request,
                               SearchKeyResponse* response) override {
-        RE2 pattern{request->pattern()};
-        if (!pattern.ok()) {
-            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                                fmt::format("Invalid regular expression: {}", pattern.error()));
-        }
-
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->map_lock};
-
-        for (const auto& [key, _] : GLOBAL_SYSTEM_STATE->map) {
-            if (RE2::PartialMatch(key, pattern)) {
-                response->add_key(key);
-            }
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->map.search_key(request, response);
     }
 
-    grpc::Status TaskAdd(grpc::ServerContext*, const TaskAddRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
-        auto it = task_manager.task_index.find(request->task_id());
-        if (it == task_manager.task_index.end()) {
-            auto& tasks = task_manager.tasks;
-            tasks.task_id.push_back(request->task_id());
-            tasks.function.push_back(request->function());
-            tasks.input.push_back(request->input());
-            tasks.output.push_back("");
-            tasks.state.push_back(TaskState::Ready);
-            tasks.worker_id.push_back("");
-            tasks.priority.push_back(request->priority());
-            tasks.queues.push_back({});
-            tasks.seq.push_back(++task_manager.next_seq);
-
-            auto index = tasks.task_id.size() - 1;
-
-            task_manager.task_index[request->task_id()] = index;
-            for (const auto& qname : request->queue()) {
-                tasks.queues[index].push_back(qname);
-                task_manager.queue[qname].push(TaskQueueEntry{tasks.priority[index], tasks.seq[index], index});
-            }
-
-            return grpc::Status::OK;
-        } else {
-            return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
-                                fmt::format("Task with ID = {} already exists.", request->task_id()));
-        }
+    grpc::Status TaskAdd(grpc::ServerContext*, const TaskAddRequest* request, Empty* response) override {
+        return GLOBAL_SYSTEM_STATE->task_manager.add(request, response);
     }
 
     grpc::Status TaskGetStatus(grpc::ServerContext*, const TaskGetStatusRequest* request,
                                TaskGetStatusResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
-        for (const auto& task_id : request->task_id()) {
-            auto it = task_manager.task_index.find(task_id);
-            // TaskGetStatus reports Undefined for an unknown task_id.
-            // That is not an error.
-            if (it == task_manager.task_index.end()) {
-                response->add_state(TaskState::Undefined);
-            } else {
-                response->add_state(task_manager.tasks.state[it->second]);
-            }
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->task_manager.get_status(request, response);
     }
 
     grpc::Status TaskGetOutput(grpc::ServerContext*, const TaskGetOutputRequest* request,
                                TaskGetOutputResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
-        auto it = task_manager.task_index.find(request->task_id());
-        if (it == task_manager.task_index.end()) {
-            return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                                fmt::format("Task with ID = {} not found.", request->task_id()));
-        }
-
-        response->set_output(task_manager.tasks.output[it->second]);
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->task_manager.get_output(request, response);
     }
 
-    grpc::Status TaskGetCountByState(grpc::ServerContext*, const Empty*,
+    grpc::Status TaskGetCountByState(grpc::ServerContext*, const Empty* request,
                                      TaskGetCountByStateResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        auto& tasks = GLOBAL_SYSTEM_STATE->task_manager.tasks;
-        std::uint64_t ready = 0, running = 0, complete = 0, canceled = 0;
-        for (const auto& state : tasks.state) {
-            switch (state) {
-            case TaskState::Ready:
-                ready++;
-                break;
-            case TaskState::Running:
-                running++;
-                break;
-            case TaskState::Complete:
-                complete++;
-                break;
-            case TaskState::Canceled:
-                canceled++;
-                break;
-            default:
-                break;
-            }
-        }
-
-        response->set_ready(ready);
-        response->set_running(running);
-        response->set_complete(complete);
-        response->set_canceled(canceled);
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->task_manager.get_count_by_state(request, response);
     }
 
     grpc::Status TaskCancel(grpc::ServerContext*, const TaskCancelRequest* request,
                             TaskCancelResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
-        auto it = task_manager.task_index.find(request->task_id());
-        if (it == task_manager.task_index.end()) {
-            return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                                fmt::format("Task with ID = {} not found.", request->task_id()));
-        }
-
-        auto index = it->second;
-        auto& tasks = task_manager.tasks;
-
-        if (tasks.state[index] != TaskState::Ready && tasks.state[index] != TaskState::Running) {
-            response->set_success(false);
-            return grpc::Status::OK;
-        }
-
-        tasks.state[index] = TaskState::Canceled;
-        tasks.worker_id[index] = "";
-
-        response->set_success(true);
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->task_manager.cancel(request, response);
     }
 
     grpc::Status TaskGetPriority(grpc::ServerContext*, const TaskGetPriorityRequest* request,
                                  TaskGetPriorityResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
-        auto it = task_manager.task_index.find(request->task_id());
-        if (it == task_manager.task_index.end()) {
-            return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                                fmt::format("Task with ID = {} not found.", request->task_id()));
-        }
-
-        response->set_priority(task_manager.tasks.priority[it->second]);
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->task_manager.get_priority(request, response);
     }
 
-    grpc::Status TaskSetPriority(grpc::ServerContext*, const TaskSetPriorityRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
-        auto it = task_manager.task_index.find(request->task_id());
-        if (it == task_manager.task_index.end()) {
-            return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                                fmt::format("Task with ID = {} not found.", request->task_id()));
-        }
-
-        auto index = it->second;
-        auto& tasks = task_manager.tasks;
-        tasks.priority[index] = request->priority();
-
-        if (tasks.state[index] != TaskState::Ready) {
-            return grpc::Status::OK;
-        }
-
-        tasks.seq[index] = ++task_manager.next_seq;
-        for (const auto& qname : tasks.queues[index]) {
-            task_manager.queue[qname].push(TaskQueueEntry{tasks.priority[index], tasks.seq[index], index});
-        }
-
-        return grpc::Status::OK;
+    grpc::Status TaskSetPriority(grpc::ServerContext*, const TaskSetPriorityRequest* request,
+                                 Empty* response) override {
+        return GLOBAL_SYSTEM_STATE->task_manager.set_priority(request, response);
     }
 
     grpc::Status TaskGetWorkerId(grpc::ServerContext*, const TaskGetWorkerIdRequest* request,
                                  TaskGetWorkerIdResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
-        auto it = task_manager.task_index.find(request->task_id());
-        if (it == task_manager.task_index.end()) {
-            return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                                fmt::format("Task with ID = {} not found.", request->task_id()));
-        }
-
-        auto index = it->second;
-        auto& tasks = task_manager.tasks;
-
-        if (tasks.state[index] != TaskState::Running) {
-            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
-                                fmt::format("Task with ID = {} is not Running.", request->task_id()));
-        }
-
-        response->set_worker_id(tasks.worker_id[index]);
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->task_manager.get_worker_id(request, response);
     }
 
-    // Searches the task ids, which is the task queue's key space.
     grpc::Status TaskSearchId(grpc::ServerContext*, const SearchKeyRequest* request,
                               SearchKeyResponse* response) override {
-        RE2 pattern{request->pattern()};
-        if (!pattern.ok()) {
-            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                                fmt::format("Invalid regular expression: {}", pattern.error()));
-        }
-
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        for (const auto& task_id : GLOBAL_SYSTEM_STATE->task_manager.tasks.task_id) {
-            if (RE2::PartialMatch(task_id, pattern)) {
-                response->add_key(task_id);
-            }
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->task_manager.search_id(request, response);
     }
 
     grpc::Status TaskGet(grpc::ServerContext*, const TaskGetRequest* request, TaskGetResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        // TaskGet searches the queues in the order the caller listed them:
-        // the first one holding a Ready task wins.
-        //
-        // Dead queue entries are discarded lazily here,
-        // as they reach the top of the heap.
-        // A popped entry that is not usable is dropped rather than skipped.
-        // See "Known limitations" in docs/developer-notes.md
-        // for why they accumulate in the first place.
-        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
-        auto& tasks = task_manager.tasks;
-        for (const auto& qname : request->queue()) {
-            auto queue_it = task_manager.queue.find(qname);
-            if (queue_it == task_manager.queue.end()) {
-                continue;
-            }
-
-            auto& queue = queue_it->second;
-            while (!queue.empty()) {
-                const auto entry = queue.top();
-                queue.pop();
-
-                // An entry can be dead in two ways:
-                // - Its row left Ready,
-                //   either claimed through another of its queues or finished.
-                // - TaskSetPriority pushed a newer entry that supersedes it.
-                if (tasks.state[entry.index] != TaskState::Ready || entry.seq != tasks.seq[entry.index]) {
-                    continue;
-                }
-
-                const auto index = entry.index;
-                tasks.state[index] = TaskState::Running;
-                tasks.worker_id[index] = request->worker_id();
-
-                response->set_task_id(tasks.task_id[index]);
-                response->set_function(tasks.function[index]);
-                response->set_input(tasks.input[index]);
-
-                return grpc::Status::OK;
-            }
-        }
-
-        return grpc::Status(grpc::StatusCode::NOT_FOUND, "No tasks available.");
+        return GLOBAL_SYSTEM_STATE->task_manager.get(request, response);
     }
 
-    grpc::Status TaskDone(grpc::ServerContext*, const TaskDoneRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->task_manager_lock};
-
-        auto& task_manager = GLOBAL_SYSTEM_STATE->task_manager;
-        auto it = task_manager.task_index.find(request->task_id());
-        if (it == task_manager.task_index.end()) {
-            return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                                fmt::format("Task with ID = {} not found.", request->task_id()));
-        }
-
-        auto index = it->second;
-        auto& tasks = task_manager.tasks;
-
-        if (tasks.state[index] == TaskState::Canceled) {
-            return grpc::Status::OK;
-        }
-
-        if (tasks.state[index] != TaskState::Running) {
-            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
-                                fmt::format("Task with ID = {} is not Running.", request->task_id()));
-        }
-
-        if (tasks.worker_id[index] != request->worker_id()) {
-            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
-                                fmt::format("Task with ID = {} is held by worker {}, not {}.", request->task_id(),
-                                            tasks.worker_id[index], request->worker_id()));
-        }
-
-        tasks.state[index] = TaskState::Complete;
-        tasks.output[index] = request->output();
-        return grpc::Status::OK;
+    grpc::Status TaskDone(grpc::ServerContext*, const TaskDoneRequest* request, Empty* response) override {
+        return GLOBAL_SYSTEM_STATE->task_manager.done(request, response);
     }
 
     grpc::Status JournalSize(grpc::ServerContext*, const JournalSizeRequest* request,
                              JournalSizeResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->journal_map_lock};
-
-        auto& journal_map = GLOBAL_SYSTEM_STATE->journal_map;
-        auto it = journal_map.find(request->key());
-        if (it == journal_map.end()) {
-            response->set_size(0);
-        } else {
-            response->set_size(it->second.size());
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->journal_map.size(request, response);
     }
 
     grpc::Status JournalRead(grpc::ServerContext*, const JournalReadRequest* request,
                              JournalReadResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->journal_map_lock};
-
-        auto& journal_map = GLOBAL_SYSTEM_STATE->journal_map;
-        auto it = journal_map.find(request->key());
-        if (it != journal_map.end()) {
-            const auto& journal = it->second;
-            auto size = journal.size();
-            auto start = std::min<std::uint64_t>(request->start(), size);
-            auto end = std::min<std::uint64_t>(request->end(), size);
-            for (auto index = start; index < end; index++) {
-                response->add_entry(journal[index]);
-            }
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->journal_map.read(request, response);
     }
 
-    grpc::Status JournalAppend(grpc::ServerContext*, const JournalAppendRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->journal_map_lock};
-
-        GLOBAL_SYSTEM_STATE->journal_map[request->key()].push_back(request->value());
-        return grpc::Status::OK;
+    grpc::Status JournalAppend(grpc::ServerContext*, const JournalAppendRequest* request, Empty* response) override {
+        return GLOBAL_SYSTEM_STATE->journal_map.append(request, response);
     }
 
     grpc::Status JournalSearchKey(grpc::ServerContext*, const SearchKeyRequest* request,
                                   SearchKeyResponse* response) override {
-        RE2 pattern{request->pattern()};
-        if (!pattern.ok()) {
-            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                                fmt::format("Invalid regular expression: {}", pattern.error()));
-        }
-
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->journal_map_lock};
-
-        for (const auto& [key, _] : GLOBAL_SYSTEM_STATE->journal_map) {
-            if (RE2::PartialMatch(key, pattern)) {
-                response->add_key(key);
-            }
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->journal_map.search_key(request, response);
     }
 
-    grpc::Status TimeSeriesAppend(grpc::ServerContext*, const TimeSeriesAppendRequest* request, Empty*) override {
-        auto tp = parse_iso8601_utc(request->datetime());
-        if (!tp) {
-            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                                fmt::format("Invalid ISO 8601 UTC datetime: {}", request->datetime()));
-        }
-
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->time_series_lock};
-
-        auto& series = GLOBAL_SYSTEM_STATE->time_series[request->key()];
-        series.value.push_back(request->value());
-        series.time.push_back(*tp);
-        series.step.push_back(request->step());
-
-        return grpc::Status::OK;
+    grpc::Status TimeSeriesAppend(grpc::ServerContext*, const TimeSeriesAppendRequest* request,
+                                  Empty* response) override {
+        return GLOBAL_SYSTEM_STATE->time_series.append(request, response);
     }
 
     grpc::Status TimeSeriesGet(grpc::ServerContext*, const TimeSeriesGetRequest* request,
                                TimeSeriesGetResponse* response) override {
-        // An empty time string means "no bound".
-        // A non-empty one that fails to parse is an error.
-        std::optional<std::chrono::system_clock::time_point> start_time{}, end_time{};
-        if (request->has_start_time() && !request->start_time().empty()) {
-            start_time = parse_iso8601_utc(request->start_time());
-            if (!start_time) {
-                return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                                    fmt::format("Invalid ISO 8601 UTC start_time: {}", request->start_time()));
-            }
-        }
-        if (request->has_end_time() && !request->end_time().empty()) {
-            end_time = parse_iso8601_utc(request->end_time());
-            if (!end_time) {
-                return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                                    fmt::format("Invalid ISO 8601 UTC end_time: {}", request->end_time()));
-            }
-        }
-
-        bool has_start_step = request->has_start_step();
-        bool has_end_step = request->has_end_step();
-
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->time_series_lock};
-
-        auto it = GLOBAL_SYSTEM_STATE->time_series.find(request->key());
-        if (it == GLOBAL_SYSTEM_STATE->time_series.end()) {
-            return grpc::Status::OK;
-        }
-
-        const auto& series = it->second;
-        for (std::size_t index = 0; index < series.value.size(); index++) {
-            // start bounds are inclusive, end bounds exclusive.
-            // Unset bounds do not filter.
-            if (start_time && series.time[index] < *start_time) {
-                continue;
-            }
-            if (end_time && series.time[index] >= *end_time) {
-                continue;
-            }
-            if (has_start_step && series.step[index] < request->start_step()) {
-                continue;
-            }
-            if (has_end_step && series.step[index] >= request->end_step()) {
-                continue;
-            }
-
-            auto* point = response->add_point();
-            point->set_value(series.value[index]);
-            point->set_datetime(format_iso8601_utc(series.time[index]));
-            point->set_step(series.step[index]);
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->time_series.get(request, response);
     }
 
     grpc::Status TimeSeriesSearchKey(grpc::ServerContext*, const SearchKeyRequest* request,
                                      SearchKeyResponse* response) override {
-        RE2 pattern{request->pattern()};
-        if (!pattern.ok()) {
-            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                                fmt::format("Invalid regular expression: {}", pattern.error()));
-        }
-
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->time_series_lock};
-
-        for (const auto& [key, _] : GLOBAL_SYSTEM_STATE->time_series) {
-            if (RE2::PartialMatch(key, pattern)) {
-                response->add_key(key);
-            }
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->time_series.search_key(request, response);
     }
 
     grpc::Status MutexTryAcquire(grpc::ServerContext*, const MutexTryAcquireRequest* request,
                                  MutexTryAcquireResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
-
-        MutexState& mutex = GLOBAL_SYSTEM_STATE->mutexes[request->key()];
-        if (mutex.held) {
-            response->set_acquired(false);
-        } else {
-            mutex.held = true;
-            mutex.worker_id = request->worker_id();
-            response->set_acquired(true);
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->mutexes.try_acquire(request, response);
     }
 
-    grpc::Status MutexRelease(grpc::ServerContext*, const MutexReleaseRequest* request, Empty*) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
-
-        auto& mutexes = GLOBAL_SYSTEM_STATE->mutexes;
-        auto it = mutexes.find(request->key());
-        if (it == mutexes.end() || !it->second.held) {
-            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
-                                fmt::format("Mutex {} is not held.", request->key()));
-        }
-
-        if (it->second.worker_id != request->worker_id()) {
-            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
-                                fmt::format("Mutex {} is held by worker {}, not {}.", request->key(),
-                                            it->second.worker_id, request->worker_id()));
-        }
-
-        it->second = MutexState{};
-        return grpc::Status::OK;
+    grpc::Status MutexRelease(grpc::ServerContext*, const MutexReleaseRequest* request, Empty* response) override {
+        return GLOBAL_SYSTEM_STATE->mutexes.release(request, response);
     }
 
     grpc::Status MutexGetWorkerId(grpc::ServerContext*, const MutexGetWorkerIdRequest* request,
                                   MutexGetWorkerIdResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
-
-        auto& mutexes = GLOBAL_SYSTEM_STATE->mutexes;
-        auto it = mutexes.find(request->key());
-        if (it == mutexes.end()) {
-            return grpc::Status(grpc::StatusCode::NOT_FOUND, fmt::format("Mutex {} not found.", request->key()));
-        }
-
-        if (!it->second.held) {
-            return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
-                                fmt::format("Mutex {} is not held.", request->key()));
-        }
-
-        response->set_worker_id(it->second.worker_id);
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->mutexes.get_worker_id(request, response);
     }
 
     grpc::Status MutexSearchKey(grpc::ServerContext*, const SearchKeyRequest* request,
                                 SearchKeyResponse* response) override {
-        RE2 pattern{request->pattern()};
-        if (!pattern.ok()) {
-            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                                fmt::format("Invalid regular expression: {}", pattern.error()));
-        }
-
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->mutexes_lock};
-
-        for (const auto& [key, _] : GLOBAL_SYSTEM_STATE->mutexes) {
-            if (RE2::PartialMatch(key, pattern)) {
-                response->add_key(key);
-            }
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->mutexes.search_key(request, response);
     }
 
     grpc::Status CounterGetNextValue(grpc::ServerContext*, const CounterGetNextValueRequest* request,
                                      CounterGetNextValueResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->counters_lock};
-
-        std::uint64_t& counter = GLOBAL_SYSTEM_STATE->counters[request->key()];
-        response->set_value(++counter);
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->counters.get_next_value(request, response);
     }
 
     grpc::Status CounterGetCurrentValue(grpc::ServerContext*, const CounterGetCurrentValueRequest* request,
                                         CounterGetCurrentValueResponse* response) override {
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->counters_lock};
-
-        auto& counters = GLOBAL_SYSTEM_STATE->counters;
-        auto it = counters.find(request->key());
-        response->set_value(it == counters.end() ? 0 : it->second);
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->counters.get_current_value(request, response);
     }
 
     grpc::Status CounterSearchKey(grpc::ServerContext*, const SearchKeyRequest* request,
                                   SearchKeyResponse* response) override {
-        RE2 pattern{request->pattern()};
-        if (!pattern.ok()) {
-            return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                                fmt::format("Invalid regular expression: {}", pattern.error()));
-        }
-
-        std::scoped_lock lock{GLOBAL_SYSTEM_STATE->counters_lock};
-
-        for (const auto& [key, _] : GLOBAL_SYSTEM_STATE->counters) {
-            if (RE2::PartialMatch(key, pattern)) {
-                response->add_key(key);
-            }
-        }
-
-        return grpc::Status::OK;
+        return GLOBAL_SYSTEM_STATE->counters.search_key(request, response);
     }
 };
 

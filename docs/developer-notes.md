@@ -14,7 +14,9 @@ When behavior changes, update the document that covers it.
 | Path | Contents |
 | --- | --- |
 | `misc/ds-service.proto` | The protobuf/gRPC contract. The authoritative definition of the wire format, and the input to every code generator here. |
-| `cpp/ds-service.cpp` | The entire server: state structs, the `DsServiceImpl` service, signal handling, and `main`. There is no other C++ source file. |
+| `cpp/ds-service.cpp` | `SystemState`, the `DsServiceImpl` service, signal handling, and `main`. Every `DsServiceImpl` method hands the call to the data structure that owns the state. |
+| `cpp/ds-service.hpp` | Every data structure type: the `HashMap` alias, one struct per top level data structure with the lock that guards it, and the operations the RPCs are implemented with. |
+| `cpp/map.cpp`, `cpp/journal-map.cpp`, `cpp/time-series.cpp`, `cpp/mutexes.cpp`, `cpp/counters.cpp`, `cpp/task-manager.cpp` | One implementation file per top level data structure. |
 | `CMakeLists.txt` | Builds the generated stubs into `ds-service-grpc`, then the `ds-service` executable. |
 | `conanfile.py` | The C++ dependency set and the build/tool requirements. |
 | `python/ds_service_client/__init__.py` | The package's public surface: the two clients, `DsServiceServer`, the exceptions, and `TaskState`. |
@@ -150,9 +152,12 @@ Only step 2 generates code on its own.
     which regenerates `ds-service.pb.*` and `ds-service.grpc.pb.*`.
 3. Run `scripts/gen_python_bindings.sh`.
     This one is manual. If you skip it, the Python client goes stale.
-4. Hand-update `cpp/ds-service.cpp`
+4. Hand-update the C++ server
     and `python/ds_service_client/client.py`
     to implement and expose the change.
+    On the C++ side the method is declared on the data structure
+    in `cpp/ds-service.hpp`, defined in that structure's own `.cpp` file,
+    and called by a new `DsServiceImpl` method in `cpp/ds-service.cpp`.
     A new RPC means a method on both clients in `client.py`.
     See "Two clients, one API".
 
