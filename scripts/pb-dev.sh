@@ -143,6 +143,16 @@ run_make-release() {
 
 show_help() {
     echo "Usage: $0 (help | command)"
+    echo
+    echo "Available commands:"
+    echo "    help"
+
+    # The command list is derived from the run_* functions,
+    # so adding a command needs no change here.
+    local fn
+    while read -r fn; do
+        echo "    ${fn#run_}"
+    done < <(declare -F | awk '{print $3}' | grep '^run_' | sort)
 }
 
 if [[ $# -eq 0 || "${1:-}" == "help" || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
