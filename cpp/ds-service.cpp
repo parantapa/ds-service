@@ -1,9 +1,11 @@
 #include <atomic>
 #include <chrono>
-#include <csignal>
 #include <memory>
 #include <string>
 #include <thread>
+
+#include <pthread.h>
+#include <signal.h>
 
 #include <spdlog/spdlog.h>
 #include <argparse/argparse.hpp>
@@ -189,37 +191,55 @@ constexpr int SHUTDOWN_GRACE_S = 5;
 // See "Versioning" in docs/developer-notes.md.
 const char* VERSION = "6.0.0";
 
-// How often await_shutdown_signal looks for a delivered signal.
-// It bounds how long shutdown takes to start, so keep it short.
-constexpr auto SHUTDOWN_POLL_INTERVAL = std::chrono::milliseconds(100);
-
-// Set by the signal handler, read by the shutdown thread.
-volatile std::sig_atomic_t SHUTDOWN_SIGNAL = 0;
-
-// A signal handler must touch nothing but a volatile sig_atomic_t.
-// It records the signal and leaves the work to await_shutdown_signal.
-// A call to Shutdown(), or a log write, from here is undefined behavior.
-extern "C" void handle_shutdown_signal(int signum) {
-    SHUTDOWN_SIGNAL = signum;
+// The signals that start a graceful shutdown.
+sigset_t shutdown_signals() {
+    sigset_t signals{};
+    sigemptyset(&signals);
+    sigaddset(&signals, SIGINT);
+    sigaddset(&signals, SIGTERM);
+    return signals;
 }
 
 // Wait for SIGINT or SIGTERM, then shut the server down gracefully.
+//
+// main blocks both signals in every thread,
+// so they stay pending until sigwait takes them here.
+// No signal handler runs,
+// so this thread is free to log and call Shutdown().
 //
 // Shutdown() refuses new calls,
 // lets in-flight ones finish until the deadline,
 // and makes the Wait() in main return.
 void await_shutdown_signal() {
-    while (SHUTDOWN_SIGNAL == 0) {
-        std::this_thread::sleep_for(SHUTDOWN_POLL_INTERVAL);
-    }
+    const sigset_t signals = shutdown_signals();
+    int signum = 0;
 
-    spdlog::info("received signal {}; shutting down ...", static_cast<int>(SHUTDOWN_SIGNAL));
+    // sigwait fails only on an invalid signal set.
+    // The server then shuts down at once
+    // rather than run on with no way to stop it but SIGKILL.
+    if (const int err = sigwait(&signals, &signum); err != 0) {
+        spdlog::error("sigwait failed with error {}; shutting down ...", err);
+    } else {
+        spdlog::info("received signal {}; shutting down ...", signum);
+    }
 
     GLOBAL_SYSTEM_STATE->shutdown = true;
     GLOBAL_SYSTEM_STATE->server->Shutdown(std::chrono::system_clock::now() + std::chrono::seconds(SHUTDOWN_GRACE_S));
 }
 
 int main(int argc, char* argv[]) {
+    // main blocks the shutdown signals first, before gRPC starts any thread.
+    // A new thread inherits the signal mask of the thread that creates it,
+    // so no thread takes the default action and kills the process.
+    // A signal that arrives during startup stays pending,
+    // and the shutdown thread takes it as soon as it runs.
+    // A signal that arrives before main still kills the process.
+    const sigset_t signals = shutdown_signals();
+    if (const int err = pthread_sigmask(SIG_BLOCK, &signals, nullptr); err != 0) {
+        spdlog::error("Failed to block shutdown signals: error {}", err);
+        return 1;
+    }
+
     argparse::ArgumentParser program(argv[0], VERSION);
     program.add_description("A data structure server.");
 
@@ -240,15 +260,6 @@ int main(int argc, char* argv[]) {
     }
 
     spdlog::info("server_address = {}", server_address);
-
-    // main installs the handlers before the server starts.
-    // The handler records a signal that arrives during startup,
-    // and the shutdown thread acts on it as soon as it runs.
-    if (std::signal(SIGINT, handle_shutdown_signal) == SIG_ERR ||
-        std::signal(SIGTERM, handle_shutdown_signal) == SIG_ERR) {
-        spdlog::error("Failed to install shutdown signal handlers");
-        return 1;
-    }
 
     SystemState global_system_state{};
     GLOBAL_SYSTEM_STATE = &global_system_state;
