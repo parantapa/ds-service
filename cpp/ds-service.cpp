@@ -189,7 +189,7 @@ constexpr int SHUTDOWN_GRACE_S = 5;
 
 // scripts/update-version.sh rewrites this line.
 // See "Versioning" in docs/developer-notes.md.
-const char* VERSION = "6.0.0";
+const char* VERSION = "6.1.0";
 
 // The signals that start a graceful shutdown.
 sigset_t shutdown_signals() {

@@ -13,7 +13,7 @@ class DsServiceRecipe(ConanFile):
 
     name = "ds-service"
     # Set by scripts/update-version.sh, along with the other version strings.
-    version = "6.0.0"
+    version = "6.1.0"
 
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False], "fPIC": [True, False]}
