@@ -67,7 +67,7 @@ with DsServiceClient("127.0.0.1:5051") as client:
     client.map_set("greeting", b"hello")
     assert client.map_get("greeting") == b"hello"
 
-    client.task_add("job-1", queue="work", priority=1.0, function=b"greet", input=b"world")
+    client.task_add("job-1", parent_task_ids=[], queue="work", priority=1.0, function=b"greet", input=b"world")
 
     task = client.task_get(worker_id="worker-a", queue="work")
     client.task_done(task.task_id, worker_id="worker-a", output=b"hello world")

@@ -119,7 +119,7 @@ def as_queue_list(queue: str | list[str]) -> list[str]:
 def as_parent_task_id_list(parent_task_ids: str | list[str] | None) -> list[str]:
     """Return the parent ids of a parent_task_ids argument.
 
-    A task with no parents passes None, which is no ids at all.
+    None and an empty list are both no ids at all.
     """
     if parent_task_ids is None:
         return []
@@ -248,21 +248,17 @@ class DsServiceClient:
     def task_add(
         self,
         task_id: str,
+        parent_task_ids: str | list[str],
         queue: str | list[str],
         priority: float,
         function: bytes,
         input: bytes,
-        parent_task_ids: str | list[str] | None = None,
     ) -> None:
         """Register a task and enqueue it on each of its queues.
 
-        queue is one queue name or a list of them,
-        and the set is fixed for the life of the task.
-        function and input are opaque payloads the server only stores.
-        Raises ValueError if task_id is already known.
-
         parent_task_ids names the tasks this one depends on,
         as one id or a list of them.
+        An empty list means the task has no parents.
         A task with a parent that is not Finished starts TaskState.Waiting,
         and no queue dispatches it until every parent finishes.
         Every parent must already exist,
@@ -272,16 +268,21 @@ class DsServiceClient:
         A task added with a Canceled parent is added Canceled,
         and one added with a Failed parent is added Failed.
         A task with both is added Failed.
+
+        queue is one queue name or a list of them,
+        and the set is fixed for the life of the task.
+        function and input are opaque payloads the server only stores.
+        Raises ValueError if task_id is already known.
         """
         with translate_grpc_error():
             self.stub.TaskAdd(
                 TaskAddRequest(
                     task_id=task_id,
+                    parent_task_ids=as_parent_task_id_list(parent_task_ids),
                     queue=as_queue_list(queue),
                     priority=priority,
                     function=function,
                     input=input,
-                    parent_task_ids=as_parent_task_id_list(parent_task_ids),
                 ),
                 timeout=self.timeout,
             )
@@ -738,21 +739,17 @@ class DsServiceClientAsync:
     async def task_add(
         self,
         task_id: str,
+        parent_task_ids: str | list[str],
         queue: str | list[str],
         priority: float,
         function: bytes,
         input: bytes,
-        parent_task_ids: str | list[str] | None = None,
     ) -> None:
         """Register a task and enqueue it on each of its queues.
 
-        queue is one queue name or a list of them,
-        and the set is fixed for the life of the task.
-        function and input are opaque payloads the server only stores.
-        Raises ValueError if task_id is already known.
-
         parent_task_ids names the tasks this one depends on,
         as one id or a list of them.
+        An empty list means the task has no parents.
         A task with a parent that is not Finished starts TaskState.Waiting,
         and no queue dispatches it until every parent finishes.
         Every parent must already exist,
@@ -762,16 +759,21 @@ class DsServiceClientAsync:
         A task added with a Canceled parent is added Canceled,
         and one added with a Failed parent is added Failed.
         A task with both is added Failed.
+
+        queue is one queue name or a list of them,
+        and the set is fixed for the life of the task.
+        function and input are opaque payloads the server only stores.
+        Raises ValueError if task_id is already known.
         """
         with translate_grpc_error():
             await self.stub.TaskAdd(
                 TaskAddRequest(
                     task_id=task_id,
+                    parent_task_ids=as_parent_task_id_list(parent_task_ids),
                     queue=as_queue_list(queue),
                     priority=priority,
                     function=function,
                     input=input,
-                    parent_task_ids=as_parent_task_id_list(parent_task_ids),
                 ),
                 timeout=self.timeout,
             )

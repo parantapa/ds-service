@@ -92,7 +92,7 @@ No live task holds the seventh state, `Undefined`.
 
 | RPC | Description |
 | --- | --- |
-| `TaskAdd(task_id, queue, priority, function, input, parent_task_ids)` | Register a new task and enqueue it on each named queue. A task with a parent that is `Waiting`, `Ready` or `Running` starts `Waiting` and enters no queue yet, unless another parent is `Canceled` or `Failed`. Returns `ALREADY_EXISTS` if the id is already known, and `NOT_FOUND`, adding nothing, for a parent the server does not know. |
+| `TaskAdd(task_id, parent_task_ids, queue, priority, function, input)` | Register a new task and enqueue it on each named queue. A task with a parent that is `Waiting`, `Ready` or `Running` starts `Waiting` and enters no queue yet, unless another parent is `Canceled` or `Failed`. Returns `ALREADY_EXISTS` if the id is already known, and `NOT_FOUND`, adding nothing, for a parent the server does not know. |
 | `TaskGet(worker_id, queue)` | Claim the highest-priority `Ready` task from the first queue that has one, mark it `Running` on behalf of `worker_id`, and return its payload. `TaskGet` tries the queues in the order given. Returns `NOT_FOUND` when none of them has work ready. |
 | `TaskDone(task_id, output, worker_id, failed)` | Store a `Running` task's output and mark it `Finished`, or `Failed` when `failed` is true. Failing a task fails every task waiting on it. Returns `NOT_FOUND` for an unknown `task_id`, and `FAILED_PRECONDITION` if the task is not `Running` or is held by a different worker. A `Canceled` task is accepted and left alone. |
 | `TaskGetStatus(task_id...)` | Return the state of each requested task, in request order. An unknown `task_id` reports `Undefined` rather than being an error. |

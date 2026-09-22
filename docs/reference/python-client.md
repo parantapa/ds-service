@@ -108,7 +108,7 @@ client.map_set("run/2", b"...")
 assert sorted(client.map_search_key("^run/")) == ["run/1", "run/2"]
 
 # Task queue
-client.task_add("job-1", queue="work", priority=1.0, function=b"...", input=b"...")
+client.task_add("job-1", parent_task_ids=[], queue="work", priority=1.0, function=b"...", input=b"...")
 
 task = client.task_get(worker_id="worker-a", queue="work")
 # It is Running now, and belongs to the worker that claimed it.
@@ -138,7 +138,7 @@ assert (
 ) == (0, 0, 0, 1, 0, 0)
 
 # A second task, this one never run.
-client.task_add("job-2", queue="work", priority=1.0, function=b"...", input=b"...")
+client.task_add("job-2", parent_task_ids=[], queue="work", priority=1.0, function=b"...", input=b"...")
 
 # Read and change the priority of a task that already exists.
 # A Ready task is moved within the queues it waits on.
@@ -156,14 +156,14 @@ assert client.task_get_output("job-2") == b"Task canceled"
 # A task that waits for others.
 # parent_task_ids takes one id or a list of them,
 # and every parent must already exist.
-client.task_add("job-3", queue="work", priority=1.0, function=b"...", input=b"...")
+client.task_add("job-3", parent_task_ids=[], queue="work", priority=1.0, function=b"...", input=b"...")
 client.task_add(
     "job-4",
+    parent_task_ids="job-3",
     queue="work",
     priority=1.0,
     function=b"...",
     input=b"...",
-    parent_task_ids="job-3",
 )
 
 # job-4 is Waiting, so no queue offers it while job-3 is unfinished.
@@ -179,14 +179,14 @@ assert client.task_get_status("job-4") == TaskState.Ready
 # A worker that ends in an error reports the task Failed instead,
 # which fails every task waiting on it.
 # job-4 is still Ready, so job-5 takes a higher priority to be claimed first.
-client.task_add("job-5", queue="work", priority=2.0, function=b"...", input=b"...")
+client.task_add("job-5", parent_task_ids=[], queue="work", priority=2.0, function=b"...", input=b"...")
 client.task_add(
     "job-6",
+    parent_task_ids="job-5",
     queue="work",
     priority=1.0,
     function=b"...",
     input=b"...",
-    parent_task_ids="job-5",
 )
 
 client.task_get(worker_id="worker-a", queue="work")

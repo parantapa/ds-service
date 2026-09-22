@@ -125,6 +125,7 @@ Submit a unit of work:
 ```python
 client.task_add(
     "job-1",
+    parent_task_ids=[],
     queue="work",
     priority=1.0,
     function=b"greet",
@@ -133,6 +134,7 @@ client.task_add(
 ```
 
 Nothing runs.
+`parent_task_ids=[]` says that the task depends on no other task.
 `function` and `input` are opaque bytes.
 The server never looks inside them
 and has no idea how to execute anything.
@@ -220,7 +222,7 @@ Add a second task.
 Then claim it as `worker-a`:
 
 ```python
-client.task_add("job-2", queue="work", priority=1.0, function=b"greet", input=b"again")
+client.task_add("job-2", parent_task_ids=[], queue="work", priority=1.0, function=b"greet", input=b"again")
 task = client.task_get(worker_id="worker-a", queue="work")
 ```
 
