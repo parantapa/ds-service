@@ -96,7 +96,6 @@ with DsServiceClient("127.0.0.1:5051") as client:
 | --- | --- |
 | [How to build the ds-service server](docs/how-to-guides/build-the-server.md) | Requirements, the Conan and CMake build, how to install and run the binary, and the static musl build. |
 | [Developer notes](docs/developer-notes.md) | A map of the source, the build and the test suite, the generated code, and the invariants that span C++ and Python. |
-| [Report a bug](https://github.com/parantapa/ds-service/issues) | The issue tracker. |
 
 ## License
 
