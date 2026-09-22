@@ -32,6 +32,8 @@ struct SystemState {
     std::atomic<bool> shutdown{false};
 };
 
+// main points this at its own SystemState before the server starts,
+// and every DsServiceImpl method and the shutdown thread reach the state through it.
 SystemState* GLOBAL_SYSTEM_STATE = nullptr;
 
 // Each method here does nothing but hand the call
@@ -172,10 +174,9 @@ struct DsServiceImpl final : public DsService::Service {
     }
 };
 
-// Largest single request or response accepted, in bytes.
+// Largest single request or response accepted.
 // gRPC's default is 4 MiB.
-// The Python client sets the same limit, and the two must agree.
-// tests/test_grpc_options.py checks that they still do.
+// client.py holds the same value.
 // See "The channel settings are one setting in two languages"
 // in docs/developer-notes.md.
 constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
@@ -184,7 +185,9 @@ constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
 // The server cancels anything still running when the deadline passes.
 constexpr int SHUTDOWN_GRACE_S = 5;
 
-const char* VERSION = "5.2.0";
+// scripts/update-version.sh rewrites this line.
+// See "Versioning" in docs/developer-notes.md.
+const char* VERSION = "6.0.0";
 
 // How often await_shutdown_signal looks for a delivered signal.
 // It bounds how long shutdown takes to start, so keep it short.
@@ -256,16 +259,9 @@ int main(int argc, char* argv[]) {
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
 
-    // Keepalive, in the order of the AddChannelArgument calls:
-    // - Ping an idle connection every 10 minutes.
-    // - Give each ping 20 seconds to be answered.
-    // - Keep pinging even with no calls in flight.
-    //
-    // The fourth argument is different in kind:
-    // it is a floor on how often a client can ping.
-    // The client's keepalive_time_ms (120 seconds in client.py)
-    // must stay above it.
-    // tests/test_grpc_options.py checks the two stay ordered.
+    // The fourth argument is different in kind from the first three:
+    // it is a floor on how often a client can ping,
+    // and the client's keepalive interval in client.py must stay above it.
     // See "The channel settings are one setting in two languages"
     // in docs/developer-notes.md.
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIME_MS, 10 * 60 * 1000 /*10 minutes*/);
@@ -285,7 +281,6 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
     if (!server) {
         // BuildAndStart returns null when the port cannot be bound.
-        // Report it instead of dereferencing null below.
         spdlog::error("Failed to bind {}; is another ds-service already running there?", server_address);
         return 1;
     }

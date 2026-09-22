@@ -89,8 +89,6 @@ grpc::Status TimeSeriesMap::get(const TimeSeriesGetRequest* request, TimeSeriesG
 
     const auto& series = it->second;
     for (std::size_t index = 0; index < series.value.size(); index++) {
-        // start bounds are inclusive, end bounds exclusive.
-        // Unset bounds do not filter.
         if (start_time && series.time[index] < *start_time) {
             continue;
         }

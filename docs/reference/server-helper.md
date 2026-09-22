@@ -1,8 +1,8 @@
 # Server helper reference
 
 `DsServiceServer` runs a private `ds-service` process
-for as long as the object lives.
-Import `DsServiceServer` from `ds_service_client`.
+until `close()` stops it.
+`ds_service_client` exports `DsServiceServer`.
 `python/ds_service_client/server.py` holds the implementation.
 
 ```python
@@ -40,7 +40,7 @@ not only a path.
 Then it splits the result with `shlex.split`.
 `shlex.split` understands quoting, but it does not understand shell syntax.
 
-## Addressing
+## Attributes
 
 The server never binds a wildcard address.
 The interface decides who can reach it:
@@ -68,8 +68,8 @@ only while the process it started still runs.
 
 ## `close()`
 
-Sends `SIGTERM`, waits for the grace period set by
+Sends `SIGTERM`, waits up to the grace period set by
 `TERMINATE_TIMEOUT_S` in `python/ds_service_client/server.py`,
-and then sends `SIGKILL`.
+and then sends `SIGKILL` if the server is still running.
 The exit of a `with` block calls `close()`.
-Call `close()` directly where the object is not a context manager.
+Code that does not use the object as a context manager calls `close()` directly.

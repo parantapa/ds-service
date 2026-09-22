@@ -2,6 +2,7 @@
 
 import socket
 import time
+from collections.abc import Iterator
 
 import grpc
 import pytest
@@ -10,16 +11,16 @@ from ds_service_client import DsServiceClient, NoTaskAvailable
 
 
 @pytest.fixture
-def mute_address():
-    """A listening socket that accepts connections but never speaks gRPC.
+def mute_address() -> Iterator[str]:
+    """The address of a listening socket that never speaks gRPC.
 
-    The kernel completes the TCP handshake from the listen backlog on its own.
-    The client connects, and then waits on a response that never arrives.
-    The deadline has to cut that wait off.
-    Nothing ever calls accept(), so the test needs no server thread.
+    A client connects, and then waits on a response that never arrives.
     """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
+        # The kernel completes the TCP handshake from the listen backlog
+        # on its own.
+        # Nothing ever calls accept(), so the test needs no server thread.
         sock.listen(8)
         yield f"127.0.0.1:{sock.getsockname()[1]}"
 
@@ -65,12 +66,10 @@ def test_calls_still_succeed_under_the_default_deadline(client):
 
 
 def test_task_get_on_an_unreachable_server_is_not_no_task_available():
-    """The distinction the worker loop depends on.
-
-    A worker sleeps and retries on NoTaskAvailable,
-    so a server it cannot reach must raise something else.
-    Otherwise the loop polls a dead address forever.
-    """
+    # A worker sleeps and retries on NoTaskAvailable,
+    # so a server it cannot reach must raise something else.
+    # Otherwise the loop polls a dead address forever.
+    #
     # Bind a port and drop it, so nothing is listening on a known address.
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))

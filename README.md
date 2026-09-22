@@ -40,7 +40,8 @@ chmod +x ds-service
 It links against musl with no dynamic dependencies,
 so it runs on any x86-64 Linux host.
 
-The Python client comes from PyPI:
+The Python client needs Python 3.12 or newer.
+It comes from PyPI:
 
 ```sh
 pip install ds-service-client
@@ -76,20 +77,24 @@ with DsServiceClient("127.0.0.1:5051") as client:
 
 ## Documentation
 
+### User documentation
+
 | Document | What it covers |
 | --- | --- |
 | [Run your first tasks through ds-service](docs/tutorials/your-first-tasks.md) | Start a server, store a value, and take a task from `Ready` to `Finished`. Start here. |
-| [How to build the ds-service server](docs/how-to-guides/build-the-server.md) | Requirements, the Conan and CMake build, how to install and run the binary, and the static musl build. |
 | [How to write a worker](docs/how-to-guides/write-a-worker.md) | The claim-work-report loop, mutexes around shared resources, progress reporting, and the asyncio variant. |
 | [Data structure reference](docs/reference/data-structure.md) | Every RPC, its arguments and error statuses, and the exact semantics of each data structure. |
 | [Python client reference](docs/reference/python-client.md) | `DsServiceClient` and `DsServiceClientAsync`: constructors, method names, the mapping from a gRPC status to an exception, and examples. |
-| [Server helper reference](docs/reference/server-helper.md) | `DsServiceServer`, which runs a private `ds-service` process for the life of the object. |
+| [Server helper reference](docs/reference/server-helper.md) | `DsServiceServer`, which starts a private `ds-service` process and stops it on `close()`. |
 | [About the architecture](docs/explanation/the-architecture.md) | The three pieces, why the server does not persist state, one lock per structure, and why there are two Python clients. |
 | [About the task queue](docs/explanation/the-task-queue.md) | Task ownership, what canceling does and does not do, and why there is no fault tolerance. |
 | [About the static musl build](docs/explanation/the-static-musl-build.md) | Why the static image exists and why its Conan profile differs. |
 
+### Developer documentation
+
 | Document | What it covers |
 | --- | --- |
+| [How to build the ds-service server](docs/how-to-guides/build-the-server.md) | Requirements, the Conan and CMake build, how to install and run the binary, and the static musl build. |
 | [Developer notes](docs/developer-notes.md) | A map of the source, the build and the test suite, the generated code, and the invariants that span C++ and Python. |
 | [Report a bug](https://github.com/parantapa/ds-service/issues) | The issue tracker. |
 

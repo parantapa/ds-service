@@ -76,21 +76,32 @@ while True:
         pass
 ```
 
-`failed=True` marks the task `Failed` rather than `Finished`,
-and the output is stored either way,
+If the work fails, pass `failed=True`.
+The server then marks the task `Failed` rather than `Finished`.
+The server stores the output either way,
 so whoever asks gets the traceback through `task_get_output`.
 Failing a task also fails every task waiting on it,
 and those report `Dependency failed (task_id=...)` as their own output,
 naming this task.
-A worker that lets the exception escape instead
+Do not let the exception escape.
+A worker that lets the exception escape
 leaves the task `Running` for the life of the server,
 and nothing waiting on it ever runs.
+See
+[about the task queue](../explanation/the-task-queue.md#a-task-that-ends-badly-takes-its-dependents-with-it).
 
 Separate two failures in this loop.
 `NoTaskAvailable` means the queue is empty and the worker must wait.
 `TimeoutError` means the client cannot reach the server.
 Let it propagate.
 Do not retry forever against a dead server.
+
+If `task_done` raises `TaskStateError`,
+the task was no longer `Running` under your `worker_id`,
+so something else already reported it.
+Drop the result.
+The server already stored the output that the other call recorded.
+`task_done` on a canceled task succeeds, and the server discards its output.
 
 To drain the queue and exit rather than wait,
 break out of the loop on `NoTaskAvailable`.
@@ -102,19 +113,13 @@ pass them in the order you want the server to try them:
 task = client.task_get(worker_id="worker-a", queue=["urgent", "work"])
 ```
 
-`TaskStateError` on `task_done` means the task was no longer `Running`
-under your `worker_id`,
-so something else already reported it.
-Drop the result.
-The server already stored the output that the other call recorded.
-`task_done` on a canceled task succeeds, and the server discards its output.
-
 ## Guard a resource that only one worker can touch
 
 Some work needs exclusive access to something outside the server:
 a file, a device, or an external service.
 Take a named mutex around that access.
-To return rather than wait when the mutex is busy:
+If the mutex is busy and you want to return rather than wait,
+use `mutex_try_acquire`:
 
 ```python
 if client.mutex_try_acquire("resource-a", worker_id="worker-a"):
@@ -124,7 +129,8 @@ if client.mutex_try_acquire("resource-a", worker_id="worker-a"):
         client.mutex_release("resource-a", worker_id="worker-a")
 ```
 
-To wait for it, with a bound on how long:
+If you want to wait for the mutex, with a bound on how long,
+use `mutex_acquire` with a `timeout`:
 
 ```python
 client.mutex_acquire("resource-a", worker_id="worker-a", timeout=30.0)
@@ -197,7 +203,7 @@ See
 the [Python client reference](../reference/python-client.md#dsserviceclientasync)
 for the differences from the blocking client.
 
-## Know what the queue will not do for you
+## Recover a task that a dead worker left `Running`
 
 Decide who recovers a task that a dead worker left `Running`.
 The queue does not do it for you.

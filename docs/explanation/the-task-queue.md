@@ -45,21 +45,19 @@ and there is no result to overwrite either way.
 and every task waiting on those.
 `TaskDone` with `failed` does the same, as a failure.
 `TaskAdd` does it in advance:
-a task named with a `Canceled` parent is added `Canceled`,
-and one named with a `Failed` parent is added `Failed`.
+it adds a task named with a `Canceled` parent as `Canceled`,
+and a task named with a `Failed` parent as `Failed`.
 
 All of it follows from one fact.
-A task is released when its last parent reaches `Finished`,
+The server releases a task only after its last parent reaches `Finished`,
 and neither a canceled nor a failed task ever reaches it.
-Leaving the dependents `Waiting` would leave them waiting for an event
-that cannot happen,
-so they would sit in the `waiting` count for the life of the server
+Dependents left `Waiting` wait for an event that cannot happen.
+They sit in the `waiting` count for the life of the server,
 and never reach a state a caller can act on.
 
-The server ends them instead of refusing the cancellation or the failure,
-because the caller that withdraws a task,
-and the worker that reports one it could not do,
-are both saying the work that task stands for did not happen.
+The server ends them instead of refusing the cancellation or the failure.
+The caller that withdraws a task says the work of that task did not happen.
+The worker that reports a failed task says the same.
 A task that exists only to consume that work has nothing left to do.
 
 `TaskGetOutput` is where a dependent says so.
@@ -75,9 +73,9 @@ A task that ran keeps whatever its worker reported,
 which is how a failing worker passes a traceback on to whoever asks.
 
 The state a dependent inherits is the parent's, not a state of its own.
-A caller counting `failed` tasks therefore counts the work that failed
-together with the work that could not be attempted,
-and `TaskGetOutput` is what tells the two apart.
+A caller that counts `failed` tasks therefore counts the work that failed
+together with the work that never ran.
+`TaskGetOutput` is what tells the two apart.
 
 ## There is no fault tolerance
 
@@ -102,9 +100,9 @@ and leaves the policy to a caller that knows how long its own tasks take.
 
 A task keeps its row for the life of the server process,
 even after it reaches `Finished`, `Failed` or `Canceled`.
-The row holds the ids of the tasks waiting on it as well,
-so a dependency graph is kept whole
-long after every task in it has finished.
+The row also lists the tasks waiting on it.
+So the server keeps a dependency graph whole
+long after every task in it finishes.
 A long-lived server therefore accumulates rows
 in proportion to the total number of tasks ever added,
 rather than the number currently outstanding.

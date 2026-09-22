@@ -1,8 +1,7 @@
 """Tests for the gRPC channel options on both sides of the wire.
 
-Several of these options only work as a matched pair
-between the Python client and the C++ server.
-Nothing but these tests ties the two together.
+See "The channel settings are one setting in two languages"
+in docs/developer-notes.md for why the two sides must match.
 """
 
 import re
@@ -19,21 +18,17 @@ SERVER_SOURCE = Path(__file__).resolve().parents[1] / "cpp" / "ds-service.cpp"
 
 
 def _server_source() -> str:
-    """The server source with C-style comments stripped.
-
-    The constants below carry inline /* ... */ notes,
-    which otherwise confuse the arithmetic these tests evaluate.
-    """
+    """The server source with C-style comments stripped."""
+    # The server's channel arguments carry inline /* ... */ notes,
+    # which otherwise confuse the arithmetic these tests evaluate.
     return re.sub(r"/\*.*?\*/", "", SERVER_SOURCE.read_text(), flags=re.DOTALL)
 
 
-def _client_option(name: str):
+def _client_option(name: str) -> int:
     return dict(GRPC_CLIENT_OPTIONS)[name]
 
 
 def test_message_size_limits_match_the_server():
-    # If these two constants drift apart,
-    # one side rejects what the other happily sends.
     match = re.search(
         r"constexpr int MAX_MESSAGE_SIZE_BYTES\s*=\s*([^;]+);", _server_source()
     )
@@ -42,9 +37,6 @@ def test_message_size_limits_match_the_server():
 
 
 def test_client_ping_interval_clears_the_server_floor():
-    # The server answers a client that pings faster than its floor
-    # with GOAWAY/ENHANCE_YOUR_CALM,
-    # which drops every long-lived connection.
     match = re.search(
         r"GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS,\s*([^)]+)\)",
         _server_source(),
@@ -83,10 +75,7 @@ def test_oversized_value_does_not_leak_grpc_errors(client):
 
 
 def test_second_server_on_the_same_port_fails(server, server_binary):
-    # SO_REUSEPORT is on by default in gRPC.
-    # So without ALLOW_REUSEPORT=0
-    # this second process binds silently alongside the first,
-    # and clients then land on two divergent in-memory states.
+    # See "The server refuses to share its port" in the developer notes.
     # server_binary can be a whole command line, not only a path,
     # so this test splits it the way DsServiceServer does.
     second = subprocess.run(

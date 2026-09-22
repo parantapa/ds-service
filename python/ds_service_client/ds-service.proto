@@ -68,6 +68,7 @@ message SearchKeyResponse {
 // A task added with a Canceled parent is added Canceled,
 // and one added with a Failed parent is added Failed,
 // because neither parent ever finishes.
+// A task with both a Canceled and a Failed parent is added Failed.
 message TaskAddRequest {
     string task_id = 1;
     repeated string parent_task_ids = 2;

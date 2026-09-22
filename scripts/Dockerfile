@@ -14,8 +14,8 @@
 #     docker build -f scripts/Dockerfile --output type=local,dest=./dist .
 #
 # ConanCenter publishes no musl binaries,
-# so Conan compiles every C++ dependency from source:
-# gRPC, protobuf, Abseil, OpenSSL, re2, zlib and c-ares.
+# so Conan compiles every C++ dependency from source,
+# among them gRPC, protobuf, Abseil, OpenSSL, re2, zlib and c-ares.
 # Expect the first build to take a long time.
 #
 # The `syntax` line is required,
@@ -37,6 +37,9 @@ RUN apk add --no-cache \
 ENV CONAN_HOME=/opt/conan_home
 
 # compiler.version tracks the gcc Alpine ships.
+# compiler.cppstd sets the standard the dependencies build with.
+# CMakeLists.txt raises ds-service itself to C++23
+# through target_compile_features.
 #
 # cmake is declared platform-provided
 # so that Conan uses the apk installed above and never downloads its own.

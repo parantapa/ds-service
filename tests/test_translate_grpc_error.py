@@ -14,16 +14,16 @@ from ds_service_client.client import translate_grpc_error
 
 
 class _FakeRpcError(grpc.RpcError):
-    """Replaces a real RpcError so a test can check the mapping directly."""
+    """An RpcError with a chosen status code and details, made without a server."""
 
-    def __init__(self, code, details):
+    def __init__(self, code: grpc.StatusCode, details: str) -> None:
         self._code = code
         self._details = details
 
-    def code(self):
+    def code(self) -> grpc.StatusCode:
         return self._code
 
-    def details(self):
+    def details(self) -> str:
         return self._details
 
 

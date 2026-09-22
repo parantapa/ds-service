@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ds-service-client"
 # Set by scripts/update-version.sh, along with the other version strings.
-version = "5.2.0"
+version = "6.0.0"
 authors = [
   { name="Parantapa Bhattacharya", email="pb@parantapa.net" },
 ]
@@ -19,13 +19,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-# The committed stubs set the grpcio and protobuf floors,
-# and scripts/gen_python_bindings.sh regenerates the stubs:
-# ds_service_pb2_grpc.py raises at import
-# when grpcio is older than its GRPC_GENERATED_VERSION,
-# and ds_service_pb2.py raises at import
-# on a protobuf runtime older than the gencode it was built from.
-# Re-derive both from the regenerated stubs after every regeneration.
+# The committed stubs set the grpcio and protobuf floors.
+# See "Regeneration moves the client's dependency floors"
+# in docs/developer-notes.md.
 dependencies = [
     "grpcio>=1.75.1",
     "protobuf>=6.31.1",
@@ -74,6 +70,6 @@ extraPaths = ["python"]
 pythonVersion = "3.12"
 
 # Never rewrite the generated stubs.
-# They carry a "DO NOT EDIT" banner and the next regeneration replaces them.
+# Two of them carry a "DO NOT EDIT" banner, and the next regeneration replaces all three.
 [tool.black]
 force-exclude = "python/ds_service_client/ds_service_pb2.*"

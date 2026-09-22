@@ -13,20 +13,16 @@ EXIT_TIMEOUT_S = 10.0
 
 @pytest.mark.parametrize("signum", [signal.SIGTERM, signal.SIGINT])
 def test_shutdown_signal_exits_cleanly(server_process, signum):
-    """SIGTERM and SIGINT shut the server down instead of killing it.
-
-    A signal handled by its default disposition
-    leaves the process reporting -signum rather than 0.
-    """
     proc, _ = server_process
 
     proc.send_signal(signum)
 
+    # A signal handled by its default disposition kills the process,
+    # which then reports -signum rather than 0.
     assert proc.wait(timeout=EXIT_TIMEOUT_S) == 0
 
 
 def test_shutdown_serves_requests_until_signalled(server_process):
-    """The server answers normally right up to the shutdown signal."""
     proc, address = server_process
 
     client = DsServiceClient(address)

@@ -1,17 +1,17 @@
 # Run your first tasks through ds-service
 
 By the end of this tutorial
-you will have a `ds-service` server running on your own machine.
+we will have a `ds-service` server running on our own machine.
 A Python session talks to it,
-and you submit a task in one place and finish it in another.
+and we submit a task in one place and finish it in another.
 
 We download a ready-made binary and start it from Python.
 That is the quickest way to have something to talk to.
-All you need is Python 3.12 or newer, on an x86-64 Linux machine.
+All we need is Python 3.12 or newer, on an x86-64 Linux machine.
 
 ## Step 1: get the server
 
-Download the latest release into your working directory:
+Download the latest release into the working directory:
 
 ```sh
 curl -sSL -o ds-service \
@@ -30,7 +30,7 @@ We will not start it by hand.
 Python starts it in step 3.
 
 The binary is statically linked,
-so there is nothing else to install and nothing to put on your `PATH`.
+so there is nothing else to install and nothing to put on our `PATH`.
 
 ## Step 2: install the client
 
@@ -44,8 +44,8 @@ Now tell the library where the binary we downloaded is:
 export DS_SERVICE_BIN=./ds-service
 ```
 
-The library looks at `DS_SERVICE_BIN` first,
-and falls back to a `ds-service` on your `PATH`.
+The [server helper reference](../reference/server-helper.md)
+gives the other ways the library finds the binary.
 
 ## Step 3: start a server
 
@@ -56,7 +56,7 @@ python
 ```
 
 The export from step 2 reaches this session, and only this one.
-Start a server of your own:
+Start a server of our own:
 
 ```python
 from ds_service_client import DsServiceServer
@@ -69,13 +69,13 @@ server.address
 The last line prints something like `'127.0.0.1:45999'`.
 Notice the port: we never chose it.
 The helper picked a free one,
-which is what lets you run several servers side by side later.
+which is what lets us run several servers side by side later.
 
 `"lo"` is the loopback interface,
 so this server is reachable from this machine and nowhere else.
 
 Keep this session open.
-The server runs for as long as the `server` object lives.
+The server runs until we call `server.close()`.
 
 ## Step 4: store and read a value
 
@@ -90,7 +90,7 @@ client.map_set("greeting", b"hello")
 client.map_get("greeting")
 ```
 
-You will see `b'hello'` come back.
+We get `b'hello'` back.
 
 Note the `b`.
 Values are bytes, never `str`.
@@ -102,7 +102,7 @@ client.map_set("greeting", "hello")
 ```
 
 That raises a `TypeError` from the client before anything reaches the server.
-Encode anything you want to store.
+We encode anything we want to store.
 For `"hello"`, that is `"hello".encode()`.
 
 Ask for a key that was never set:
@@ -144,7 +144,7 @@ Check it:
 client.task_get_status("job-1")
 ```
 
-A bare `0` comes back.
+A bare `1` comes back.
 States are a protobuf enum, and its members are plain integers.
 Compare against `TaskState` rather than reading the number:
 
@@ -157,7 +157,7 @@ client.task_get_status("job-1") == TaskState.Ready
 `True`.
 The task waits on the queue named `work`.
 
-When you want to read a state rather than test it, ask for its name:
+To read a state rather than test it, ask for its name:
 
 ```python
 TaskState.Name(client.task_get_status("job-1"))
@@ -176,7 +176,7 @@ task = client.task_get(worker_id="worker-a", queue="work")
 task.task_id, task.function, task.input
 ```
 
-You receive `('job-1', b'greet', b'world')`.
+We receive `('job-1', b'greet', b'world')`.
 
 Look at the status again:
 
@@ -208,18 +208,11 @@ client.task_get_output("job-1")
 
 `'Finished'`, and `b'hello world'`.
 
-You took a task through its whole life:
+We took a task through its whole life:
 `Ready`, `Running`, `Finished`.
 
-A worker that cannot do its task reports it the same way,
-with `failed=True`:
-
-```python
-client.task_done("job-1", worker_id="worker-a", output=b"traceback", failed=True)
-```
-
-That marks the task `Failed` rather than `Finished`,
-and stores the output all the same.
+A worker can also report a task as `Failed`.
+For how, see [how to write a worker](../how-to-guides/write-a-worker.md).
 
 ## Step 7: watch the server enforce ownership
 
@@ -274,7 +267,7 @@ canceled: 0
 
 Two finished, nothing else.
 
-And find your tasks by pattern:
+Now find our tasks by pattern:
 
 ```python
 sorted(client.task_search_id("^job-"))
@@ -283,7 +276,7 @@ sorted(client.task_search_id("^job-"))
 `['job-1', 'job-2']`.
 Both are finished,
 and both are still there.
-The server remembers every task you give it.
+The server remembers every task we give it.
 
 ## Step 9: stop the server
 
@@ -293,7 +286,7 @@ server.close()
 ```
 
 Start a fresh server.
-Then look for your work:
+Then look for our work:
 
 ```python
 server = DsServiceServer("lo")
@@ -307,7 +300,7 @@ The server persists nothing.
 Every value, task, journal and counter lived in the memory
 of a process that no longer exists.
 Remember this about `ds-service`, above everything else.
-You just watched it happen.
+We just watched it happen.
 For why the server is built this way, see
 [about the architecture](../explanation/the-architecture.md).
 
@@ -316,21 +309,22 @@ client.close()
 server.close()
 ```
 
-## What you did
+## What we did
 
-You started a server, stored a value,
+We started a server, stored a value,
 and moved a task through `Ready`, `Running` and `Finished` from two sides.
-You also saw the server do three things:
+We also saw the server do three things:
 
 - It refused a `task_done` from the wrong worker.
 - It distinguished an empty queue from an unreachable server.
 - It lost everything on restart.
 
-Repeat steps 5 and 6 a few times with different ids and priorities.
+Start a fresh server and client as in step 9.
+Then repeat steps 5 and 6 a few times with different ids and priorities.
 The loop becomes familiar quickly.
 It is the same loop every real worker runs.
 
-When you are ready to write one for real, see
+To write one for real, see
 [how to write a worker](../how-to-guides/write-a-worker.md).
 The server also holds journals, time series, mutexes and counters.
 For those, see the [data structure reference](../reference/data-structure.md).

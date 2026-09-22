@@ -53,7 +53,8 @@ def test_status_of_unknown_task_is_undefined(client):
 def test_get_status_accepts_many_ids_in_order(client):
     client.task_add("a", queue="work", priority=1.0, function=b"", input=b"")
     client.task_add("b", queue="work", priority=1.0, function=b"", input=b"")
-    client.task_get(worker_id="w1", queue="work")  # claims the higher/earlier one
+    # Claims the earlier one, a, because the priorities are equal.
+    client.task_get(worker_id="w1", queue="work")
 
     # States come back positionally, and a missing id fills in Undefined.
     states = client.task_get_status(["a", "ghost", "b"])
@@ -96,7 +97,8 @@ def test_higher_priority_is_dispatched_first(client):
 
 def test_task_dispatched_on_any_of_its_queues(client):
     client.task_add("t", queue=["alpha", "beta"], priority=1.0, function=b"", input=b"")
-    # Nothing on alpha's dispatch means the worker falls through to beta.
+    # The worker does not poll alpha, and the queue named empty holds nothing,
+    # so the worker falls through to beta.
     task = client.task_get(worker_id="w1", queue=["empty", "beta"])
     assert task.task_id == "t"
 
@@ -112,7 +114,8 @@ def test_worker_polls_across_queues_in_order(client):
 
 def test_claimed_task_is_not_handed_out_again(client):
     client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
-    client.task_get(worker_id="w1", queue="work")  # now Running
+    # t is now Running.
+    client.task_get(worker_id="w1", queue="work")
 
     # A Running task stays with the worker that claimed it.
     # Nothing hands it back to the queue.
@@ -207,7 +210,6 @@ def test_done_from_unknown_task_raises_keyerror(client):
 
 
 def test_done_from_another_worker_raises(client):
-    """A task belongs to the worker that claimed it."""
     client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
     client.task_get(worker_id="w1", queue="work")
 
@@ -287,9 +289,9 @@ def test_reprioritized_task_goes_behind_its_new_equals(client):
 
 
 def test_repeated_set_priority_dispatches_the_task_once(client):
-    """Every change retires the entries the previous one left behind."""
     client.task_add("t", queue=["alpha", "beta"], priority=1.0, function=b"", input=b"")
 
+    # Every change must retire the entries the previous one left behind.
     for priority in [2.0, 3.0, 0.5]:
         client.task_set_priority("t", priority)
 
@@ -403,7 +405,6 @@ def test_cancel_unknown_task_raises_keyerror(client):
 
 
 def test_done_on_a_canceled_task_is_accepted_and_ignored(client):
-    """A worker reporting work that was canceled is not an error."""
     client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
     client.task_get(worker_id="w1", queue="work")
     client.task_cancel("t")
@@ -443,7 +444,6 @@ def test_count_by_state_counts_canceled_tasks(client):
 
 
 def test_multi_queue_task_is_dispatched_once(client):
-    """The server hands out a task in several queues once, not once per queue."""
     client.task_add("t", queue=["alpha", "beta"], priority=1.0, function=b"", input=b"")
 
     assert client.task_get(worker_id="w1", queue=["alpha", "beta"]).task_id == "t"
@@ -645,7 +645,7 @@ def test_unknown_parent_raises_keyerror_and_adds_nothing(client):
 def test_a_task_cannot_be_its_own_parent(client):
     # The row does not exist while its own TaskAdd is being served,
     # so naming itself is naming an unknown parent.
-    # That is what keeps the dependency graph free of cycles.
+    # See "The dependency graph is built at TaskAdd" in the developer notes.
     with pytest.raises(KeyError):
         client.task_add(
             "self",
@@ -894,7 +894,7 @@ def test_one_failed_parent_fails_the_child(client):
     client.task_done("a", worker_id="w1", output=b"", failed=False)
     assert client.task_get_status("child") == TaskState.Waiting
 
-    # One parent that fails is enough, however the others ended.
+    # One parent that fails is enough, even when the others finished.
     client.task_get(worker_id="w1", queue="work")
     client.task_done("b", worker_id="w1", output=b"traceback", failed=True)
     assert client.task_get_status("child") == TaskState.Failed

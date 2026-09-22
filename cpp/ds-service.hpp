@@ -6,8 +6,9 @@
 // and the lock that guards it.
 // A method named after an RPC serves that RPC:
 // it takes the struct's own lock,
-// and misc/ds-service.proto states the contract it answers with,
-// down to the status code for each refusal.
+// and misc/ds-service.proto states the contract it answers with.
+// The method body holds the status code for each refusal,
+// and the proto names only some of them.
 
 #include <chrono>
 #include <cstddef>
@@ -51,18 +52,19 @@ struct JournalMap {
     grpc::Status search_key(const SearchKeyRequest* request, SearchKeyResponse* response);
 };
 
-// Parse an ISO 8601 UTC datetime string into a system_clock time_point.
-// Accepts a '+HH:MM'/'+HHMM' offset (converted to UTC),
-// a trailing 'Z', or no designator (interpreted as UTC).
-// Returns nullopt if the string does not parse.
+// Parse an ISO 8601 datetime string into a system_clock time_point, or return nullopt if it does not parse.
+// The seconds can carry a fractional part.
+// The string can end in a UTC offset such as '+HH:MM' or '+HHMM', which is converted to UTC,
+// in a 'Z', or in no designator, which is read as UTC.
 std::optional<std::chrono::system_clock::time_point> parse_iso8601_utc(const std::string& s);
 
-// Format a system_clock time_point as an ISO 8601 UTC datetime string.
-// This function prints whole seconds without a fractional part.
-// Otherwise it prints microseconds.
+// Format a system_clock time_point as an ISO 8601 UTC datetime string ending in 'Z'.
+// A time_point on a whole second prints with no fractional part.
+// Any other prints six fractional digits, truncated to the microsecond.
 std::string format_iso8601_utc(const std::chrono::system_clock::time_point& tp);
 
-// The points recorded under one key.
+// The points recorded under one key, one vector per column,
+// in the order they were appended.
 struct TimeSeries {
     std::vector<double> value;
     std::vector<std::chrono::system_clock::time_point> time;
@@ -115,7 +117,7 @@ struct Counters {
 
 // One row's place in one queue.
 // A row has an entry per queue it waits on,
-// and a further entry for every seq it has held since.
+// and a further entry per queue for every seq it has held since.
 struct TaskQueueEntry {
     double priority;
     std::uint64_t seq;
@@ -127,6 +129,7 @@ struct TaskQueueEntryOrder {
     bool operator()(const TaskQueueEntry& a, const TaskQueueEntry& b) const;
 };
 
+// The entries of one queue, with the entry TaskGet tries first on top.
 using TaskQueue = std::priority_queue<TaskQueueEntry, std::vector<TaskQueueEntry>, TaskQueueEntryOrder>;
 
 // The task rows, one vector per column.
@@ -151,7 +154,7 @@ struct TaskTable {
     // A row that ended on its own account is its own origin,
     // and a row that inherited its ending from a parent
     // carries the origin that parent carried.
-    // So every row in a chain names the one task that actually failed,
+    // So every row in a chain names the one task that failed or was canceled,
     // rather than the task next to it in the chain.
     std::vector<std::size_t> terminal_origin;
 };
@@ -165,6 +168,8 @@ struct TaskManager {
 
     HashMap<std::string, std::size_t> task_index{};
 
+    // The last seq handed out, not the next one: enqueue increments it first.
+    // So no queue entry has seq 0, the seq of a row never enqueued.
     std::uint64_t next_seq = 0;
 
     // Queue name -> the rows waiting on it, ordered by priority.
@@ -180,6 +185,7 @@ struct TaskManager {
     grpc::Status get_priority(const TaskGetPriorityRequest* request, TaskGetPriorityResponse* response);
     grpc::Status set_priority(const TaskSetPriorityRequest* request, Empty* response);
     grpc::Status get_worker_id(const TaskGetWorkerIdRequest* request, TaskGetWorkerIdResponse* response);
+    // Serves TaskSearchId, over the task ids of rows in every state.
     grpc::Status search_id(const SearchKeyRequest* request, SearchKeyResponse* response);
     grpc::Status get(const TaskGetRequest* request, TaskGetResponse* response);
     grpc::Status done(const TaskDoneRequest* request, Empty* response);
@@ -188,17 +194,20 @@ struct TaskManager {
     // The row must be Ready, and the caller must hold the lock.
     void enqueue(std::size_t index);
 
-    // Move every row waiting on this one to a terminal state,
+    // Move every row waiting on this one to state, which is Canceled or Failed,
     // and with them every row waiting on those,
     // however deep the graph runs.
     // origin is the row whose own ending is being passed down,
-    // which every row reached this way then carries and reports.
+    // which every row reached this way then carries,
+    // and which a row moved to Failed names in its output.
+    // A row reached this way loses its worker and takes terminal_output as its output,
+    // unless it is already Finished, Failed or Canceled, which leaves it alone.
     // The row named here is left to the caller.
     // The caller must hold the lock.
     void propagate_to_children(std::size_t index, TaskState state, std::size_t origin);
 
-    // What a row that never ran reports as its output.
-    // A row that did run keeps whatever its worker reported.
+    // What a Canceled row, or a row failed by a parent, reports as its output.
+    // A row that its own worker finished or failed keeps whatever that worker reported.
     // The caller must hold the lock.
     std::string terminal_output(TaskState state, std::size_t origin) const;
 };

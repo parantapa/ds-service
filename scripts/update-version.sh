@@ -1,6 +1,14 @@
 #!/bin/bash
 # Set the version in cpp/ds-service.cpp, CMakeLists.txt, pyproject.toml
-# and conanfile.py.
+# and conanfile.py, then print the edited lines.
+#
+# Takes one argument, the version, and runs from the repository root.
+# CMakeLists.txt gets only the leading numeric part,
+# such as 2.3.0 from 2.3.0-rc1.
+# Exits 2 on a wrong argument count.
+# Exits 1 if the version does not start with a number,
+# or if a file lacks its version line.
+# In both cases the script edits no file.
 #
 # Usage: scripts/update-version.sh VERSION
 

@@ -1,4 +1,13 @@
 #!/bin/bash
+# The author's own build wrapper. Not required to build the project.
+#
+# Builds out of tree, under $HOME/scratch/ds-service/build,
+# and runs from the repository root.
+# Takes one command, and runs the run_<command> function below.
+# Exits 1 on an unknown command,
+# and otherwise with the status of the command.
+#
+# Usage: scripts/pb-dev.sh (help | command)
 
 set -Eeuo pipefail
 
@@ -6,6 +15,8 @@ PROJECT="ds-service"
 BUILD_ROOT="$HOME/scratch/$PROJECT/build"
 BUILD_DIR="$BUILD_ROOT/build/Release"
 
+# Conan's generated environment scripts do not run under strict mode,
+# so each function turns it off while it sources one.
 cmake_configure() {
     set +Eeuo pipefail
     . "$BUILD_DIR/generators/conanbuild.sh"
@@ -26,6 +37,7 @@ cmake_build() {
     cmake --build "$BUILD_DIR" --parallel
 }
 
+# Install the built server under the prefix given as the first argument.
 cmake_install() {
     set +Eeuo pipefail
     . "$BUILD_DIR/generators/conanbuild.sh"
@@ -34,6 +46,8 @@ cmake_install() {
     cmake --install "$BUILD_DIR" --prefix "$1"
 }
 
+# Delete the build tree, install the Conan dependencies,
+# link compile_commands.json into the repository root, then build.
 run_setup() {
     rm -rf "$BUILD_ROOT"
     rm -f compile_commands.json
@@ -46,6 +60,7 @@ run_setup() {
     cmake_build
 }
 
+# Rebuild, then run the pytest suite against the fresh binary.
 run_test() {
     cmake_build
 
@@ -53,28 +68,35 @@ run_test() {
     . "$BUILD_DIR/generators/conanrun.sh"
     set -Eeuo pipefail
 
+    # The suite finds the server on PATH when DS_SERVICE_BIN is unset.
     PATH="$BUILD_DIR:$PATH"
 
     which ds-service
     python -m pytest
 }
 
+# Build the static musl binary and write it to dist/.
 run_build-static-binary() {
     set -x
     docker build -f scripts/Dockerfile --output type=local,dest=./dist .
 }
 
+# Build the client sdist and wheel into dist/, and check them with twine.
 run_build-python-package() {
     set -x
     python -m build
     python -m twine check dist/*.tar.gz dist/*.whl
 }
 
+# Upload the client sdist and wheel in dist/ with twine.
 run_upload-python-package() {
     set -x
     python -m twine upload dist/*.tar.gz dist/*.whl
 }
 
+# Create a GitHub release named after the version of dist/ds-service,
+# with the binary, the sdist and the wheel of that version attached.
+# Exits 1 if any of them is missing, or if gh is missing or not logged in.
 run_make-release() {
     local binary="dist/ds-service"
     local repo="https://github.com/parantapa/ds-service"

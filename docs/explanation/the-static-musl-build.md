@@ -18,8 +18,8 @@ That matters most where the deployment target is not the build machine.
 
 ## Why the Conan profile differs
 
-Three details differ from the normal build,
-and musl forces all three.
+Musl forces three details
+that differ from the normal build.
 
 First, the profile marks `cmake` as platform-provided,
 so the build uses Alpine's own cmake throughout.

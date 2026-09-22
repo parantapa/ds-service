@@ -48,6 +48,12 @@ and sleeps between attempts.
 It raises `TimeoutError` once `timeout` seconds elapse.
 With `timeout=None` (the default) it retries forever.
 
+Two methods take either one task id or a list of them:
+
+- `task_get_status` returns one state for a single string,
+    and a list of states for a list.
+- `task_add` takes `parent_task_ids` as one id or a list of ids.
+
 ## Exceptions
 
 The client translates gRPC status codes into ordinary Python exceptions:
@@ -62,7 +68,7 @@ The client translates gRPC status codes into ordinary Python exceptions:
 | `UNAVAILABLE` | `TimeoutError` |
 | `DEADLINE_EXCEEDED` | `TimeoutError` |
 
-A missing key raises `KeyError`,
+A missing key raises `KeyError` where the call needs the key to exist,
 and a bad regular expression or an oversized message raises `ValueError`.
 Any other status reaches the caller as a raw `grpc.RpcError`.
 
@@ -135,7 +141,7 @@ assert (
 client.task_add("job-2", queue="work", priority=1.0, function=b"...", input=b"...")
 
 # Read and change the priority of a task that already exists.
-# A task still waiting is moved within the queues it waits on.
+# A Ready task is moved within the queues it waits on.
 assert client.task_get_priority("job-2") == 1.0
 client.task_set_priority("job-2", 5.0)
 
@@ -172,7 +178,8 @@ assert client.task_get_status("job-4") == TaskState.Ready
 
 # A worker that ends in an error reports the task Failed instead,
 # which fails every task waiting on it.
-client.task_add("job-5", queue="work", priority=1.0, function=b"...", input=b"...")
+# job-4 is still Ready, so job-5 takes a higher priority to be claimed first.
+client.task_add("job-5", queue="work", priority=2.0, function=b"...", input=b"...")
 client.task_add(
     "job-6",
     queue="work",
@@ -253,7 +260,7 @@ assert client.counter_search_key("^ids$") == ["ids"]
 
 `DsServiceClientAsync` is the same API over `grpc.aio`.
 It has the same method names, the same arguments,
-and the same exceptions as the exceptions table.
+and the same exceptions as the [exceptions table](#exceptions).
 The caller awaits every RPC instead of blocking.
 Every example in this document works against it by awaiting each call.
 

@@ -1,6 +1,6 @@
 """Pytest harness for ds-service.
 
-Each test runs against a freshly started ``ds-service`` process.
+Each test that needs a server runs against a freshly started ``ds-service`` process.
 Starting and stopping it is left to ``ds_service_client.DsServiceServer``.
 """
 
@@ -59,8 +59,8 @@ def server_binary() -> str:
     """How to start the server under test.
 
     DsServiceServer's own helper resolves it,
-    so it can be a whole command line rather than a path:
-    split it with ``shlex.split`` before running it.
+    so it can be a whole command line rather than a path,
+    which ``shlex.split`` turns into the arguments to run.
     """
     return resolve_ds_service_bin()
 
@@ -77,7 +77,7 @@ def loopback_interface() -> str:
 def server_process(
     loopback_interface: str,
 ) -> Iterator[tuple[subprocess.Popen[bytes], str]]:
-    """Start a ds-service process on a free port and yield (proc, address).
+    """A ds-service process on a free port, as ``(proc, address)``.
 
     Most tests want only the address and use the ``server`` fixture.
     This one is for tests that drive the process itself,

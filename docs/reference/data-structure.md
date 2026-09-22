@@ -8,7 +8,7 @@ of the wire format.
 This document describes what each RPC does.
 
 Every RPC touches a single data structure
-and takes that structure's lock for the duration of the call.
+and holds that structure's lock while it reads or changes the structure.
 Thus the server serializes operations on one structure
 while operations on different structures can run concurrently.
 
@@ -20,6 +20,35 @@ for why the server is built this way.
 The Python names for these operations
 are the snake_case forms of the RPC names (`MapSet` -> `client.map_set`).
 See the [Python client reference](python-client.md).
+
+## Key search
+
+Each store has an RPC that searches its own key space:
+
+- `MapSearchKey`
+- `JournalSearchKey`
+- `TimeSeriesSearchKey`
+- `MutexSearchKey`
+- `CounterSearchKey`
+- `TaskSearchId`, over the task ids of the task queue
+
+Each one matches keys
+against a [RE2](https://github.com/google/re2) regular expression.
+The match is unanchored,
+so a key matches when any substring of it matches the pattern.
+`^` and `$` anchor the match to a whole key.
+`MapSearchKey` returns matching keys in unspecified order.
+
+Each search is slow,
+because it walks every key in its store
+while holding that store's lock.
+`MapSearchKey` blocks every other map operation while it runs.
+
+`TaskSearchId` searches every task the server knows about,
+whatever state it is in.
+Task rows are never reclaimed,
+so the walk covers every task ever added
+rather than the ones still outstanding.
 
 ## Key-value store
 
@@ -35,26 +64,7 @@ Values are binary blobs,
 so callers are free to store data using whatever serialization
 they like (JSON, pickle, protobuf, raw binary).
 
-`MapSearchKey` matches keys
-against a [RE2](https://github.com/google/re2) regular expression.
-The match is unanchored,
-so a key matches when any substring of it matches the pattern.
-Use `^` and `$` to anchor the match to a whole key.
-`MapSearchKey` returns matching keys in unspecified order.
-`MapSearchKey` is slow, because it walks every key in the map
-while holding the map's lock.
-The search blocks every other map operation while it runs.
-
-Four other stores expose the same operation over their own key space:
-
-- `JournalSearchKey`
-- `TimeSeriesSearchKey`
-- `MutexSearchKey`
-- `CounterSearchKey`
-
-Each has identical RE2 semantics and the same cost:
-a walk over every key under that store's lock.
-The task queue does the same over its task ids with `TaskSearchId`.
+[Key search](#key-search) describes how `MapSearchKey` matches keys.
 
 ## Task queue
 
@@ -65,14 +75,16 @@ one or more named queues to dispatch it from,
 and the ids of the tasks it waits for.
 Both sets are fixed at `TaskAdd`.
 
-A task with a parent that has not finished starts `Waiting`.
+A task with a `Canceled` or `Failed` parent starts in that state,
+as [Dependencies](#dependencies) describes.
+Otherwise, a task with a parent that has not finished starts `Waiting`.
 Every other task starts `Ready`.
 A task moves through the states
 `Waiting` -> `Ready` -> `Running` -> `Finished`,
 and a worker reports `Failed` in place of `Finished`
 for a task that ran and ended in an error.
 A task reaches `Canceled` from any of the three states before it ends,
-and `Failed` the same way when a task it depends on fails.
+and `Failed` from `Waiting` when a task it depends on fails.
 `Finished`, `Failed` and `Canceled` are all final.
 A task in one of them never moves again.
 No live task holds the seventh state, `Undefined`.
@@ -80,7 +92,7 @@ No live task holds the seventh state, `Undefined`.
 
 | RPC | Description |
 | --- | --- |
-| `TaskAdd(task_id, queue, priority, function, input, parent_task_ids)` | Register a new task and enqueue it on each named queue. A task with a parent that is not `Finished` starts `Waiting` and enters no queue yet. Returns `ALREADY_EXISTS` if the id is already known, and `NOT_FOUND`, adding nothing, for a parent the server does not know. |
+| `TaskAdd(task_id, queue, priority, function, input, parent_task_ids)` | Register a new task and enqueue it on each named queue. A task with a parent that is `Waiting`, `Ready` or `Running` starts `Waiting` and enters no queue yet, unless another parent is `Canceled` or `Failed`. Returns `ALREADY_EXISTS` if the id is already known, and `NOT_FOUND`, adding nothing, for a parent the server does not know. |
 | `TaskGet(worker_id, queue)` | Claim the highest-priority `Ready` task from the first queue that has one, mark it `Running` on behalf of `worker_id`, and return its payload. `TaskGet` tries the queues in the order given. Returns `NOT_FOUND` when none of them has work ready. |
 | `TaskDone(task_id, output, worker_id, failed)` | Store a `Running` task's output and mark it `Finished`, or `Failed` when `failed` is true. Failing a task fails every task waiting on it. Returns `NOT_FOUND` for an unknown `task_id`, and `FAILED_PRECONDITION` if the task is not `Running` or is held by a different worker. A `Canceled` task is accepted and left alone. |
 | `TaskGetStatus(task_id...)` | Return the state of each requested task, in request order. An unknown `task_id` reports `Undefined` rather than being an error. |
@@ -92,12 +104,14 @@ No live task holds the seventh state, `Undefined`.
 | `TaskGetWorkerId(task_id)` | Return the `worker_id` holding a `Running` task. Returns `NOT_FOUND` for an unknown `task_id`, and `FAILED_PRECONDITION` if the task is not `Running`. |
 | `TaskSearchId(pattern)` | Return every `task_id` matching the regular expression `pattern`. `TaskSearchId` searches tasks in every state. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
 
+### Dispatch order
+
 Within a queue, higher `priority` values are dispatched first,
 and tasks of equal priority are dispatched in the order they were added.
 A task moved by `TaskSetPriority` counts as newly added at its new priority:
 it goes behind the tasks with equal priority already waiting there.
 
-`TaskGet` answers `NOT_FOUND` for a queue with no work ready.
+### Task ownership
 
 A task belongs to the worker that claimed it,
 and `TaskGetWorkerId` reports which one that is.
@@ -113,6 +127,8 @@ The server refuses `TaskDone` the same way
 on a task that is neither `Running` nor `Canceled`.
 The call records no output and reports no success.
 
+### Cancellation
+
 `TaskCancel` withdraws a task that has not finished.
 `TaskCancel` moves a `Ready` task to `Canceled` before anybody claims it,
 and takes a `Running` task away from the worker that holds it.
@@ -126,6 +142,8 @@ The call succeeds, the task stays `Canceled`,
 and the server discards the output.
 `TaskDone` on a `Canceled` task is accepted from any worker.
 `TaskCancel` also drops the record of which worker held the task.
+
+### Dependencies
 
 `parent_task_ids` names the tasks a task waits for.
 A task enters its queues when the last of its parents reaches `Finished`,
@@ -161,21 +179,14 @@ not the parent it was waiting on.
 A task that did run keeps whatever its worker reported,
 whether it finished or failed.
 
+### Dead workers
+
 A worker that dies mid-task leaves its task `Running`
 for the life of the server.
 Nothing hands it to another worker,
 no RPC returns a task to `Ready`,
 and `TaskAdd` refuses a `task_id` that already exists.
 `TaskCancel` retires such a task.
-
-`TaskSearchId` searches the task ids,
-the key space the task queue has,
-with the same RE2 semantics as `MapSearchKey`.
-`TaskSearchId` searches every task the server knows about,
-whatever state it is in.
-Task rows are never reclaimed,
-so the walk covers every task ever added
-rather than the ones still outstanding.
 
 See [about the task queue](../explanation/the-task-queue.md)
 for why the queue behaves this way,
@@ -224,8 +235,11 @@ and an integer `step`.
 - A non-UTC offset, which it converts to UTC.
 - A bare datetime, which it reads as UTC.
 
-`TimeSeriesAppend` keeps fractional seconds to microsecond resolution.
-`TimeSeriesGet` normalizes the datetimes it returns to the `Z` form.
+`TimeSeriesAppend` keeps fractional seconds to the nanosecond,
+and the time bounds on `TimeSeriesGet` compare against that value.
+`TimeSeriesGet` normalizes the datetimes it returns to the `Z` form,
+and truncates their fractional seconds to the microsecond.
+A datetime on a whole second comes back with no fractional part.
 
 All four bounds on `TimeSeriesGet` are optional.
 `start_time` and `start_step` are inclusive lower bounds.

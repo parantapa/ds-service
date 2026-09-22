@@ -10,14 +10,10 @@ the [data structure reference](../reference/data-structure.md).
 
 - **Server** (`cpp/`): a C++23 gRPC service.
     All state lives in memory.
-    Each top-level data structure is a struct that carries
-    the lock that guards it,
-    declared in `cpp/ds-service.hpp`
-    and implemented in a source file of its own.
-    The lock serializes operations on one structure,
-    while operations on different structures can run concurrently.
-    Each RPC touches a single structure,
-    so no request ever holds more than one lock.
+    Each top-level data structure is a struct
+    that carries the lock that guards it.
+    `cpp/ds-service.hpp` declares each struct,
+    and a source file of its own implements it.
 - **Client** (`python/ds_service_client/`): a Python 3.12+ client library
     that wraps the generated gRPC stubs
     and translates gRPC status codes into Python exceptions.
@@ -25,12 +21,13 @@ the [data structure reference](../reference/data-structure.md).
     and an asyncio one, `DsServiceClientAsync`.
     Both offer the same methods and raise the same exceptions.
     The package also ships `DsServiceServer`,
-    which runs a private server process for the life of the object.
+    which starts a private server process
+    and stops it on `close()` or at the end of a `with` block.
 - **Interface** (`misc/ds-service.proto`): the protobuf/gRPC contract
     shared by both sides.
 
 The proto file is the authoritative definition of the wire format.
-Both sides are generated from it.
+The gRPC code of both sides comes from it.
 A change there therefore changes both languages at once.
 
 ## The server does not persist state
@@ -52,12 +49,14 @@ at the cost of a write path on every operation.
 
 The consequence is that the server is a coordination point,
 not a database.
-Write anything that must survive the run somewhere else.
+Anything that must survive the run belongs somewhere else.
 
 ## One lock per structure
 
 Each top-level data structure has its own lock,
-and an RPC takes exactly one of them.
+and an RPC takes at most one of them.
+Each RPC touches a single structure,
+so no request ever holds more than one lock.
 Two properties follow.
 
 First, operations on different structures do not contend:
@@ -81,7 +80,7 @@ A caller also wants `map_get` to return either `bytes` or an awaitable,
 never one dressed as the other.
 
 The cost is that every RPC appears twice.
-That cost is paid deliberately,
-and it is defended by a test rather than by discipline.
+The project pays that cost deliberately,
+and a test defends it, rather than discipline.
 See the [developer notes](../developer-notes.md#two-clients-one-api)
 for how the two copies are kept in step.

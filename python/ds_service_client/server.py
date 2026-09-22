@@ -1,7 +1,4 @@
-"""Temporary ds-service server processes.
-
-Starts a ds-service process for the lifetime of a `DsServiceServer` object.
-"""
+"""Temporary ds-service server processes."""
 
 import os
 import shlex
@@ -48,6 +45,8 @@ def resolve_ds_service_bin(ds_service_bin: str | None = None) -> str:
 def resolve_interface_ipv4(interface: str) -> str:
     """The IPv4 address assigned to interface, as a dotted quad.
 
+    interface matches an adapter's name or its nice name.
+    If the interface has several IPv4 addresses, the first one is returned.
     Raises ValueError if this machine has no such interface,
     or has it but with no IPv4 address on it.
     """
@@ -76,7 +75,7 @@ def resolve_interface_ipv4(interface: str) -> str:
 
 
 def _free_port(host: str) -> int:
-    """Reserve an ephemeral IPv4 port on host and return it."""
+    """Return an ephemeral IPv4 port that is free on host at the time of the call."""
     # This function closes the socket before the server starts.
     # Nothing holds the port after that,
     # and the kernel is only unlikely to hand it out again immediately.
@@ -104,11 +103,21 @@ def _check_port_free(host: str, port: int) -> None:
 
 
 class DsServiceServer:
-    """A ds-service process that runs for as long as this object does.
+    """A ds-service process that this object starts and stops.
 
-    The constructor starts the process before it returns.
-    Call wait_until_ready() before connecting,
-    and close() to stop it.
+    The constructor starts the process,
+    bound to the IPv4 address of interface, before it returns.
+    The server can refuse connections until wait_until_ready() returns.
+    close() stops it, and so does the exit of a `with` block.
+    Entry to a `with` block does not wait for readiness.
+
+    port None or 0 selects a free ephemeral port.
+    ds_service_bin can be a whole command rather than a path.
+    None selects $DS_SERVICE_BIN, then a ds-service on PATH.
+    The constructor raises ValueError if the interface is unknown
+    or has no IPv4 address,
+    and OSError if an explicitly given port is already in use.
+    It starts nothing when it raises either error.
     """
 
     def __init__(
@@ -117,16 +126,6 @@ class DsServiceServer:
         port: int | None = None,
         ds_service_bin: str | None = None,
     ) -> None:
-        """Start a ds-service process bound to the interface's IPv4 address.
-
-        port defaults to a free ephemeral port, and 0 means the same.
-        ds_service_bin can be a whole command rather than a path.
-        It defaults to $DS_SERVICE_BIN, then to a ds-service on PATH.
-        Raises ValueError if the interface is unknown
-        or has no IPv4 address,
-        and OSError if an explicitly given port is already in use.
-        The constructor starts nothing when it raises either error.
-        """
         host = resolve_interface_ipv4(interface)
 
         ds_service_bin = resolve_ds_service_bin(ds_service_bin)
@@ -164,7 +163,7 @@ class DsServiceServer:
         # Guards close() against running twice. See its docstring.
         self._closed = False
 
-    def wait_until_ready(self, timeout: int = 30) -> None:
+    def wait_until_ready(self, timeout: float = 30) -> None:
         """Block until the server accepts TCP connections.
 
         Raises TimeoutError if it does not listen within timeout seconds,
@@ -178,6 +177,7 @@ class DsServiceServer:
                 with socket.create_connection((self.host, self.port), timeout=timeout):
                     pass
             except OSError:
+                # A refused connection means the server is still starting.
                 time.sleep(READY_POLL_INTERVAL_S)
                 continue
 
@@ -203,7 +203,7 @@ class DsServiceServer:
             )
 
     def close(self) -> None:
-        """Stop the server: SIGTERM, then SIGKILL if it did not exit.
+        """Stop the server: SIGTERM, then SIGKILL if it outlives TERMINATE_TIMEOUT_S.
 
         This method signals the whole process group,
         not just the process the constructor started.
@@ -228,8 +228,11 @@ class DsServiceServer:
             try:
                 self.process.wait(timeout=max(0.0, deadline - time.monotonic()))
             except subprocess.TimeoutExpired:
+                # The group check below sends SIGKILL.
                 pass
 
+        # The started process can exit before the rest of its group,
+        # such as a server that a wrapper left behind.
         while self._process_group_alive() and time.monotonic() < deadline:
             time.sleep(EXIT_POLL_INTERVAL_S)
 

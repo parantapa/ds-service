@@ -77,8 +77,12 @@ def test_release_of_unknown_mutex_raises(client):
 def test_acquire_returns_immediately_when_free(client):
     start = time.monotonic()
     client.mutex_acquire("m", worker_id="w1")
-    assert time.monotonic() - start < 0.4  # returned without a retry sleep
-    assert client.mutex_try_acquire("m", worker_id="w2") is False  # w1 holds it
+    # 0.4 s is the shortest retry sleep,
+    # MUTEX_ACQUIRE_SLEEP_S less MUTEX_ACQUIRE_JITTER_S in client.py,
+    # so a faster return means it did not sleep.
+    assert time.monotonic() - start < 0.4
+    # w1 holds it.
+    assert client.mutex_try_acquire("m", worker_id="w2") is False
 
 
 def test_acquire_times_out_when_held(client):
@@ -90,17 +94,19 @@ def test_acquire_times_out_when_held(client):
 def test_acquire_unblocks_after_release(client):
     assert client.mutex_try_acquire("m", worker_id="w1") is True
 
-    def releaser():
+    def releaser() -> None:
         time.sleep(0.6)
         client.mutex_release("m", worker_id="w1")
 
     t = threading.Thread(target=releaser)
     t.start()
     try:
-        client.mutex_acquire("m", worker_id="w2", timeout=5.0)  # once released
+        # Returns once the releaser thread frees the mutex.
+        client.mutex_acquire("m", worker_id="w2", timeout=5.0)
     finally:
         t.join()
-    assert client.mutex_try_acquire("m", worker_id="w1") is False  # w2 holds it
+    # w2 holds it.
+    assert client.mutex_try_acquire("m", worker_id="w1") is False
 
 
 def test_get_worker_id_names_the_holder(client):

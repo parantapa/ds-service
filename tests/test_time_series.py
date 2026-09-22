@@ -2,8 +2,10 @@
 
 import pytest
 
+from ds_service_client import DsServiceClient
 
-def _points(client, key, **kwargs):
+
+def _points(client: DsServiceClient, key: str, **kwargs) -> list[tuple[float, int]]:
     """Return (value, step) pairs for a time_series_get, for terse assertions."""
     return [(p.value, p.step) for p in client.time_series_get(key, **kwargs)]
 
@@ -66,7 +68,7 @@ def test_invalid_datetime_leaves_series_usable(client):
 
 
 @pytest.fixture
-def stepped_series(client):
+def stepped_series(client: DsServiceClient) -> DsServiceClient:
     # value == step, times one second apart, for readable filter assertions.
     for i in range(5):
         client.time_series_append("m", float(i), f"2024-01-01T00:00:0{i}Z", step=i)

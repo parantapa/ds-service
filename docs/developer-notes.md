@@ -2,29 +2,23 @@
 
 Notes for people working on `ds-service` itself.
 
-## The user-facing docs are the source of truth
-
-The documents indexed in the README describe how the service behaves.
-Read the one covering an area before changing code in it.
-
-When behavior changes, update the document that covers it.
-
 ## Map of the source
 
 | Path | Contents |
 | --- | --- |
 | `misc/ds-service.proto` | The protobuf/gRPC contract. The authoritative definition of the wire format, and the input to every code generator here. |
-| `cpp/ds-service.cpp` | `SystemState`, the `DsServiceImpl` service, signal handling, and `main`. Every `DsServiceImpl` method hands the call to the data structure that owns the state. |
-| `cpp/ds-service.hpp` | Every data structure type: the `HashMap` alias, one struct per top level data structure with the lock that guards it, and the operations the RPCs are implemented with. |
+| `cpp/ds-service.cpp` | The gRPC service, process-wide state, signal handling, and `main`, the entry point. Each RPC is handed to the data structure that owns the state. |
+| `cpp/ds-service.hpp` | Every data structure type: one struct per top level data structure, with the lock that guards it and the operations the RPCs are implemented with. |
 | `cpp/map.cpp`, `cpp/journal-map.cpp`, `cpp/time-series.cpp`, `cpp/mutexes.cpp`, `cpp/counters.cpp`, `cpp/task-manager.cpp` | One implementation file per top level data structure. |
 | `CMakeLists.txt` | Builds the generated stubs into `ds-service-grpc`, then the `ds-service` executable. |
 | `conanfile.py` | The C++ dependency set and the build/tool requirements. |
 | `pyproject.toml` | The Python package: its dependency floors, and the configuration for pytest, pyright and black. |
-| `python/ds_service_client/__init__.py` | The package's public surface: the two clients, `DsServiceServer`, the exceptions, and `TaskState`. |
+| `python/ds_service_client/__init__.py` | The package's public surface: what `ds_service_client` re-exports. |
 | `python/ds_service_client/client.py` | Both hand-written clients, the exception translation, and the shared gRPC options and helpers. |
-| `python/ds_service_client/server.py` | `DsServiceServer`, which runs a `ds-service` process for the life of the object. |
+| `python/ds_service_client/server.py` | `DsServiceServer`, which starts a `ds-service` process and stops it on `close()` or at the end of a `with` block. |
 | `python/ds_service_client/ds_service_pb2*.py`, `*.pyi` | Generated Python stubs, committed. Never edited by hand. |
 | `python/ds_service_client/ds-service.proto` | A copy of `misc/ds-service.proto`, placed there by the generator script. Not the source of truth. |
+| `docs/` | The user documentation, and these notes. |
 | `tests/` | The pytest integration suite. `conftest.py` holds the fixtures. One `test_*.py` per data structure, plus client, lifecycle, gRPC-option, server-helper, shutdown and error-translation tests. |
 | `scripts/gen_python_bindings.sh` | Regenerates the committed Python stubs. |
 | `scripts/update-version.sh` | Sets every version string in the repository. |
@@ -44,7 +38,9 @@ and drives it through the Python client over gRPC.
 There are no unit tests of the C++ in isolation.
 The exceptions run in process and need no binary:
 `test_client_parity.py`, `test_translate_grpc_error.py`,
-and the resolver tests in `test_server_helper.py`.
+the three option checks in `test_grpc_options.py`,
+the tests in `test_client_deadline.py` that use no `client` fixture,
+and the tests in `test_server_helper.py` that start no `ds-service`.
 So the tests need a built server,
 and the test dependencies installed:
 
@@ -116,8 +112,7 @@ Client, on Python 3.12+:
 | `pytest` | The suite. |
 | `grpcio-tools` | `scripts/gen_python_bindings.sh`. |
 
-Check the C++ with clangd and the Python with pyright.
-Format the C++ with clang-format and the Python with black.
+The formatters and checkers are under [Conventions](#conventions).
 
 ## Generated code
 
@@ -206,7 +201,8 @@ Add an RPC to one client without the other and it says so.
 `client.py` keeps the shared parts at module level rather than copying them:
 `translate_grpc_error`, `GRPC_CLIENT_OPTIONS`,
 the timeout and mutex constants,
-and the `as_queue_list`, `time_series_get_request` and `mutex_retry_delay` helpers.
+and the `as_queue_list`, `as_parent_task_id_list`, `time_series_get_request`
+and `mutex_retry_delay` helpers.
 Only the stub call and its `await`
 must differ between the two copies of a method.
 `mutex_acquire` is the exception, because its retry sleep differs as well.
@@ -251,10 +247,7 @@ and a second server on a bound address exits with a bind failure.
 probes an explicit port before the constructor starts the process.
 The caller then gets an `OSError` from the constructor
 rather than a helper object that addresses somebody else's server.
-That probe sets `SO_REUSEADDR` because gRPC's own listener sets it.
-Without it, the probe also refuses a port left in `TIME_WAIT`
-by a server that already exited.
-The real server binds such a port without complaint.
+The probe's socket options are explained at the probe.
 
 Two tests hold this in place:
 `test_second_server_on_the_same_port_fails` in `tests/test_grpc_options.py`,
@@ -263,15 +256,8 @@ in `tests/test_server_helper.py`.
 
 ## The test harness
 
-The fixtures live in `tests/conftest.py`:
-
-| Fixture | Yields |
-| --- | --- |
-| `server_binary` | How to start the server under test: a path, or a whole command line. |
-| `loopback_interface` | The name of the interface holding `127.0.0.1`, which is what test servers bind. |
-| `server_process` | `(proc, address)` for a running server. For tests that drive the process itself, such as signaling it. |
-| `server` | The address of a running server. |
-| `client` | A connected `DsServiceClient`, closed at the end of the test. |
+The fixtures live in `tests/conftest.py`,
+and the docstring of each states what it yields.
 
 Each test gets a fresh server process on its own free port.
 That isolates the server's in-memory state between tests,
@@ -309,10 +295,9 @@ sets every version string in the repository:
 `cpp/ds-service.cpp`, `CMakeLists.txt`, `pyproject.toml`,
 and `conanfile.py`.
 Set them through the script rather than by hand.
-`CMakeLists.txt` receives the leading numeric part only,
-because `project(VERSION)` rejects a pre-release suffix.
-The script greps for each line before touching anything,
-so it edits nothing unless all of them are present.
+The header of the script states what it edits,
+what it gives `CMakeLists.txt`,
+and when it refuses to edit anything.
 
 ## The dependency graph is built at TaskAdd
 

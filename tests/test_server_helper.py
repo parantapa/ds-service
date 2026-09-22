@@ -17,11 +17,9 @@ from ds_service_client.server import (
 
 
 def test_blank_env_var_falls_back_to_the_default(monkeypatch):
-    """An exported but empty DS_SERVICE_BIN means "unset", not "".
-
-    Taken literally the command starts at `--address`,
-    and the failure names that flag as the missing executable.
-    """
+    # Taken literally, an empty DS_SERVICE_BIN makes the command start
+    # at `--address`, and the failure names that flag
+    # as the missing executable.
     monkeypatch.setenv(DS_SERVICE_BIN_ENV_VAR, "")
     assert resolve_ds_service_bin() == DEFAULT_DS_SERVICE_BIN
 
@@ -43,13 +41,12 @@ def test_interface_resolves_to_its_ipv4_address(loopback_interface):
 
 
 def test_unknown_interface_is_refused():
-    """An interface that is not here has no address to bind."""
     with pytest.raises(ValueError, match="No interface named"):
         resolve_interface_ipv4("definitely-not-an-interface")
 
 
 def test_interface_without_an_ipv4_address_is_refused(monkeypatch):
-    """IPv6-only is as unusable as absent: the address is `host:port`."""
+    # IPv6-only is as unusable as absent: the address is `host:port`.
     ipv6_only = ifaddr.Adapter(
         name="v6only",
         nice_name="v6only",
@@ -69,13 +66,14 @@ def test_server_binds_the_address_of_its_interface(loopback_interface):
 
 
 def test_constructing_with_an_unknown_interface_starts_nothing():
-    """DsServiceServer resolves the interface before it starts any process."""
+    # DsServiceServer resolves the interface before it starts any process,
+    # so the ValueError means nothing was started.
     with pytest.raises(ValueError):
         DsServiceServer("definitely-not-an-interface")
 
 
 def test_port_zero_means_an_ephemeral_port(loopback_interface):
-    """0 is the usual way to ask the kernel for a port, as is None."""
+    # 0 is the usual way to ask the kernel for a port, as is None.
     with DsServiceServer(loopback_interface, port=0) as ds_server:
         assert ds_server.port != 0
         ds_server.wait_until_ready(timeout=15)
@@ -89,14 +87,7 @@ def test_port_zero_means_an_ephemeral_port(loopback_interface):
 
 
 def test_explicit_port_already_in_use_is_refused(server, loopback_interface):
-    """Starting on an occupied port must fail, not silently adopt it.
-
-    The server that loses the race for the port exits,
-    while the port keeps accepting connections.
-    A caller handed that address
-    then reads and writes the other server's state
-    as if it were their own.
-    """
+    # See "The server refuses to share its port" in the developer notes.
     _, port = server.rsplit(":", 1)
 
     with pytest.raises(OSError):
@@ -106,7 +97,6 @@ def test_explicit_port_already_in_use_is_refused(server, loopback_interface):
 def test_failed_start_leaves_the_running_server_alone(
     server, client, loopback_interface
 ):
-    """A refused start must not disturb the server already on that port."""
     client.map_set("owner", b"first-server")
 
     _, port = server.rsplit(":", 1)
@@ -140,11 +130,9 @@ def test_dead_process_reported_as_runtime_error(loopback_interface):
 
 
 def test_close_is_safe_to_call_twice(loopback_interface):
-    """The second close() must not signal a recycled pid.
-
-    The first call reaps the child and frees its pid,
-    and that pid is the process group id close() signals.
-    """
+    # The second close() must not signal a recycled pid.
+    # The first call reaps the child and frees its pid,
+    # and that pid is the process group id close() signals.
     server = DsServiceServer(loopback_interface)
     server.wait_until_ready(timeout=15)
 
@@ -165,13 +153,9 @@ def test_context_manager_exit_after_explicit_close(loopback_interface):
 
 
 def test_fixed_port_is_reusable_after_the_server_exits(loopback_interface):
-    """A port left in TIME_WAIT is free for the real server.
-
-    The probe socket sets SO_REUSEADDR for exactly this reason.
-    Without it, the kernel refused a restart on a fixed port
-    right after a client disconnected,
-    even though nothing listened there.
-    """
+    # A port left in TIME_WAIT is free for the real server,
+    # so the port probe must accept it too.
+    # See "The server refuses to share its port" in the developer notes.
     first = DsServiceServer(loopback_interface)
     try:
         first.wait_until_ready(timeout=15)

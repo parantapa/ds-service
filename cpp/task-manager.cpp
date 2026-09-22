@@ -13,7 +13,8 @@
 
 #include "ds-service.hpp"
 
-// What TaskGetOutput reports for a task that never ran.
+// What TaskGetOutput reports for a Canceled task,
+// and for a task that failed because a task it depends on failed.
 // The failed one names the task whose run failed,
 // which is the task a caller has to look at.
 constexpr const char* CANCELED_OUTPUT = "Task canceled";
@@ -165,6 +166,8 @@ grpc::Status TaskManager::add(const TaskAddRequest* request, Empty*) {
     }
 
     // This list is how TaskDone and TaskCancel reach the row.
+    // The test must match the one that counted pending_parents above,
+    // or the count and the releases drift apart.
     for (const auto parent : parents) {
         if (tasks.state[parent] != TaskState::Finished) {
             tasks.children[parent].push_back(index);
@@ -298,6 +301,8 @@ grpc::Status TaskManager::set_priority(const TaskSetPriorityRequest* request, Em
     auto index = it->second;
     tasks.priority[index] = request->priority();
 
+    // A row that is not Ready is in no queue.
+    // A Waiting row enters its queues at the new priority when enqueue runs for it.
     if (tasks.state[index] != TaskState::Ready) {
         return grpc::Status::OK;
     }
@@ -327,7 +332,6 @@ grpc::Status TaskManager::get_worker_id(const TaskGetWorkerIdRequest* request, T
     return grpc::Status::OK;
 }
 
-// Searches the task ids, which is the task queue's key space.
 grpc::Status TaskManager::search_id(const SearchKeyRequest* request, SearchKeyResponse* response) {
     RE2 pattern{request->pattern()};
     if (!pattern.ok()) {
@@ -370,7 +374,7 @@ grpc::Status TaskManager::get(const TaskGetRequest* request, TaskGetResponse* re
 
             // An entry can be dead in two ways:
             // - Its row left Ready,
-            //   either claimed through another of its queues or finished.
+            //   either claimed through another of its queues or canceled.
             // - TaskSetPriority pushed a newer entry that supersedes it.
             if (tasks.state[entry.index] != TaskState::Ready || entry.seq != tasks.seq[entry.index]) {
                 continue;
@@ -402,6 +406,8 @@ grpc::Status TaskManager::done(const TaskDoneRequest* request, Empty*) {
 
     auto index = it->second;
 
+    // The worker may still hold a task canceled under it.
+    // Its report is accepted and dropped, so the task stays Canceled.
     if (tasks.state[index] == TaskState::Canceled) {
         return grpc::Status::OK;
     }

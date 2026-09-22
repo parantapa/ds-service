@@ -19,11 +19,12 @@ from ds_service_client import DsServiceClient, DsServiceClientAsync
 def public_methods(cls: type) -> dict[str, Callable[..., Any]]:
     """The methods a caller uses, keyed by name.
 
-    This leaves out the dunder methods.
-    Each side spells the context manager protocol differently,
-    so test_each_client_supports_its_own_context_manager_protocol
-    checks it on its own.
+    This leaves out every name that starts with an underscore,
+    the dunder methods included.
     """
+    # Each side spells the context manager protocol differently,
+    # so test_each_client_supports_its_own_context_manager_protocol
+    # checks it on its own.
     return {
         name: member
         for name, member in inspect.getmembers(cls, inspect.isfunction)
@@ -52,23 +53,18 @@ def test_the_two_clients_offer_the_same_methods():
 
 @pytest.mark.parametrize("name", SHARED_METHOD_NAMES)
 def test_shared_methods_take_the_same_arguments(name: str):
-    """Parameter names, order, kinds, defaults and annotations must match.
-
-    One comparison of Parameter objects covers all five.
-    """
+    # One comparison of Parameter lists covers
+    # names, order, kinds, defaults and annotations.
     assert parameters(SYNC_METHODS[name]) == parameters(ASYNC_METHODS[name])
 
 
 @pytest.mark.parametrize("name", SHARED_METHOD_NAMES)
 def test_shared_methods_return_the_same_type(name: str):
-    """An async method annotates the type that an await returns,
-    so the two annotations must read the same.
-
-    This test runs only where both clients annotate the method,
-    because an un-annotated method is not a mismatch to fix here.
-    """
+    # An async method annotates the type that an await returns,
+    # so the two annotations must read the same.
     sync_return = inspect.signature(SYNC_METHODS[name]).return_annotation
     async_return = inspect.signature(ASYNC_METHODS[name]).return_annotation
+    # An un-annotated method is not a mismatch to fix here.
     if inspect.Signature.empty in (sync_return, async_return):
         pytest.skip(f"{name} is not annotated on both clients.")
 
