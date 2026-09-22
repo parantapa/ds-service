@@ -17,7 +17,7 @@ def test_add_get_done_lifecycle(client):
     assert client.task_get_status("t1") == TaskState.Running
 
     client.task_done("t1", worker_id="w1", output=b"result")
-    assert client.task_get_status("t1") == TaskState.Complete
+    assert client.task_get_status("t1") == TaskState.Finished
     assert client.task_get_output("t1") == b"result"
 
 
@@ -124,7 +124,7 @@ def test_claimed_task_is_not_handed_out_again(client):
 
 def test_count_by_state_on_empty_system_is_zero(client):
     counts = client.task_get_count_by_state()
-    assert (counts.ready, counts.running, counts.complete) == (0, 0, 0)
+    assert (counts.waiting, counts.ready, counts.running) == (0, 0, 0)
 
 
 def test_count_by_state_tracks_lifecycle(client):
@@ -134,17 +134,25 @@ def test_count_by_state_tracks_lifecycle(client):
 
     # All three start Ready.
     counts = client.task_get_count_by_state()
-    assert (counts.ready, counts.running, counts.complete) == (3, 0, 0)
+    assert (counts.waiting, counts.ready, counts.running) == (0, 3, 0)
 
     client.task_get(worker_id="w1", queue="work")
     claimed = client.task_get(worker_id="w2", queue="work")
     client.task_done(claimed.task_id, worker_id="w2", output=b"out")
 
     counts = client.task_get_count_by_state()
-    assert (counts.ready, counts.running, counts.complete) == (1, 1, 1)
-    # The four counts always sum to the total number of tasks.
-    # Nothing here was canceled, so that count is zero.
-    assert counts.ready + counts.running + counts.complete + counts.canceled == 3
+    assert (counts.ready, counts.running, counts.finished) == (1, 1, 1)
+    # The six counts always sum to the total number of tasks.
+    # Nothing here waited, was canceled or failed, so those counts are zero.
+    assert (
+        counts.waiting
+        + counts.ready
+        + counts.running
+        + counts.finished
+        + counts.failed
+        + counts.canceled
+        == 3
+    )
 
 
 def test_equal_priority_is_dispatched_in_insertion_order(client):
@@ -209,7 +217,7 @@ def test_done_from_another_worker_raises(client):
 
     assert client.task_get_status("t") == TaskState.Running
 
-    # w1, the actual owner, still completes it.
+    # w1, the actual owner, still finishes it.
     client.task_done("t", worker_id="w1", output=b"fresh")
     assert client.task_get_output("t") == b"fresh"
 
@@ -318,12 +326,12 @@ def test_get_worker_id_of_a_ready_task_raises(client):
         client.task_get_worker_id("t")
 
 
-def test_get_worker_id_of_a_complete_task_raises(client):
+def test_get_worker_id_of_a_finished_task_raises(client):
     client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
     client.task_get(worker_id="w1", queue="work")
     client.task_done("t", worker_id="w1", output=b"result")
 
-    # The server released the task when it completed.
+    # The server released the task when it finished.
     with pytest.raises(TaskStateError):
         client.task_get_worker_id("t")
 
@@ -367,7 +375,7 @@ def test_cancel_a_running_task(client):
         client.task_get(worker_id="w2", queue="work")
 
 
-def test_cancel_a_complete_task_fails(client):
+def test_cancel_a_finished_task_fails(client):
     client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
     client.task_get(worker_id="w1", queue="work")
     client.task_done("t", worker_id="w1", output=b"result")
@@ -375,7 +383,7 @@ def test_cancel_a_complete_task_fails(client):
     # A finished task keeps its result.
     # Nothing was moved.
     assert client.task_cancel("t") is False
-    assert client.task_get_status("t") == TaskState.Complete
+    assert client.task_get_status("t") == TaskState.Finished
     assert client.task_get_output("t") == b"result"
 
 
@@ -403,9 +411,9 @@ def test_done_on_a_canceled_task_is_accepted_and_ignored(client):
     # w1 finishes and reports, not knowing about the cancellation.
     client.task_done("t", worker_id="w1", output=b"result")
 
-    # The call succeeded, but the server recorded nothing.
+    # The call succeeded, but the server recorded nothing of the result.
     assert client.task_get_status("t") == TaskState.Canceled
-    assert client.task_get_output("t") == b""
+    assert client.task_get_output("t") == b"Task canceled"
 
 
 def test_count_by_state_counts_canceled_tasks(client):
@@ -414,14 +422,24 @@ def test_count_by_state_counts_canceled_tasks(client):
     client.task_cancel("a")
 
     counts = client.task_get_count_by_state()
-    assert (counts.ready, counts.running, counts.complete, counts.canceled) == (
-        1,
-        0,
-        0,
-        1,
+    assert (
+        counts.waiting,
+        counts.ready,
+        counts.running,
+        counts.finished,
+        counts.failed,
+        counts.canceled,
+    ) == (0, 1, 0, 0, 0, 1)
+    # The six counts always sum to the total number of tasks.
+    assert (
+        counts.waiting
+        + counts.ready
+        + counts.running
+        + counts.finished
+        + counts.failed
+        + counts.canceled
+        == 2
     )
-    # The four counts always sum to the total number of tasks.
-    assert counts.ready + counts.running + counts.complete + counts.canceled == 2
 
 
 def test_multi_queue_task_is_dispatched_once(client):
@@ -453,17 +471,17 @@ def test_search_id_is_unanchored(client):
 
 
 def test_search_id_finds_tasks_in_every_state(client):
-    for task_id in ["ready", "running", "complete", "canceled"]:
+    for task_id in ["ready", "running", "finished", "canceled"]:
         client.task_add(task_id, queue=task_id, priority=1.0, function=b"", input=b"")
 
     client.task_get(worker_id="w1", queue="running")
-    client.task_get(worker_id="w1", queue="complete")
-    client.task_done("complete", worker_id="w1", output=b"")
+    client.task_get(worker_id="w1", queue="finished")
+    client.task_done("finished", worker_id="w1", output=b"")
     client.task_cancel("canceled")
 
     assert sorted(client.task_search_id(".*")) == [
         "canceled",
-        "complete",
+        "finished",
         "ready",
         "running",
     ]
@@ -492,3 +510,496 @@ def test_reads_do_not_create_task(client):
             read("never-seen")
 
     assert client.task_search_id(".*") == []
+
+
+def test_task_with_an_unfinished_parent_starts_waiting(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+
+    assert client.task_get_status("child") == TaskState.Waiting
+
+    # No queue offers a Waiting task, so only the parent is dispatched.
+    assert client.task_get(worker_id="w1", queue="work").task_id == "parent"
+    with pytest.raises(NoTaskAvailable):
+        client.task_get(worker_id="w2", queue="work")
+
+
+def test_completing_the_parent_releases_the_child(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("parent", worker_id="w1", output=b"")
+
+    assert client.task_get_status("child") == TaskState.Ready
+    assert client.task_get(worker_id="w1", queue="work").task_id == "child"
+
+
+def test_a_child_waits_for_every_parent(client):
+    for task_id in ["a", "b"]:
+        client.task_add(task_id, queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids=["a", "b"],
+    )
+
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("a", worker_id="w1", output=b"")
+    assert client.task_get_status("child") == TaskState.Waiting
+
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("b", worker_id="w1", output=b"")
+    assert client.task_get_status("child") == TaskState.Ready
+
+
+def test_a_child_of_two_parents_is_dispatched_once(client):
+    # The child enters its queue when the last parent finishes,
+    # once, not once per parent.
+    for task_id in ["a", "b"]:
+        client.task_add(task_id, queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids=["a", "b"],
+    )
+
+    for task_id in ["a", "b"]:
+        client.task_get(worker_id="w1", queue="work")
+        client.task_done(task_id, worker_id="w1", output=b"")
+
+    assert client.task_get(worker_id="w1", queue="work").task_id == "child"
+    with pytest.raises(NoTaskAvailable):
+        client.task_get(worker_id="w2", queue="work")
+
+
+def test_naming_a_parent_twice_still_releases_the_child(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids=["parent", "parent"],
+    )
+
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("parent", worker_id="w1", output=b"")
+
+    assert client.task_get_status("child") == TaskState.Ready
+
+
+def test_a_finished_parent_leaves_the_child_ready(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("parent", worker_id="w1", output=b"")
+
+    # Nothing is left to wait for, so the child never passes through Waiting.
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+
+    assert client.task_get_status("child") == TaskState.Ready
+
+
+def test_unknown_parent_raises_keyerror_and_adds_nothing(client):
+    with pytest.raises(KeyError):
+        client.task_add(
+            "child",
+            queue="work",
+            priority=1.0,
+            function=b"",
+            input=b"",
+            parent_task_ids="ghost",
+        )
+
+    assert client.task_get_status("child") == TaskState.Undefined
+
+
+def test_a_task_cannot_be_its_own_parent(client):
+    # The row does not exist while its own TaskAdd is being served,
+    # so naming itself is naming an unknown parent.
+    # That is what keeps the dependency graph free of cycles.
+    with pytest.raises(KeyError):
+        client.task_add(
+            "self",
+            queue="work",
+            priority=1.0,
+            function=b"",
+            input=b"",
+            parent_task_ids="self",
+        )
+
+
+def test_canceling_a_parent_cancels_the_tasks_waiting_on_it(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+    client.task_add(
+        "grandchild",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="child",
+    )
+
+    assert client.task_cancel("parent") is True
+
+    # The cancellation runs the whole way down the graph.
+    assert client.task_get_status("child") == TaskState.Canceled
+    assert client.task_get_status("grandchild") == TaskState.Canceled
+
+
+def test_a_child_of_a_canceled_parent_is_added_canceled(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_cancel("parent")
+
+    # A canceled parent never finishes,
+    # so the child is canceled rather than left waiting for it.
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+
+    assert client.task_get_status("child") == TaskState.Canceled
+
+
+def test_a_waiting_task_can_be_canceled(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+
+    assert client.task_cancel("child") is True
+    assert client.task_get_status("child") == TaskState.Canceled
+
+    # Completing the parent does not bring the canceled child back.
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("parent", worker_id="w1", output=b"")
+    assert client.task_get_status("child") == TaskState.Canceled
+    with pytest.raises(NoTaskAvailable):
+        client.task_get(worker_id="w1", queue="work")
+
+
+def test_priority_set_while_waiting_applies_when_the_task_is_released(client):
+    client.task_add("parent", queue="work", priority=5.0, function=b"", input=b"")
+    for task_id in ["low", "high"]:
+        client.task_add(
+            task_id,
+            queue="work",
+            priority=1.0,
+            function=b"",
+            input=b"",
+            parent_task_ids="parent",
+        )
+    client.task_set_priority("high", 9.0)
+
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("parent", worker_id="w1", output=b"")
+
+    # Both entered the queue together, so the new priority decides the order.
+    assert client.task_get(worker_id="w1", queue="work").task_id == "high"
+    assert client.task_get(worker_id="w1", queue="work").task_id == "low"
+
+
+def test_a_released_task_goes_behind_its_equals(client):
+    client.task_add("parent", queue="work", priority=5.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+    client.task_add("other", queue="work", priority=1.0, function=b"", input=b"")
+
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("parent", worker_id="w1", output=b"")
+
+    # A released task counts as newly queued,
+    # so it waits behind the tasks of equal priority already there,
+    # even though it was added first.
+    assert client.task_get(worker_id="w1", queue="work").task_id == "other"
+    assert client.task_get(worker_id="w1", queue="work").task_id == "child"
+
+
+def test_count_by_state_counts_waiting_tasks(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+
+    counts = client.task_get_count_by_state()
+    assert (
+        counts.waiting,
+        counts.ready,
+        counts.running,
+        counts.finished,
+        counts.failed,
+        counts.canceled,
+    ) == (1, 1, 0, 0, 0, 0)
+
+
+def test_done_with_failed_marks_the_task_failed(client):
+    client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_get(worker_id="w1", queue="work")
+
+    client.task_done("t", worker_id="w1", output=b"traceback", failed=True)
+
+    # A task that ran keeps whatever its worker reported.
+    assert client.task_get_status("t") == TaskState.Failed
+    assert client.task_get_output("t") == b"traceback"
+
+
+def test_a_canceled_task_reports_its_output(client):
+    client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
+
+    client.task_cancel("t")
+
+    assert client.task_get_output("t") == b"Task canceled"
+
+
+def test_failing_a_task_fails_the_tasks_waiting_on_it(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+    client.task_add(
+        "grandchild",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="child",
+    )
+
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("parent", worker_id="w1", output=b"traceback", failed=True)
+
+    # The failure runs the whole way down the graph,
+    # and each task it reaches names the task whose run failed,
+    # not the task next to it in the chain.
+    for task_id in ["child", "grandchild"]:
+        assert client.task_get_status(task_id) == TaskState.Failed
+        assert client.task_get_output(task_id) == b"Dependency failed (task_id=parent)"
+
+    # Nothing was released onto a queue by the failure.
+    with pytest.raises(NoTaskAvailable):
+        client.task_get(worker_id="w1", queue="work")
+
+
+def test_canceling_a_parent_gives_its_children_the_canceled_output(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+
+    client.task_cancel("parent")
+
+    assert client.task_get_status("child") == TaskState.Canceled
+    assert client.task_get_output("child") == b"Task canceled"
+
+
+def test_a_child_of_a_failed_parent_is_added_failed(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("parent", worker_id="w1", output=b"traceback", failed=True)
+
+    # A failed parent never finishes,
+    # so the child fails with it rather than waiting for it.
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+
+    assert client.task_get_status("child") == TaskState.Failed
+    assert client.task_get_output("child") == b"Dependency failed (task_id=parent)"
+
+
+def test_one_failed_parent_fails_the_child(client):
+    for task_id in ["a", "b"]:
+        client.task_add(task_id, queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids=["a", "b"],
+    )
+
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("a", worker_id="w1", output=b"", failed=False)
+    assert client.task_get_status("child") == TaskState.Waiting
+
+    # One parent that fails is enough, however the others ended.
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("b", worker_id="w1", output=b"traceback", failed=True)
+    assert client.task_get_status("child") == TaskState.Failed
+
+
+def test_a_failed_parent_decides_over_a_canceled_one(client):
+    client.task_add("canceled", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add("failed", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_cancel("canceled")
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("failed", worker_id="w1", output=b"traceback", failed=True)
+
+    # The run that failed is the more useful of the two to report.
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids=["canceled", "failed"],
+    )
+
+    assert client.task_get_status("child") == TaskState.Failed
+    assert client.task_get_output("child") == b"Dependency failed (task_id=failed)"
+
+
+def test_cancel_a_failed_task_fails(client):
+    client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("t", worker_id="w1", output=b"traceback", failed=True)
+
+    # Failed is final, so there is nothing to withdraw.
+    assert client.task_cancel("t") is False
+    assert client.task_get_status("t") == TaskState.Failed
+    assert client.task_get_output("t") == b"traceback"
+
+
+def test_get_worker_id_of_a_failed_task_raises(client):
+    client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("t", worker_id="w1", output=b"traceback", failed=True)
+
+    with pytest.raises(TaskStateError):
+        client.task_get_worker_id("t")
+
+
+def test_done_on_a_failed_task_raises(client):
+    client.task_add("t", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("t", worker_id="w1", output=b"traceback", failed=True)
+
+    # Failed is final, the same way Finished is.
+    with pytest.raises(TaskStateError):
+        client.task_done("t", worker_id="w1", output=b"late", failed=False)
+
+
+def test_count_by_state_counts_failed_tasks(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("parent", worker_id="w1", output=b"traceback", failed=True)
+
+    counts = client.task_get_count_by_state()
+    assert (
+        counts.waiting,
+        counts.ready,
+        counts.running,
+        counts.finished,
+        counts.failed,
+        counts.canceled,
+    ) == (0, 0, 0, 0, 2, 0)
+
+
+def test_a_child_added_under_a_failed_chain_names_the_task_that_failed(client):
+    client.task_add("parent", queue="work", priority=1.0, function=b"", input=b"")
+    client.task_add(
+        "child",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="parent",
+    )
+
+    client.task_get(worker_id="w1", queue="work")
+    client.task_done("parent", worker_id="w1", output=b"traceback", failed=True)
+
+    # child never ran, so it is not the task that failed.
+    # A task added under it names the run that did.
+    client.task_add(
+        "grandchild",
+        queue="work",
+        priority=1.0,
+        function=b"",
+        input=b"",
+        parent_task_ids="child",
+    )
+
+    assert client.task_get_status("grandchild") == TaskState.Failed
+    assert client.task_get_output("grandchild") == b"Dependency failed (task_id=parent)"

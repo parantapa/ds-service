@@ -273,11 +273,8 @@ int main(int argc, char* argv[]) {
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
     builder.AddChannelArgument(GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS, 10 * 1000 /*10 seconds*/);
 
-    // Refuse to share the port.
-    // gRPC enables SO_REUSEPORT by default,
-    // so without this argument
-    // a second ds-service started on an occupied address
-    // binds silently alongside the first.
+    // Refuse to share the port,
+    // which gRPC otherwise allows and nothing reports.
     // See "The server refuses to share its port"
     // in docs/developer-notes.md.
     builder.AddChannelArgument(GRPC_ARG_ALLOW_REUSEPORT, 0);

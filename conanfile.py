@@ -1,4 +1,6 @@
 # type: ignore
+"""Conan recipe for the ds-service server."""
+
 from conan import ConanFile
 from conan.tools.cmake import cmake_layout, CMakeDeps, CMakeToolchain, CMake
 

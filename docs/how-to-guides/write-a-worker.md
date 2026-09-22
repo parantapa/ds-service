@@ -43,10 +43,11 @@ with DsServiceClient("127.0.0.1:5051") as client:
 Pick a `worker_id` that is unique to this process.
 The server uses it to decide who owns a claimed task,
 and takes the name at face value.
-Two processes that share a name can complete each other's tasks.
+Two processes that share a name can report on each other's tasks.
 
 ```python
 import time
+import traceback
 
 from ds_service_client import NoTaskAvailable, TaskStateError
 
@@ -58,14 +59,32 @@ while True:
         continue
     # A TimeoutError here means the server is unreachable, and propagates.
 
-    output = do_the_work(task)
+    try:
+        output = do_the_work(task)
+        failed = False
+    except Exception:
+        # The work itself failed, which is a result, not a loop error.
+        output = traceback.format_exc().encode()
+        failed = True
 
     try:
-        client.task_done(task.task_id, worker_id="worker-a", output=output)
+        client.task_done(
+            task.task_id, worker_id="worker-a", output=output, failed=failed
+        )
     except TaskStateError:
-        # The task is not this worker's to complete; drop the result.
+        # The task is not this worker's to report on. Drop the result.
         pass
 ```
+
+`failed=True` marks the task `Failed` rather than `Finished`,
+and the output is stored either way,
+so whoever asks gets the traceback through `task_get_output`.
+Failing a task also fails every task waiting on it,
+and those report `Dependency failed (task_id=...)` as their own output,
+naming this task.
+A worker that lets the exception escape instead
+leaves the task `Running` for the life of the server,
+and nothing waiting on it ever runs.
 
 Separate two failures in this loop.
 `NoTaskAvailable` means the queue is empty and the worker must wait.
@@ -85,7 +104,7 @@ task = client.task_get(worker_id="worker-a", queue=["urgent", "work"])
 
 `TaskStateError` on `task_done` means the task was no longer `Running`
 under your `worker_id`,
-so something else already completed it.
+so something else already reported it.
 Drop the result.
 The server already stored the output that the other call recorded.
 `task_done` on a canceled task succeeds, and the server discards its output.

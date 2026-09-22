@@ -118,6 +118,18 @@ def as_queue_list(queue: str | list[str]) -> list[str]:
     return queue
 
 
+def as_parent_task_id_list(parent_task_ids: str | list[str] | None) -> list[str]:
+    """Return the parent ids of a parent_task_ids argument.
+
+    A task with no parents passes None, which is no ids at all.
+    """
+    if parent_task_ids is None:
+        return []
+    if isinstance(parent_task_ids, str):
+        return [parent_task_ids]
+    return parent_task_ids
+
+
 def time_series_get_request(
     key: str,
     start_time: str | None,
@@ -241,6 +253,7 @@ class DsServiceClient:
         priority: float,
         function: bytes,
         input: bytes,
+        parent_task_ids: str | list[str] | None = None,
     ) -> None:
         """Register a task and enqueue it on each of its queues.
 
@@ -248,6 +261,17 @@ class DsServiceClient:
         and the set is fixed for the life of the task.
         function and input are opaque payloads the server only stores.
         Raises ValueError if task_id is already known.
+
+        parent_task_ids names the tasks this one depends on,
+        as one id or a list of them.
+        A task with a parent that is not Finished starts TaskState.Waiting,
+        and no queue dispatches it until every parent finishes.
+        Every parent must already exist,
+        so a graph of tasks is added parents first.
+        Raises KeyError for a parent the server does not know,
+        and adds nothing in that case.
+        A task added with a Canceled parent is added Canceled,
+        and one added with a Failed parent is added Failed.
         """
         with translate_grpc_error():
             self.stub.TaskAdd(
@@ -257,6 +281,7 @@ class DsServiceClient:
                     priority=priority,
                     function=function,
                     input=input,
+                    parent_task_ids=as_parent_task_id_list(parent_task_ids),
                 ),
                 timeout=self.timeout,
             )
@@ -282,7 +307,10 @@ class DsServiceClient:
     def task_get_output(self, task_id: str) -> bytes:
         """Return the output recorded for a task.
 
-        A task that is not Complete has empty output.
+        A task that has not ended has empty output.
+        A canceled task reports b"Task canceled",
+        and a task failed by one it depends on reports
+        b"Dependency failed (task_id=...)", naming the task whose run failed.
         Raises KeyError for a task_id the server does not know.
         """
         with translate_grpc_error():
@@ -294,7 +322,8 @@ class DsServiceClient:
     def task_get_count_by_state(self) -> TaskGetCountByStateResponse:
         """Return how many tasks are in each state.
 
-        The response carries ready, running, complete and canceled counts,
+        The response carries waiting, ready, running, finished,
+        failed and canceled counts,
         which sum to every task the server knows about.
         """
         with translate_grpc_error():
@@ -323,11 +352,14 @@ class DsServiceClient:
             )
 
     def task_cancel(self, task_id: str) -> bool:
-        """Move a Ready or Running task to Canceled.
+        """Move a Waiting, Ready or Running task to Canceled.
 
         Returns True if this call moved the task,
-        and False if it was already Complete or Canceled
+        and False if it was already Finished, Failed or Canceled
         and so was left alone.
+        Canceling a task cancels every task waiting on it,
+        and every task waiting on those.
+        Each task canceled reports b"Task canceled" as its output.
         Raises KeyError for a task_id the server does not know.
         """
         with translate_grpc_error():
@@ -341,7 +373,7 @@ class DsServiceClient:
 
         Raises KeyError for a task_id the server does not know,
         and TaskStateError if the task is not Running.
-        A task that is Ready, Complete, or Canceled has no holder.
+        A task that is not Running has no holder.
         """
         with translate_grpc_error():
             response: TaskGetWorkerIdResponse = self.stub.TaskGetWorkerId(
@@ -375,12 +407,23 @@ class DsServiceClient:
                 timeout=self.timeout,
             )
 
-    def task_done(self, task_id: str, worker_id: str, output: bytes) -> None:
-        """Record a task's output and mark it Complete.
+    def task_done(
+        self, task_id: str, worker_id: str, output: bytes, failed: bool = False
+    ) -> None:
+        """Record a task's output and mark it Finished, or Failed.
 
         worker_id must be the one that claimed the task through task_get.
         Raises TaskStateError if the task is not Running,
         or if it is held by a different worker.
+
+        failed says how the task ended.
+        The default marks it TaskState.Finished,
+        and failed=True marks it TaskState.Failed.
+        The server stores output either way.
+        Failing a task fails every task waiting on it,
+        and every task waiting on those,
+        and each of them reports b"Dependency failed (task_id=...)"
+        as its output, naming this task.
 
         A canceled task is the exception:
         the call succeeds, but the task stays Canceled
@@ -388,7 +431,12 @@ class DsServiceClient:
         """
         with translate_grpc_error():
             self.stub.TaskDone(
-                TaskDoneRequest(task_id=task_id, output=output, worker_id=worker_id),
+                TaskDoneRequest(
+                    task_id=task_id,
+                    output=output,
+                    worker_id=worker_id,
+                    failed=failed,
+                ),
                 timeout=self.timeout,
             )
 
@@ -699,6 +747,7 @@ class DsServiceClientAsync:
         priority: float,
         function: bytes,
         input: bytes,
+        parent_task_ids: str | list[str] | None = None,
     ) -> None:
         """Register a task and enqueue it on each of its queues.
 
@@ -706,6 +755,17 @@ class DsServiceClientAsync:
         and the set is fixed for the life of the task.
         function and input are opaque payloads the server only stores.
         Raises ValueError if task_id is already known.
+
+        parent_task_ids names the tasks this one depends on,
+        as one id or a list of them.
+        A task with a parent that is not Finished starts TaskState.Waiting,
+        and no queue dispatches it until every parent finishes.
+        Every parent must already exist,
+        so a graph of tasks is added parents first.
+        Raises KeyError for a parent the server does not know,
+        and adds nothing in that case.
+        A task added with a Canceled parent is added Canceled,
+        and one added with a Failed parent is added Failed.
         """
         with translate_grpc_error():
             await self.stub.TaskAdd(
@@ -715,6 +775,7 @@ class DsServiceClientAsync:
                     priority=priority,
                     function=function,
                     input=input,
+                    parent_task_ids=as_parent_task_id_list(parent_task_ids),
                 ),
                 timeout=self.timeout,
             )
@@ -742,7 +803,10 @@ class DsServiceClientAsync:
     async def task_get_output(self, task_id: str) -> bytes:
         """Return the output recorded for a task.
 
-        A task that is not Complete has empty output.
+        A task that has not ended has empty output.
+        A canceled task reports b"Task canceled",
+        and a task failed by one it depends on reports
+        b"Dependency failed (task_id=...)", naming the task whose run failed.
         Raises KeyError for a task_id the server does not know.
         """
         with translate_grpc_error():
@@ -754,7 +818,8 @@ class DsServiceClientAsync:
     async def task_get_count_by_state(self) -> TaskGetCountByStateResponse:
         """Return how many tasks are in each state.
 
-        The response carries ready, running, complete and canceled counts,
+        The response carries waiting, ready, running, finished,
+        failed and canceled counts,
         which sum to every task the server knows about.
         """
         with translate_grpc_error():
@@ -783,11 +848,14 @@ class DsServiceClientAsync:
             )
 
     async def task_cancel(self, task_id: str) -> bool:
-        """Move a Ready or Running task to Canceled.
+        """Move a Waiting, Ready or Running task to Canceled.
 
         Returns True if this call moved the task,
-        and False if it was already Complete or Canceled
+        and False if it was already Finished, Failed or Canceled
         and so was left alone.
+        Canceling a task cancels every task waiting on it,
+        and every task waiting on those.
+        Each task canceled reports b"Task canceled" as its output.
         Raises KeyError for a task_id the server does not know.
         """
         with translate_grpc_error():
@@ -801,7 +869,7 @@ class DsServiceClientAsync:
 
         Raises KeyError for a task_id the server does not know,
         and TaskStateError if the task is not Running.
-        A task that is Ready, Complete, or Canceled has no holder.
+        A task that is not Running has no holder.
         """
         with translate_grpc_error():
             response: TaskGetWorkerIdResponse = await self.stub.TaskGetWorkerId(
@@ -835,12 +903,23 @@ class DsServiceClientAsync:
                 timeout=self.timeout,
             )
 
-    async def task_done(self, task_id: str, worker_id: str, output: bytes) -> None:
-        """Record a task's output and mark it Complete.
+    async def task_done(
+        self, task_id: str, worker_id: str, output: bytes, failed: bool = False
+    ) -> None:
+        """Record a task's output and mark it Finished, or Failed.
 
         worker_id must be the one that claimed the task through task_get.
         Raises TaskStateError if the task is not Running,
         or if it is held by a different worker.
+
+        failed says how the task ended.
+        The default marks it TaskState.Finished,
+        and failed=True marks it TaskState.Failed.
+        The server stores output either way.
+        Failing a task fails every task waiting on it,
+        and every task waiting on those,
+        and each of them reports b"Dependency failed (task_id=...)"
+        as its output, naming this task.
 
         A canceled task is the exception:
         the call succeeds, but the task stays Canceled
@@ -848,7 +927,12 @@ class DsServiceClientAsync:
         """
         with translate_grpc_error():
             await self.stub.TaskDone(
-                TaskDoneRequest(task_id=task_id, output=output, worker_id=worker_id),
+                TaskDoneRequest(
+                    task_id=task_id,
+                    output=output,
+                    worker_id=worker_id,
+                    failed=failed,
+                ),
                 timeout=self.timeout,
             )
 

@@ -1,4 +1,10 @@
 #!/bin/bash
+# Regenerate the committed Python stubs from misc/ds-service.proto.
+#
+# Run this after every proto change.
+# The C++ build regenerates its own stubs, but these are checked in.
+#
+# Usage: scripts/gen_python_bindings.sh
 
 set -Eeuo pipefail
 set -x

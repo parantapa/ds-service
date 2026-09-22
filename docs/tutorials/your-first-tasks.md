@@ -3,7 +3,7 @@
 By the end of this tutorial
 you will have a `ds-service` server running on your own machine.
 A Python session talks to it,
-and you submit a task in one place and complete it in another.
+and you submit a task in one place and finish it in another.
 
 We download a ready-made binary and start it from Python.
 That is the quickest way to have something to talk to.
@@ -206,10 +206,20 @@ TaskState.Name(client.task_get_status("job-1"))
 client.task_get_output("job-1")
 ```
 
-`'Complete'`, and `b'hello world'`.
+`'Finished'`, and `b'hello world'`.
 
 You took a task through its whole life:
-`Ready`, `Running`, `Complete`.
+`Ready`, `Running`, `Finished`.
+
+A worker that cannot do its task reports it the same way,
+with `failed=True`:
+
+```python
+client.task_done("job-1", worker_id="worker-a", output=b"traceback", failed=True)
+```
+
+That marks the task `Failed` rather than `Finished`,
+and stores the output all the same.
 
 ## Step 7: watch the server enforce ownership
 
@@ -254,13 +264,15 @@ client.task_get_count_by_state()
 ```
 
 ```
+waiting: 0
 ready: 0
 running: 0
-complete: 2
+finished: 2
+failed: 0
 canceled: 0
 ```
 
-Two complete, nothing else.
+Two finished, nothing else.
 
 And find your tasks by pattern:
 
@@ -307,7 +319,7 @@ server.close()
 ## What you did
 
 You started a server, stored a value,
-and moved a task through `Ready`, `Running` and `Complete` from two sides.
+and moved a task through `Ready`, `Running` and `Finished` from two sides.
 You also saw the server do three things:
 
 - It refused a `task_done` from the wrong worker.

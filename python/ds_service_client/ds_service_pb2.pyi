@@ -9,14 +9,18 @@ DESCRIPTOR: _descriptor.FileDescriptor
 
 class TaskState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
+    Waiting: _ClassVar[TaskState]
     Ready: _ClassVar[TaskState]
     Running: _ClassVar[TaskState]
-    Complete: _ClassVar[TaskState]
+    Finished: _ClassVar[TaskState]
+    Failed: _ClassVar[TaskState]
     Canceled: _ClassVar[TaskState]
     Undefined: _ClassVar[TaskState]
+Waiting: TaskState
 Ready: TaskState
 Running: TaskState
-Complete: TaskState
+Finished: TaskState
+Failed: TaskState
 Canceled: TaskState
 Undefined: TaskState
 
@@ -57,18 +61,20 @@ class SearchKeyResponse(_message.Message):
     def __init__(self, key: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class TaskAddRequest(_message.Message):
-    __slots__ = ("task_id", "queue", "priority", "function", "input")
+    __slots__ = ("task_id", "parent_task_ids", "queue", "priority", "function", "input")
     TASK_ID_FIELD_NUMBER: _ClassVar[int]
+    PARENT_TASK_IDS_FIELD_NUMBER: _ClassVar[int]
     QUEUE_FIELD_NUMBER: _ClassVar[int]
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
     FUNCTION_FIELD_NUMBER: _ClassVar[int]
     INPUT_FIELD_NUMBER: _ClassVar[int]
     task_id: str
+    parent_task_ids: _containers.RepeatedScalarFieldContainer[str]
     queue: _containers.RepeatedScalarFieldContainer[str]
     priority: float
     function: bytes
     input: bytes
-    def __init__(self, task_id: _Optional[str] = ..., queue: _Optional[_Iterable[str]] = ..., priority: _Optional[float] = ..., function: _Optional[bytes] = ..., input: _Optional[bytes] = ...) -> None: ...
+    def __init__(self, task_id: _Optional[str] = ..., parent_task_ids: _Optional[_Iterable[str]] = ..., queue: _Optional[_Iterable[str]] = ..., priority: _Optional[float] = ..., function: _Optional[bytes] = ..., input: _Optional[bytes] = ...) -> None: ...
 
 class TaskGetStatusRequest(_message.Message):
     __slots__ = ("task_id",)
@@ -95,16 +101,20 @@ class TaskGetOutputResponse(_message.Message):
     def __init__(self, output: _Optional[bytes] = ...) -> None: ...
 
 class TaskGetCountByStateResponse(_message.Message):
-    __slots__ = ("ready", "running", "complete", "canceled")
+    __slots__ = ("waiting", "ready", "running", "finished", "failed", "canceled")
+    WAITING_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
     RUNNING_FIELD_NUMBER: _ClassVar[int]
-    COMPLETE_FIELD_NUMBER: _ClassVar[int]
+    FINISHED_FIELD_NUMBER: _ClassVar[int]
+    FAILED_FIELD_NUMBER: _ClassVar[int]
     CANCELED_FIELD_NUMBER: _ClassVar[int]
+    waiting: int
     ready: int
     running: int
-    complete: int
+    finished: int
+    failed: int
     canceled: int
-    def __init__(self, ready: _Optional[int] = ..., running: _Optional[int] = ..., complete: _Optional[int] = ..., canceled: _Optional[int] = ...) -> None: ...
+    def __init__(self, waiting: _Optional[int] = ..., ready: _Optional[int] = ..., running: _Optional[int] = ..., finished: _Optional[int] = ..., failed: _Optional[int] = ..., canceled: _Optional[int] = ...) -> None: ...
 
 class TaskCancelRequest(_message.Message):
     __slots__ = ("task_id",)
@@ -169,14 +179,16 @@ class TaskGetResponse(_message.Message):
     def __init__(self, task_id: _Optional[str] = ..., function: _Optional[bytes] = ..., input: _Optional[bytes] = ...) -> None: ...
 
 class TaskDoneRequest(_message.Message):
-    __slots__ = ("task_id", "output", "worker_id")
+    __slots__ = ("task_id", "output", "worker_id", "failed")
     TASK_ID_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_FIELD_NUMBER: _ClassVar[int]
     WORKER_ID_FIELD_NUMBER: _ClassVar[int]
+    FAILED_FIELD_NUMBER: _ClassVar[int]
     task_id: str
     output: bytes
     worker_id: str
-    def __init__(self, task_id: _Optional[str] = ..., output: _Optional[bytes] = ..., worker_id: _Optional[str] = ...) -> None: ...
+    failed: bool
+    def __init__(self, task_id: _Optional[str] = ..., output: _Optional[bytes] = ..., worker_id: _Optional[str] = ..., failed: bool = ...) -> None: ...
 
 class JournalSizeRequest(_message.Message):
     __slots__ = ("key",)

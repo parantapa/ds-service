@@ -60,21 +60,37 @@ message SearchKeyResponse {
     repeated string key = 1;
 }
 
+// parent_task_ids names the tasks this one depends on.
+// A task with a parent that is not Finished starts Waiting,
+// and no queue dispatches it until every parent finishes.
+// Every parent must already exist, so a DAG is submitted parents first.
+// TaskAdd returns NOT_FOUND, and adds nothing, for a parent it does not know.
+// A task added with a Canceled parent is added Canceled,
+// and one added with a Failed parent is added Failed,
+// because neither parent ever finishes.
 message TaskAddRequest {
     string task_id = 1;
-    repeated string queue = 2;
-    double priority = 3;
-    bytes function = 4;
-    bytes input = 5;
+    repeated string parent_task_ids = 2;
+    repeated string queue = 3;
+    double priority = 4;
+    bytes function = 5;
+    bytes input = 6;
 }
 
+// Waiting is a task held back by a parent that has not finished.
+// Finished and Failed are both the end of a task that ran:
+// Finished is a task that ran without error,
+// and Failed is a task that ran and reported one,
+// or one that never ran because a task it depends on failed.
 // TaskGetStatus reports Undefined for a task_id that does not exist.
 enum TaskState {
-    Ready = 0;
-    Running = 1;
-    Complete = 2;
-    Canceled = 3;
-    Undefined = 4;
+    Waiting = 0;
+    Ready = 1;
+    Running = 2;
+    Finished = 3;
+    Failed = 4;
+    Canceled = 5;
+    Undefined = 6;
 }
 
 // TaskGetStatus reports the state of every requested task_id,
@@ -98,23 +114,28 @@ message TaskGetOutputResponse {
 
 // Counts of all tasks in the system by state.
 // Every task is in exactly one of these states,
-// so the four counts sum to the total number of tasks the server knows about.
+// so the six counts sum to the total number of tasks the server knows about.
 message TaskGetCountByStateResponse {
-    uint64 ready = 1;
-    uint64 running = 2;
-    uint64 complete = 3;
-    uint64 canceled = 4;
+    uint64 waiting = 1;
+    uint64 ready = 2;
+    uint64 running = 3;
+    uint64 finished = 4;
+    uint64 failed = 5;
+    uint64 canceled = 6;
 }
 
 // TaskCancel on a Ready task stops every queue from dispatching it.
 // Canceling a Running task takes it away from the worker holding it.
+// Canceling a task cancels every task waiting on it, and so on down the graph,
+// because a canceled task never finishes.
+// Every task canceled this way reports "Task canceled" as its output.
 message TaskCancelRequest {
     string task_id = 1;
 }
 
-// success is true if the task was Ready or Running
+// success is true if the task was Waiting, Ready or Running
 // and this call moved it to Canceled,
-// false if it was already Complete or Canceled
+// false if it was already Finished, Failed or Canceled
 // and this call left it alone.
 message TaskCancelResponse {
     bool success = 1;
@@ -161,10 +182,21 @@ message TaskGetResponse {
 // TaskDone from any other worker is refused.
 // TaskDone on a Canceled task is accepted but does nothing.
 // The task stays Canceled and the output is discarded.
+//
+// failed says how the task ended.
+// A task reported with failed = false is Finished,
+// and one reported with failed = true is Failed.
+// output is stored either way, so a failing worker can report why.
+// Failing a task fails every task waiting on it, and so on down the graph,
+// because a failed task never finishes.
+// Every task failed this way reports
+// "Dependency failed (task_id=...)" as its output,
+// naming the task whose run failed.
 message TaskDoneRequest {
     string task_id = 1;
     bytes output = 2;
     string worker_id = 3;
+    bool failed = 4;
 }
 
 message JournalSizeRequest {

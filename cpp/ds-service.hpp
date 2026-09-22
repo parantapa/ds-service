@@ -1,5 +1,14 @@
 #pragma once
 
+// The types the server keeps its state in.
+//
+// Each struct below owns one top level data structure
+// and the lock that guards it.
+// A method named after an RPC serves that RPC:
+// it takes the struct's own lock,
+// and misc/ds-service.proto states the contract it answers with,
+// down to the status code for each refusal.
+
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -104,18 +113,23 @@ struct Counters {
     grpc::Status search_key(const SearchKeyRequest* request, SearchKeyResponse* response);
 };
 
+// One row's place in one queue.
+// A row has an entry per queue it waits on,
+// and a further entry for every seq it has held since.
 struct TaskQueueEntry {
     double priority;
     std::uint64_t seq;
     std::size_t index;
 };
 
+// Orders a queue by priority, and by arrival among equal priorities.
 struct TaskQueueEntryOrder {
     bool operator()(const TaskQueueEntry& a, const TaskQueueEntry& b) const;
 };
 
 using TaskQueue = std::priority_queue<TaskQueueEntry, std::vector<TaskQueueEntry>, TaskQueueEntryOrder>;
 
+// The task rows, one vector per column.
 struct TaskTable {
     std::vector<std::string> task_id;
     std::vector<std::string> function;
@@ -126,6 +140,20 @@ struct TaskTable {
     std::vector<double> priority;
     std::vector<std::vector<std::string>> queues;
     std::vector<std::uint64_t> seq;
+
+    // The dependency graph, one entry per row:
+    // how many of the row's parents have yet to finish,
+    // and the rows waiting on this one.
+    std::vector<std::size_t> pending_parents;
+    std::vector<std::vector<std::size_t>> children;
+
+    // The row whose ending decided this row's.
+    // A row that ended on its own account is its own origin,
+    // and a row that inherited its ending from a parent
+    // carries the origin that parent carried.
+    // So every row in a chain names the one task that actually failed,
+    // rather than the task next to it in the chain.
+    std::vector<std::size_t> terminal_origin;
 };
 
 // The task table, its index and its queues,
@@ -155,4 +183,22 @@ struct TaskManager {
     grpc::Status search_id(const SearchKeyRequest* request, SearchKeyResponse* response);
     grpc::Status get(const TaskGetRequest* request, TaskGetResponse* response);
     grpc::Status done(const TaskDoneRequest* request, Empty* response);
+
+    // Push a row into each of its queues under a fresh seq.
+    // The row must be Ready, and the caller must hold the lock.
+    void enqueue(std::size_t index);
+
+    // Move every row waiting on this one to a terminal state,
+    // and with them every row waiting on those,
+    // however deep the graph runs.
+    // origin is the row whose own ending is being passed down,
+    // which every row reached this way then carries and reports.
+    // The row named here is left to the caller.
+    // The caller must hold the lock.
+    void propagate_to_children(std::size_t index, TaskState state, std::size_t origin);
+
+    // What a row that never ran reports as its output.
+    // A row that did run keeps whatever its worker reported.
+    // The caller must hold the lock.
+    std::string terminal_output(TaskState state, std::size_t origin) const;
 };

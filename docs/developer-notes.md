@@ -19,6 +19,7 @@ When behavior changes, update the document that covers it.
 | `cpp/map.cpp`, `cpp/journal-map.cpp`, `cpp/time-series.cpp`, `cpp/mutexes.cpp`, `cpp/counters.cpp`, `cpp/task-manager.cpp` | One implementation file per top level data structure. |
 | `CMakeLists.txt` | Builds the generated stubs into `ds-service-grpc`, then the `ds-service` executable. |
 | `conanfile.py` | The C++ dependency set and the build/tool requirements. |
+| `pyproject.toml` | The Python package: its dependency floors, and the configuration for pytest, pyright and black. |
 | `python/ds_service_client/__init__.py` | The package's public surface: the two clients, `DsServiceServer`, the exceptions, and `TaskState`. |
 | `python/ds_service_client/client.py` | Both hand-written clients, the exception translation, and the shared gRPC options and helpers. |
 | `python/ds_service_client/server.py` | `DsServiceServer`, which runs a `ds-service` process for the life of the object. |
@@ -313,11 +314,38 @@ because `project(VERSION)` rejects a pre-release suffix.
 The script greps for each line before touching anything,
 so it edits nothing unless all of them are present.
 
+## The dependency graph is built at TaskAdd
+
+`TaskAdd` resolves every id in `parent_task_ids` before it adds the row,
+and refuses the whole request if one of them is unknown.
+That rule is what keeps the graph acyclic:
+a parent must already exist,
+so no task can name itself or close a loop through its own descendants.
+Nothing after `TaskAdd` adds an edge,
+so no later call has to look for a cycle.
+
+Each row carries the two halves of the graph,
+`TaskTable::pending_parents` and `TaskTable::children`:
+
+- `TaskDone` decrements the count on each child of the row it finishes,
+    and enqueues a child whose count reaches zero.
+    A row reported failed releases nothing:
+    it hands its children the failure instead.
+- `TaskCancel` walks `children` from the row it cancels
+    and cancels everything it reaches.
+    `TaskManager::propagate_to_children` is that walk,
+    and a failing `TaskDone` runs it with `Failed` instead.
+
+A row is registered with a parent only while that parent is unfinished,
+because a parent that has already finished has nothing left to release.
+A row naming the same parent twice is registered with it twice,
+which is what keeps the count and the releases in step.
+
 ## Known limitations
 
 The server never reclaims `TaskTable` rows.
 A task keeps its row for the life of the server process,
-even after it reaches `Complete` or `Canceled`.
+even after it reaches `Finished`, `Failed` or `Canceled`.
 A long-lived server therefore holds one row per task ever added,
 rather than one per task still outstanding.
 `TaskSearchId` walks that table,
@@ -325,9 +353,9 @@ so its cost grows the same way.
 
 Compaction is not a local change.
 The index of a row is its address,
-and `TaskManager::task_index` and every queue entry in `TaskManager::queue`
-hold that index.
-If you move a row, you rewrite both.
+and `TaskManager::task_index`, every queue entry in `TaskManager::queue`
+and every entry in `TaskTable::children` hold that index.
+If you move a row, you rewrite all three.
 
 The server does not reclaim dead queue entries either.
 A heap cannot erase an entry from the middle.

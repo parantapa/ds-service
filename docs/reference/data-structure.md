@@ -61,27 +61,34 @@ The task queue does the same over its task ids with `TaskSearchId`.
 Tasks are units of work identified by a unique `task_id`.
 Each task carries an opaque `function` and `input` payload,
 a floating-point `priority`,
-and one or more named queues to dispatch it from.
-The set of queues is fixed at `TaskAdd`.
+one or more named queues to dispatch it from,
+and the ids of the tasks it waits for.
+Both sets are fixed at `TaskAdd`.
 
-A task moves through the states `Ready` -> `Running` -> `Complete`,
-or to `Canceled` from either `Ready` or `Running`.
-`Complete` and `Canceled` are both final.
-A task in either state never moves again.
-No live task holds the fifth state, `Undefined`.
+A task with a parent that has not finished starts `Waiting`.
+Every other task starts `Ready`.
+A task moves through the states
+`Waiting` -> `Ready` -> `Running` -> `Finished`,
+and a worker reports `Failed` in place of `Finished`
+for a task that ran and ended in an error.
+A task reaches `Canceled` from any of the three states before it ends,
+and `Failed` the same way when a task it depends on fails.
+`Finished`, `Failed` and `Canceled` are all final.
+A task in one of them never moves again.
+No live task holds the seventh state, `Undefined`.
 `TaskGetStatus` reports it for a `task_id` that does not exist.
 
 | RPC | Description |
 | --- | --- |
-| `TaskAdd(task_id, queue, priority, function, input)` | Register a new task and enqueue it on each named queue. Returns `ALREADY_EXISTS` if the id is already known. |
+| `TaskAdd(task_id, queue, priority, function, input, parent_task_ids)` | Register a new task and enqueue it on each named queue. A task with a parent that is not `Finished` starts `Waiting` and enters no queue yet. Returns `ALREADY_EXISTS` if the id is already known, and `NOT_FOUND`, adding nothing, for a parent the server does not know. |
 | `TaskGet(worker_id, queue)` | Claim the highest-priority `Ready` task from the first queue that has one, mark it `Running` on behalf of `worker_id`, and return its payload. `TaskGet` tries the queues in the order given. Returns `NOT_FOUND` when none of them has work ready. |
-| `TaskDone(task_id, output, worker_id)` | Mark a `Running` task `Complete` and store its output. Returns `NOT_FOUND` for an unknown `task_id`, and `FAILED_PRECONDITION` if the task is not `Running` or is held by a different worker. A `Canceled` task is accepted and left alone. |
+| `TaskDone(task_id, output, worker_id, failed)` | Store a `Running` task's output and mark it `Finished`, or `Failed` when `failed` is true. Failing a task fails every task waiting on it. Returns `NOT_FOUND` for an unknown `task_id`, and `FAILED_PRECONDITION` if the task is not `Running` or is held by a different worker. A `Canceled` task is accepted and left alone. |
 | `TaskGetStatus(task_id...)` | Return the state of each requested task, in request order. An unknown `task_id` reports `Undefined` rather than being an error. |
-| `TaskGetOutput(task_id)` | Return a single task's output. Returns `NOT_FOUND` if the task does not exist. A task that has not finished yet has empty output. |
-| `TaskGetCountByState()` | Return how many tasks are currently in each of the `Ready`, `Running`, `Complete`, and `Canceled` states. Takes no arguments. |
-| `TaskCancel(task_id)` | Move a `Ready` or `Running` task to `Canceled` and report `success = true`. A task that is already `Complete` or `Canceled` is left alone and reports `success = false`. Returns `NOT_FOUND` for an unknown `task_id`. |
+| `TaskGetOutput(task_id)` | Return a single task's output. Returns `NOT_FOUND` if the task does not exist. A task that has not ended yet has empty output, a canceled task reports `Task canceled`, and a task failed by one it depends on reports `Dependency failed (task_id=...)`, naming the task whose run failed. |
+| `TaskGetCountByState()` | Return how many tasks are currently in each of the `Waiting`, `Ready`, `Running`, `Finished`, `Failed` and `Canceled` states. Takes no arguments. |
+| `TaskCancel(task_id)` | Move a `Waiting`, `Ready` or `Running` task to `Canceled`, cancel every task waiting on it, and report `success = true`. A task that is already `Finished`, `Failed` or `Canceled` is left alone and reports `success = false`. Returns `NOT_FOUND` for an unknown `task_id`. |
 | `TaskGetPriority(task_id)` | Return the task's current priority. Returns `NOT_FOUND` for an unknown `task_id`. |
-| `TaskSetPriority(task_id, priority)` | Change the task's priority. A `Ready` task is moved within every queue it waits on. A task in any other state records the new priority but is never dispatched again. Returns `NOT_FOUND` for an unknown `task_id`. |
+| `TaskSetPriority(task_id, priority)` | Change the task's priority. A `Ready` task is moved within every queue it waits on. A `Waiting` task records the new priority and enters its queues at that priority when its parents finish. A task in any other state records the new priority but is never dispatched again. Returns `NOT_FOUND` for an unknown `task_id`. |
 | `TaskGetWorkerId(task_id)` | Return the `worker_id` holding a `Running` task. Returns `NOT_FOUND` for an unknown `task_id`, and `FAILED_PRECONDITION` if the task is not `Running`. |
 | `TaskSearchId(pattern)` | Return every `task_id` matching the regular expression `pattern`. `TaskSearchId` searches tasks in every state. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
 
@@ -97,7 +104,7 @@ and `TaskGetWorkerId` reports which one that is.
 Only a `Running` task has a holder to report:
 
 - No worker claimed a `Ready` task.
-- A worker handed a `Complete` task back when it finished.
+- A worker handed a `Finished` or `Failed` task back when it ended.
 - `TaskCancel` drops the record.
 
 The server refuses `TaskDone` from any other worker
@@ -119,6 +126,40 @@ The call succeeds, the task stays `Canceled`,
 and the server discards the output.
 `TaskDone` on a `Canceled` task is accepted from any worker.
 `TaskCancel` also drops the record of which worker held the task.
+
+`parent_task_ids` names the tasks a task waits for.
+A task enters its queues when the last of its parents reaches `Finished`,
+and `TaskGet` never offers it before that.
+It enters them at whatever priority it holds at that moment,
+and counts as newly queued:
+it waits behind the tasks of equal priority already there.
+
+Every parent must exist when `TaskAdd` names it.
+A graph of tasks is therefore added parents first,
+and no task can name itself or close a cycle.
+`TaskAdd` returns `NOT_FOUND` for a parent the server does not know,
+and adds nothing at all in that case.
+
+A canceled task never finishes, and neither does a failed one,
+so the tasks waiting on either can never run.
+The end of such a parent is passed down the graph:
+
+- `TaskCancel` cancels every task waiting on the task it cancels,
+    and every task waiting on those, however deep the graph runs.
+- `TaskDone` with `failed` fails them the same way.
+- `TaskAdd` adds a task with a `Canceled` parent as `Canceled`,
+    and one with a `Failed` parent as `Failed`.
+    A parent that failed decides this over one that was canceled.
+
+`TaskGetOutput` reports why such a task never ran.
+A task canceled, whether by name or through a parent,
+reports `Task canceled`.
+A task failed through a parent reports
+`Dependency failed (task_id=...)`,
+naming the task whose own run failed,
+not the parent it was waiting on.
+A task that did run keeps whatever its worker reported,
+whether it finished or failed.
 
 A worker that dies mid-task leaves its task `Running`
 for the life of the server.

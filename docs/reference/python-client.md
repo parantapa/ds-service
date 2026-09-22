@@ -113,16 +113,23 @@ client.task_done(task.task_id, worker_id="worker-a", output=b"result")
 
 # Poll the state of one or more tasks; an unknown id reports Undefined.
 # A single string returns one state; a list returns a list of states.
-assert client.task_get_status("job-1") == TaskState.Complete
+assert client.task_get_status("job-1") == TaskState.Finished
 assert client.task_get_status(["job-1", "ghost"]) == [
-    TaskState.Complete,
+    TaskState.Finished,
     TaskState.Undefined,
 ]
 assert client.task_get_output("job-1") == b"result"
 
 # Aggregate counts across all tasks in the system.
 counts = client.task_get_count_by_state()
-assert (counts.ready, counts.running, counts.complete, counts.canceled) == (0, 0, 1, 0)
+assert (
+    counts.waiting,
+    counts.ready,
+    counts.running,
+    counts.finished,
+    counts.failed,
+    counts.canceled,
+) == (0, 0, 0, 1, 0, 0)
 
 # A second task, this one never run.
 client.task_add("job-2", queue="work", priority=1.0, function=b"...", input=b"...")
@@ -132,14 +139,66 @@ client.task_add("job-2", queue="work", priority=1.0, function=b"...", input=b"..
 assert client.task_get_priority("job-2") == 1.0
 client.task_set_priority("job-2", 5.0)
 
-# Withdraw a task that has not finished yet.
+# Withdraw a task that has not ended yet.
 # True if this call moved it to Canceled,
-# False if it was already Complete or Canceled.
+# False if it was already Finished, Failed or Canceled.
+# Canceling a task cancels every task waiting on it.
 assert client.task_cancel("job-2") is True
 assert client.task_get_status("job-2") == TaskState.Canceled
+assert client.task_get_output("job-2") == b"Task canceled"
+
+# A task that waits for others.
+# parent_task_ids takes one id or a list of them,
+# and every parent must already exist.
+client.task_add("job-3", queue="work", priority=1.0, function=b"...", input=b"...")
+client.task_add(
+    "job-4",
+    queue="work",
+    priority=1.0,
+    function=b"...",
+    input=b"...",
+    parent_task_ids="job-3",
+)
+
+# job-4 is Waiting, so no queue offers it while job-3 is unfinished.
+assert client.task_get_status("job-4") == TaskState.Waiting
+
+task = client.task_get(worker_id="worker-a", queue="work")
+assert task.task_id == "job-3"
+client.task_done("job-3", worker_id="worker-a", output=b"result")
+
+# Finishing the last parent releases it.
+assert client.task_get_status("job-4") == TaskState.Ready
+
+# A worker that ends in an error reports the task Failed instead,
+# which fails every task waiting on it.
+client.task_add("job-5", queue="work", priority=1.0, function=b"...", input=b"...")
+client.task_add(
+    "job-6",
+    queue="work",
+    priority=1.0,
+    function=b"...",
+    input=b"...",
+    parent_task_ids="job-5",
+)
+
+client.task_get(worker_id="worker-a", queue="work")
+client.task_done("job-5", worker_id="worker-a", output=b"traceback", failed=True)
+
+assert client.task_get_status("job-5") == TaskState.Failed
+assert client.task_get_output("job-5") == b"traceback"
+assert client.task_get_status("job-6") == TaskState.Failed
+assert client.task_get_output("job-6") == b"Dependency failed (task_id=job-5)"
 
 # Find task ids by regular expression, whatever state the tasks are in.
-assert sorted(client.task_search_id("^job-")) == ["job-1", "job-2"]
+assert sorted(client.task_search_id("^job-")) == [
+    "job-1",
+    "job-2",
+    "job-3",
+    "job-4",
+    "job-5",
+    "job-6",
+]
 
 # Journal
 client.journal_append("events", b"started")
