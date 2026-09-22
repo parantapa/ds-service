@@ -23,8 +23,9 @@ def public_methods(cls: type) -> dict[str, Callable[..., Any]]:
     the dunder methods included.
     """
     # Each side spells the context manager protocol differently,
-    # so test_each_client_supports_its_own_context_manager_protocol
-    # checks it on its own.
+    # so test_client_lifecycle.py and
+    # test_async_client_supports_the_async_context_manager_protocol
+    # check it on their own.
     return {
         name: member
         for name, member in inspect.getmembers(cls, inspect.isfunction)
@@ -77,9 +78,7 @@ def test_only_the_async_client_has_coroutine_methods(name: str):
     assert not inspect.iscoroutinefunction(SYNC_METHODS[name])
 
 
-def test_each_client_supports_its_own_context_manager_protocol():
-    assert callable(getattr(DsServiceClient, "__enter__"))
-    assert callable(getattr(DsServiceClient, "__exit__"))
-
+def test_async_client_supports_the_async_context_manager_protocol():
+    # test_client_lifecycle.py uses the synchronous protocol against a server.
     assert inspect.iscoroutinefunction(DsServiceClientAsync.__aenter__)
     assert inspect.iscoroutinefunction(DsServiceClientAsync.__aexit__)

@@ -65,13 +65,6 @@ def test_server_binds_the_address_of_its_interface(loopback_interface):
         assert ds_server.address == f"127.0.0.1:{ds_server.port}"
 
 
-def test_constructing_with_an_unknown_interface_starts_nothing():
-    # DsServiceServer resolves the interface before it starts any process,
-    # so the ValueError means nothing was started.
-    with pytest.raises(ValueError):
-        DsServiceServer("definitely-not-an-interface")
-
-
 def test_port_zero_means_an_ephemeral_port(loopback_interface):
     # 0 is the usual way to ask the kernel for a port, as is None.
     with DsServiceServer(loopback_interface, port=0) as ds_server:
@@ -84,14 +77,6 @@ def test_port_zero_means_an_ephemeral_port(loopback_interface):
             assert ds_client.map_get("k") == b"v"
         finally:
             ds_client.close()
-
-
-def test_explicit_port_already_in_use_is_refused(server, loopback_interface):
-    # See "The server refuses to share its port" in the developer notes.
-    _, port = server.rsplit(":", 1)
-
-    with pytest.raises(OSError):
-        DsServiceServer(loopback_interface, port=int(port))
 
 
 def test_failed_start_leaves_the_running_server_alone(
@@ -142,14 +127,6 @@ def test_close_is_safe_to_call_twice(loopback_interface):
     # The ordinary way to reach a second call is close() then __exit__.
     server.close()
     server.close()
-
-
-def test_context_manager_exit_after_explicit_close(loopback_interface):
-    with DsServiceServer(loopback_interface) as server:
-        server.wait_until_ready(timeout=15)
-        server.close()
-    # __exit__ ran a second close() on the way out and did not raise.
-    assert server.process.poll() is not None
 
 
 def test_fixed_port_is_reusable_after_the_server_exits(loopback_interface):

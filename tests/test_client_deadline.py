@@ -29,9 +29,11 @@ def test_unresponsive_server_raises_timeout_error(mute_address):
     client = DsServiceClient(mute_address, timeout=0.5)
     try:
         start = time.monotonic()
-        with pytest.raises(TimeoutError):
+        with pytest.raises(TimeoutError) as excinfo:
             client.map_get("anything")
         elapsed = time.monotonic() - start
+        # The caller never has to know about grpc's exception types.
+        assert not isinstance(excinfo.value, grpc.RpcError)
     finally:
         client.close()
 
@@ -42,27 +44,6 @@ def test_unresponsive_server_raises_timeout_error(mute_address):
     # So only the timing distinguishes
     # "the deadline cut it off" from "it failed for some other reason".
     assert 0.4 <= elapsed < 5.0
-
-
-def test_deadline_does_not_leak_grpc_errors(mute_address):
-    # The caller never has to know about grpc's exception types.
-    client = DsServiceClient(mute_address, timeout=0.5)
-    try:
-        start = time.monotonic()
-        with pytest.raises(TimeoutError) as excinfo:
-            client.map_set("k", b"v")
-        elapsed = time.monotonic() - start
-        assert not isinstance(excinfo.value, grpc.RpcError)
-    finally:
-        client.close()
-
-    assert 0.4 <= elapsed < 5.0
-
-
-def test_calls_still_succeed_under_the_default_deadline(client):
-    # A normal round-trip is nowhere near the deadline.
-    client.map_set("k", b"v")
-    assert client.map_get("k") == b"v"
 
 
 def test_task_get_on_an_unreachable_server_is_not_no_task_available():

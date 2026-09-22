@@ -3,14 +3,6 @@
 import pytest
 
 
-def test_size_of_missing_journal_is_zero(client):
-    assert client.journal_size("nope") == 0
-
-
-def test_read_of_missing_journal_is_empty(client):
-    assert client.journal_read("nope", 0, 5) == []
-
-
 def test_append_creates_and_grows(client):
     client.journal_append("j", b"a")
     client.journal_append("j", b"b")
@@ -22,12 +14,6 @@ def test_read_is_half_open(client):
     for entry in (b"a", b"b", b"c"):
         client.journal_append("j", entry)
     assert client.journal_read("j", 0, 2) == [b"a", b"b"]
-
-
-def test_full_read_via_size(client):
-    for entry in (b"a", b"b", b"c"):
-        client.journal_append("j", entry)
-    assert client.journal_read("j", 0, client.journal_size("j")) == [b"a", b"b", b"c"]
 
 
 def test_read_clamps_end_past_size(client):

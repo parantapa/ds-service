@@ -63,12 +63,6 @@ def test_large_value_round_trips(client):
 
 def test_oversized_value_raises_value_error(client):
     payload = b"x" * (MAX_MESSAGE_SIZE_BYTES + 1024)
-    with pytest.raises(ValueError):
-        client.map_set("too-big", payload)
-
-
-def test_oversized_value_does_not_leak_grpc_errors(client):
-    payload = b"x" * (MAX_MESSAGE_SIZE_BYTES + 1024)
     with pytest.raises(ValueError) as excinfo:
         client.map_set("too-big", payload)
     assert not isinstance(excinfo.value, grpc.RpcError)

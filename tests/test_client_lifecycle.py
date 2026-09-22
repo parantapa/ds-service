@@ -5,15 +5,10 @@ import pytest
 from ds_service_client import DsServiceClient
 
 
-def test_client_works_as_a_context_manager(server):
-    with DsServiceClient(server) as client:
-        client.map_set("k", b"v")
-        assert client.map_get("k") == b"v"
-
-
 def test_context_manager_closes_the_channel(server):
     with DsServiceClient(server) as client:
         client.map_set("k", b"v")
+        assert client.map_get("k") == b"v"
 
     # grpc refuses calls on a closed channel
     # rather than quietly reconnecting,

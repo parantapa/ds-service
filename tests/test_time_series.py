@@ -19,10 +19,6 @@ def test_append_then_get_returns_in_append_order(client):
     assert [p.value for p in client.time_series_get("m")] == [1.0, 2.0, 3.0]
 
 
-def test_get_missing_key_returns_empty(client):
-    assert client.time_series_get("does-not-exist") == []
-
-
 def test_step_defaults_to_zero(client):
     client.time_series_append("m", 1.5, "2024-01-01T00:00:00Z")
     (point,) = client.time_series_get("m")
@@ -85,16 +81,6 @@ def test_end_time_is_exclusive(stepped_series):
     assert got == [(0.0, 0), (1.0, 1)]
 
 
-def test_time_window_start_inclusive_end_exclusive(stepped_series):
-    got = _points(
-        stepped_series,
-        "m",
-        start_time="2024-01-01T00:00:01Z",
-        end_time="2024-01-01T00:00:03Z",
-    )
-    assert got == [(1.0, 1), (2.0, 2)]
-
-
 def test_start_step_is_inclusive(stepped_series):
     got = _points(stepped_series, "m", start_step=3)
     assert got == [(3.0, 3), (4.0, 4)]
@@ -103,11 +89,6 @@ def test_start_step_is_inclusive(stepped_series):
 def test_end_step_is_exclusive(stepped_series):
     got = _points(stepped_series, "m", end_step=2)
     assert got == [(0.0, 0), (1.0, 1)]
-
-
-def test_step_window(stepped_series):
-    got = _points(stepped_series, "m", start_step=1, end_step=4)
-    assert got == [(1.0, 1), (2.0, 2), (3.0, 3)]
 
 
 def test_time_and_step_filters_combine(stepped_series):

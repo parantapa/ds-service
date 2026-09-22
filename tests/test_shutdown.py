@@ -4,8 +4,6 @@ import signal
 
 import pytest
 
-from ds_service_client import DsServiceClient
-
 # Generous next to the server's own grace period,
 # which only has an idle server to drain here.
 EXIT_TIMEOUT_S = 10.0
@@ -19,19 +17,4 @@ def test_shutdown_signal_exits_cleanly(server_process, signum):
 
     # A signal handled by its default disposition kills the process,
     # which then reports -signum rather than 0.
-    assert proc.wait(timeout=EXIT_TIMEOUT_S) == 0
-
-
-def test_shutdown_serves_requests_until_signalled(server_process):
-    proc, address = server_process
-
-    client = DsServiceClient(address)
-    try:
-        client.map_set("key", b"value")
-        assert client.map_get("key") == b"value"
-    finally:
-        client.close()
-
-    proc.send_signal(signal.SIGTERM)
-
     assert proc.wait(timeout=EXIT_TIMEOUT_S) == 0

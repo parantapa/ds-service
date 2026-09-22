@@ -8,11 +8,6 @@ import pytest
 from ds_service_client import MutexNotHeld
 
 
-def test_try_acquire_creates_and_acquires(client):
-    # The first call creates and acquires a mutex that does not exist.
-    assert client.mutex_try_acquire("m", worker_id="w1") is True
-
-
 def test_try_acquire_second_time_fails(client):
     assert client.mutex_try_acquire("m", worker_id="w1") is True
     assert client.mutex_try_acquire("m", worker_id="w2") is False
