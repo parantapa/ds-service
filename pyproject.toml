@@ -32,6 +32,13 @@ dependencies = [
 test = [
     "pytest>=7",
 ]
+dev = [
+    "black",
+    "build",
+    "conan>=2",
+    "pyright",
+    "twine",
+]
 
 [project.urls]
 Homepage = "https://github.com/parantapa/ds-service"

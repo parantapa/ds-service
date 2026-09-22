@@ -42,13 +42,14 @@ the three option checks in `test_grpc_options.py`,
 the tests in `test_client_deadline.py` that use no `client` fixture,
 and the tests in `test_server_helper.py` that start no `ds-service`.
 So the tests need a built server,
-and the test dependencies installed:
+and the development and test dependencies installed:
 
 ```sh
-pip install -e ".[test]"
+pip install -e ".[dev,test]"
 ```
 
-That pulls in `pytest`.
+That pulls in `pytest`,
+and `black`, `build`, `conan`, `pyright` and `twine`.
 You do not have to install the package to use the client itself.
 `pyproject.toml` sets `pythonpath = ["python"]` for pytest,
 so the suite imports `ds_service_client` straight from the source tree.
