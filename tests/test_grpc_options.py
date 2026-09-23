@@ -14,13 +14,15 @@ import pytest
 
 from ds_service_client.client import GRPC_CLIENT_OPTIONS, MAX_MESSAGE_SIZE_BYTES
 
-SERVER_SOURCE = Path(__file__).resolve().parents[1] / "cpp" / "ds-service.cpp"
+SERVER_SOURCE = (
+    Path(__file__).resolve().parents[1] / "cpp" / "grpc" / "channel-settings.hpp"
+)
 
 
 def _server_source() -> str:
-    """The server source with C-style comments stripped."""
-    # The server's channel arguments carry inline /* ... */ notes,
-    # which otherwise confuse the arithmetic these tests evaluate.
+    """The server's channel settings, with C-style comments stripped."""
+    # A /* ... */ note inside a value would confuse
+    # the arithmetic these tests evaluate.
     return re.sub(r"/\*.*?\*/", "", SERVER_SOURCE.read_text(), flags=re.DOTALL)
 
 
@@ -38,7 +40,7 @@ def test_message_size_limits_match_the_server():
 
 def test_client_ping_interval_clears_the_server_floor():
     match = re.search(
-        r"GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS,\s*([^)]+)\)",
+        r"constexpr int SERVER_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS\s*=\s*([^;]+);",
         _server_source(),
     )
     assert match, "server ping floor not found in the server source"

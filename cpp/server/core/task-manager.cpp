@@ -3,15 +3,15 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <spdlog/fmt/fmt.h>
 #include <re2/re2.h>
-#include <grpcpp/grpcpp.h>
 
-#include <ds-service.grpc.pb.h>
+#include "core/data-structures.hpp"
 
-#include "ds-service.hpp"
+using ds::TaskState;
 
 // What TaskGetOutput reports for a Canceled task,
 // and for a task that failed because a task it depends on failed.
@@ -78,13 +78,13 @@ void TaskManager::propagate_to_children(std::size_t index, TaskState state, std:
     }
 }
 
-grpc::Status TaskManager::add(const TaskAddRequest* request, Empty*) {
+ds::Result<void> TaskManager::add(ds::TaskAddRequest request) {
     std::scoped_lock guard{lock};
 
-    auto it = task_index.find(request->task_id());
+    auto it = task_index.find(request.task_id);
     if (it != task_index.end()) {
-        return grpc::Status(grpc::StatusCode::ALREADY_EXISTS,
-                            fmt::format("Task with ID = {} already exists.", request->task_id()));
+        return ds::make_error(ds::ErrorCode::AlreadyExists,
+                              fmt::format("Task with ID = {} already exists.", request.task_id));
     }
 
     // Every parent is resolved before the row is added,
@@ -92,12 +92,12 @@ grpc::Status TaskManager::add(const TaskAddRequest* request, Empty*) {
     // See "The dependency graph is built at TaskAdd"
     // in docs/developer-notes.md for what that rule buys.
     std::vector<std::size_t> parents;
-    parents.reserve(static_cast<std::size_t>(request->parent_task_ids().size()));
-    for (const auto& parent_task_id : request->parent_task_ids()) {
+    parents.reserve(request.parent_task_ids.size());
+    for (const auto& parent_task_id : request.parent_task_ids) {
         auto parent_it = task_index.find(parent_task_id);
         if (parent_it == task_index.end()) {
-            return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                                fmt::format("Parent task with ID = {} not found.", parent_task_id));
+            return ds::make_error(ds::ErrorCode::NotFound,
+                                  fmt::format("Parent task with ID = {} not found.", parent_task_id));
         }
         parents.push_back(parent_it->second);
     }
@@ -146,24 +146,21 @@ grpc::Status TaskManager::add(const TaskAddRequest* request, Empty*) {
         output = terminal_output(state, origin);
     }
 
-    tasks.task_id.push_back(request->task_id());
-    tasks.function.push_back(request->function());
-    tasks.input.push_back(request->input());
-    tasks.output.push_back(output);
+    task_index[request.task_id] = index;
+
+    tasks.task_id.push_back(std::move(request.task_id));
+    tasks.function.push_back(std::move(request.function));
+    tasks.input.push_back(std::move(request.input));
+    tasks.output.push_back(std::move(output));
     tasks.state.push_back(state);
     tasks.worker_id.push_back("");
-    tasks.priority.push_back(request->priority());
-    tasks.queues.push_back({});
+    tasks.priority.push_back(request.priority);
+    tasks.queues.push_back(std::move(request.queue));
     // A Ready row is enqueued below, which is what gives it its seq.
     tasks.seq.push_back(0);
     tasks.pending_parents.push_back(pending_parents);
     tasks.children.push_back({});
     tasks.terminal_origin.push_back(origin);
-
-    task_index[request->task_id()] = index;
-    for (const auto& qname : request->queue()) {
-        tasks.queues[index].push_back(qname);
-    }
 
     // This list is how TaskDone and TaskCancel reach the row.
     // The test must match the one that counted pending_parents above,
@@ -178,40 +175,40 @@ grpc::Status TaskManager::add(const TaskAddRequest* request, Empty*) {
         enqueue(index);
     }
 
-    return grpc::Status::OK;
+    return {};
 }
 
-grpc::Status TaskManager::get_status(const TaskGetStatusRequest* request, TaskGetStatusResponse* response) {
+ds::Result<ds::TaskGetStatusResponse> TaskManager::get_status(ds::TaskGetStatusRequest request) {
     std::scoped_lock guard{lock};
 
-    for (const auto& task_id : request->task_id()) {
+    ds::TaskGetStatusResponse response;
+    response.state.reserve(request.task_id.size());
+    for (const auto& task_id : request.task_id) {
         auto it = task_index.find(task_id);
         // TaskGetStatus reports Undefined for an unknown task_id.
         // That is not an error.
         if (it == task_index.end()) {
-            response->add_state(TaskState::Undefined);
+            response.state.push_back(TaskState::Undefined);
         } else {
-            response->add_state(tasks.state[it->second]);
+            response.state.push_back(tasks.state[it->second]);
         }
     }
 
-    return grpc::Status::OK;
+    return response;
 }
 
-grpc::Status TaskManager::get_output(const TaskGetOutputRequest* request, TaskGetOutputResponse* response) {
+ds::Result<ds::TaskGetOutputResponse> TaskManager::get_output(ds::TaskGetOutputRequest request) {
     std::scoped_lock guard{lock};
 
-    auto it = task_index.find(request->task_id());
+    auto it = task_index.find(request.task_id);
     if (it == task_index.end()) {
-        return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                            fmt::format("Task with ID = {} not found.", request->task_id()));
+        return ds::make_error(ds::ErrorCode::NotFound, fmt::format("Task with ID = {} not found.", request.task_id));
     }
 
-    response->set_output(tasks.output[it->second]);
-    return grpc::Status::OK;
+    return ds::TaskGetOutputResponse{tasks.output[it->second]};
 }
 
-grpc::Status TaskManager::get_count_by_state(const Empty*, TaskGetCountByStateResponse* response) {
+ds::Result<ds::TaskGetCountByStateResponse> TaskManager::get_count_by_state() {
     std::scoped_lock guard{lock};
 
     std::uint64_t waiting = 0, ready = 0, running = 0, finished = 0, failed = 0, canceled = 0;
@@ -240,30 +237,29 @@ grpc::Status TaskManager::get_count_by_state(const Empty*, TaskGetCountByStateRe
         }
     }
 
-    response->set_waiting(waiting);
-    response->set_ready(ready);
-    response->set_running(running);
-    response->set_finished(finished);
-    response->set_failed(failed);
-    response->set_canceled(canceled);
-    return grpc::Status::OK;
+    return ds::TaskGetCountByStateResponse{
+        .waiting = waiting,
+        .ready = ready,
+        .running = running,
+        .finished = finished,
+        .failed = failed,
+        .canceled = canceled,
+    };
 }
 
-grpc::Status TaskManager::cancel(const TaskCancelRequest* request, TaskCancelResponse* response) {
+ds::Result<ds::TaskCancelResponse> TaskManager::cancel(ds::TaskCancelRequest request) {
     std::scoped_lock guard{lock};
 
-    auto it = task_index.find(request->task_id());
+    auto it = task_index.find(request.task_id);
     if (it == task_index.end()) {
-        return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                            fmt::format("Task with ID = {} not found.", request->task_id()));
+        return ds::make_error(ds::ErrorCode::NotFound, fmt::format("Task with ID = {} not found.", request.task_id));
     }
 
     auto index = it->second;
 
     if (tasks.state[index] != TaskState::Waiting && tasks.state[index] != TaskState::Ready &&
         tasks.state[index] != TaskState::Running) {
-        response->set_success(false);
-        return grpc::Status::OK;
+        return ds::TaskCancelResponse{false};
     }
 
     tasks.state[index] = TaskState::Canceled;
@@ -272,85 +268,80 @@ grpc::Status TaskManager::cancel(const TaskCancelRequest* request, TaskCancelRes
     tasks.output[index] = terminal_output(TaskState::Canceled, index);
     propagate_to_children(index, TaskState::Canceled, index);
 
-    response->set_success(true);
-    return grpc::Status::OK;
+    return ds::TaskCancelResponse{true};
 }
 
-grpc::Status TaskManager::get_priority(const TaskGetPriorityRequest* request, TaskGetPriorityResponse* response) {
+ds::Result<ds::TaskGetPriorityResponse> TaskManager::get_priority(ds::TaskGetPriorityRequest request) {
     std::scoped_lock guard{lock};
 
-    auto it = task_index.find(request->task_id());
+    auto it = task_index.find(request.task_id);
     if (it == task_index.end()) {
-        return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                            fmt::format("Task with ID = {} not found.", request->task_id()));
+        return ds::make_error(ds::ErrorCode::NotFound, fmt::format("Task with ID = {} not found.", request.task_id));
     }
 
-    response->set_priority(tasks.priority[it->second]);
-    return grpc::Status::OK;
+    return ds::TaskGetPriorityResponse{tasks.priority[it->second]};
 }
 
-grpc::Status TaskManager::set_priority(const TaskSetPriorityRequest* request, Empty*) {
+ds::Result<void> TaskManager::set_priority(ds::TaskSetPriorityRequest request) {
     std::scoped_lock guard{lock};
 
-    auto it = task_index.find(request->task_id());
+    auto it = task_index.find(request.task_id);
     if (it == task_index.end()) {
-        return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                            fmt::format("Task with ID = {} not found.", request->task_id()));
+        return ds::make_error(ds::ErrorCode::NotFound, fmt::format("Task with ID = {} not found.", request.task_id));
     }
 
     auto index = it->second;
-    tasks.priority[index] = request->priority();
+    tasks.priority[index] = request.priority;
 
     // A row that is not Ready is in no queue.
     // A Waiting row enters its queues at the new priority when enqueue runs for it.
     if (tasks.state[index] != TaskState::Ready) {
-        return grpc::Status::OK;
+        return {};
     }
 
     enqueue(index);
 
-    return grpc::Status::OK;
+    return {};
 }
 
-grpc::Status TaskManager::get_worker_id(const TaskGetWorkerIdRequest* request, TaskGetWorkerIdResponse* response) {
+ds::Result<ds::TaskGetWorkerIdResponse> TaskManager::get_worker_id(ds::TaskGetWorkerIdRequest request) {
     std::scoped_lock guard{lock};
 
-    auto it = task_index.find(request->task_id());
+    auto it = task_index.find(request.task_id);
     if (it == task_index.end()) {
-        return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                            fmt::format("Task with ID = {} not found.", request->task_id()));
+        return ds::make_error(ds::ErrorCode::NotFound, fmt::format("Task with ID = {} not found.", request.task_id));
     }
 
     auto index = it->second;
 
     if (tasks.state[index] != TaskState::Running) {
-        return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
-                            fmt::format("Task with ID = {} is not Running.", request->task_id()));
+        return ds::make_error(ds::ErrorCode::FailedPrecondition,
+                              fmt::format("Task with ID = {} is not Running.", request.task_id));
     }
 
-    response->set_worker_id(tasks.worker_id[index]);
-    return grpc::Status::OK;
+    return ds::TaskGetWorkerIdResponse{tasks.worker_id[index]};
 }
 
-grpc::Status TaskManager::search_id(const SearchKeyRequest* request, SearchKeyResponse* response) {
-    RE2 pattern{request->pattern()};
+ds::Result<ds::SearchKeyResponse> TaskManager::search_id(ds::SearchKeyRequest request) {
+    RE2 pattern{request.pattern};
     if (!pattern.ok()) {
-        return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT,
-                            fmt::format("Invalid regular expression: {}", pattern.error()));
+        return ds::make_error(ds::ErrorCode::InvalidArgument,
+                              fmt::format("Invalid regular expression: {}", pattern.error()));
     }
 
     std::scoped_lock guard{lock};
 
+    ds::SearchKeyResponse response;
     for (const auto& task_id : tasks.task_id) {
         if (RE2::PartialMatch(task_id, pattern)) {
-            response->add_key(task_id);
+            response.key.push_back(task_id);
         }
     }
 
-    return grpc::Status::OK;
+    return response;
 }
 
-grpc::Status TaskManager::get(const TaskGetRequest* request, TaskGetResponse* response) {
+ds::Result<ds::TaskGetResponse> TaskManager::get(ds::TaskGetRequest request) {
     std::scoped_lock guard{lock};
 
     // TaskGet searches the queues in the order the caller listed them:
@@ -361,7 +352,7 @@ grpc::Status TaskManager::get(const TaskGetRequest* request, TaskGetResponse* re
     // A popped entry that is not usable is dropped rather than skipped.
     // See "Known limitations" in docs/developer-notes.md
     // for why they accumulate in the first place.
-    for (const auto& qname : request->queue()) {
+    for (const auto& qname : request.queue) {
         auto queue_it = queue.find(qname);
         if (queue_it == queue.end()) {
             continue;
@@ -382,26 +373,25 @@ grpc::Status TaskManager::get(const TaskGetRequest* request, TaskGetResponse* re
 
             const auto index = entry.index;
             tasks.state[index] = TaskState::Running;
-            tasks.worker_id[index] = request->worker_id();
+            tasks.worker_id[index] = std::move(request.worker_id);
 
-            response->set_task_id(tasks.task_id[index]);
-            response->set_function(tasks.function[index]);
-            response->set_input(tasks.input[index]);
-
-            return grpc::Status::OK;
+            return ds::TaskGetResponse{
+                .task_id = tasks.task_id[index],
+                .function = tasks.function[index],
+                .input = tasks.input[index],
+            };
         }
     }
 
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, "No tasks available.");
+    return ds::make_error(ds::ErrorCode::NotFound, "No tasks available.");
 }
 
-grpc::Status TaskManager::done(const TaskDoneRequest* request, Empty*) {
+ds::Result<void> TaskManager::done(ds::TaskDoneRequest request) {
     std::scoped_lock guard{lock};
 
-    auto it = task_index.find(request->task_id());
+    auto it = task_index.find(request.task_id);
     if (it == task_index.end()) {
-        return grpc::Status(grpc::StatusCode::NOT_FOUND,
-                            fmt::format("Task with ID = {} not found.", request->task_id()));
+        return ds::make_error(ds::ErrorCode::NotFound, fmt::format("Task with ID = {} not found.", request.task_id));
     }
 
     auto index = it->second;
@@ -409,29 +399,29 @@ grpc::Status TaskManager::done(const TaskDoneRequest* request, Empty*) {
     // The worker may still hold a task canceled under it.
     // Its report is accepted and dropped, so the task stays Canceled.
     if (tasks.state[index] == TaskState::Canceled) {
-        return grpc::Status::OK;
+        return {};
     }
 
     if (tasks.state[index] != TaskState::Running) {
-        return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
-                            fmt::format("Task with ID = {} is not Running.", request->task_id()));
+        return ds::make_error(ds::ErrorCode::FailedPrecondition,
+                              fmt::format("Task with ID = {} is not Running.", request.task_id));
     }
 
-    if (tasks.worker_id[index] != request->worker_id()) {
-        return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
-                            fmt::format("Task with ID = {} is held by worker {}, not {}.", request->task_id(),
-                                        tasks.worker_id[index], request->worker_id()));
+    if (tasks.worker_id[index] != request.worker_id) {
+        return ds::make_error(ds::ErrorCode::FailedPrecondition,
+                              fmt::format("Task with ID = {} is held by worker {}, not {}.", request.task_id,
+                                          tasks.worker_id[index], request.worker_id));
     }
 
-    tasks.output[index] = request->output();
+    tasks.output[index] = std::move(request.output);
 
     // A row that failed never finishes,
     // so the rows waiting on it fail with it rather than waiting forever.
-    if (request->failed()) {
+    if (request.failed) {
         tasks.state[index] = TaskState::Failed;
         tasks.terminal_origin[index] = index;
         propagate_to_children(index, TaskState::Failed, index);
-        return grpc::Status::OK;
+        return {};
     }
 
     tasks.state[index] = TaskState::Finished;
@@ -448,5 +438,5 @@ grpc::Status TaskManager::done(const TaskDoneRequest* request, Empty*) {
         }
     }
 
-    return grpc::Status::OK;
+    return {};
 }

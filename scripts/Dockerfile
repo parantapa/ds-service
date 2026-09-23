@@ -88,7 +88,6 @@ RUN conan install . --build=missing
 # These lines copy exactly the paths conanfile.py exports.
 COPY CMakeLists.txt ./
 COPY cpp/ ./cpp/
-COPY misc/ ./misc/
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

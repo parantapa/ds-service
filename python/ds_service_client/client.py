@@ -14,20 +14,20 @@ from .ds_service_pb2 import *
 from .ds_service_pb2_grpc import *
 
 # Largest single request or response accepted, in bytes.
-# Must match MAX_MESSAGE_SIZE_BYTES in cpp/ds-service.cpp.
+# Must match MAX_MESSAGE_SIZE_BYTES in cpp/grpc/channel-settings.hpp.
 # gRPC's own default is 4 MiB.
 # See "The channel settings are one setting in two languages"
 # in docs/developer-notes.md.
 MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024
 
-# Several of these options must match the server's channel arguments
-# in cpp/ds-service.cpp.
+# Several of these options must match the server's channel settings
+# in cpp/grpc/channel-settings.hpp.
 # See "The channel settings are one setting in two languages"
 # in docs/developer-notes.md.
 GRPC_CLIENT_OPTIONS: list[tuple[str, int]] = [
     # This ping interval must stay above the server's
-    # GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS
-    # (10 seconds in cpp/ds-service.cpp).
+    # SERVER_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS
+    # (10 seconds in cpp/grpc/channel-settings.hpp).
     ("grpc.keepalive_time_ms", 120 * 1000),
     ("grpc.keepalive_timeout_ms", 30 * 1000),
     # 0 means "unlimited".

@@ -6,9 +6,14 @@
 // and the lock that guards it.
 // A method named after an RPC serves that RPC:
 // it takes the struct's own lock,
-// and misc/ds-service.proto states the contract it answers with.
-// The method body holds the status code for each refusal,
+// and cpp/grpc/ds-service.proto states the contract it answers with.
+// Each method takes the plain request by value and moves what it keeps out of it.
+// It returns the plain response, or the Error for a refusal.
+// The method body holds the error code for each refusal,
 // and the proto names only some of them.
+//
+// Nothing here depends on gRPC or protobuf.
+// A transport decodes each request, calls the method, and encodes the result.
 
 #include <chrono>
 #include <cstddef>
@@ -20,9 +25,10 @@
 #include <vector>
 
 #include <parallel_hashmap/phmap.h>
-#include <grpcpp/grpcpp.h>
 
-#include <ds-service.grpc.pb.h>
+#include "ds-service/error.hpp"
+#include "ds-service/messages.hpp"
+#include "ds-service/task-state.hpp"
 
 // The hash map that every top level data structure is built on.
 template <typename K, typename V>
@@ -34,9 +40,9 @@ struct Map {
 
     HashMap<std::string, std::string> data{};
 
-    grpc::Status set(const MapSetRequest* request, Empty* response);
-    grpc::Status get(const MapGetRequest* request, MapGetResponse* response);
-    grpc::Status search_key(const SearchKeyRequest* request, SearchKeyResponse* response);
+    ds::Result<void> set(ds::MapSetRequest request);
+    ds::Result<ds::MapGetResponse> get(ds::MapGetRequest request);
+    ds::Result<ds::SearchKeyResponse> search_key(ds::SearchKeyRequest request);
 };
 
 // The map from a key to an append only journal,
@@ -46,10 +52,10 @@ struct JournalMap {
 
     HashMap<std::string, std::vector<std::string>> data{};
 
-    grpc::Status size(const JournalSizeRequest* request, JournalSizeResponse* response);
-    grpc::Status read(const JournalReadRequest* request, JournalReadResponse* response);
-    grpc::Status append(const JournalAppendRequest* request, Empty* response);
-    grpc::Status search_key(const SearchKeyRequest* request, SearchKeyResponse* response);
+    ds::Result<ds::JournalSizeResponse> size(ds::JournalSizeRequest request);
+    ds::Result<ds::JournalReadResponse> read(ds::JournalReadRequest request);
+    ds::Result<void> append(ds::JournalAppendRequest request);
+    ds::Result<ds::SearchKeyResponse> search_key(ds::SearchKeyRequest request);
 };
 
 // Parse an ISO 8601 datetime string into a system_clock time_point, or return nullopt if it does not parse.
@@ -78,9 +84,9 @@ struct TimeSeriesMap {
 
     HashMap<std::string, TimeSeries> data{};
 
-    grpc::Status append(const TimeSeriesAppendRequest* request, Empty* response);
-    grpc::Status get(const TimeSeriesGetRequest* request, TimeSeriesGetResponse* response);
-    grpc::Status search_key(const SearchKeyRequest* request, SearchKeyResponse* response);
+    ds::Result<void> append(ds::TimeSeriesAppendRequest request);
+    ds::Result<ds::TimeSeriesGetResponse> get(ds::TimeSeriesGetRequest request);
+    ds::Result<ds::SearchKeyResponse> search_key(ds::SearchKeyRequest request);
 };
 
 // One named mutex, as seen by the workers.
@@ -96,10 +102,10 @@ struct Mutexes {
 
     HashMap<std::string, MutexState> data{};
 
-    grpc::Status try_acquire(const MutexTryAcquireRequest* request, MutexTryAcquireResponse* response);
-    grpc::Status release(const MutexReleaseRequest* request, Empty* response);
-    grpc::Status get_worker_id(const MutexGetWorkerIdRequest* request, MutexGetWorkerIdResponse* response);
-    grpc::Status search_key(const SearchKeyRequest* request, SearchKeyResponse* response);
+    ds::Result<ds::MutexTryAcquireResponse> try_acquire(ds::MutexTryAcquireRequest request);
+    ds::Result<void> release(ds::MutexReleaseRequest request);
+    ds::Result<ds::MutexGetWorkerIdResponse> get_worker_id(ds::MutexGetWorkerIdRequest request);
+    ds::Result<ds::SearchKeyResponse> search_key(ds::SearchKeyRequest request);
 };
 
 // The map from a key to a monotonic counter,
@@ -109,10 +115,9 @@ struct Counters {
 
     HashMap<std::string, std::uint64_t> data{};
 
-    grpc::Status get_next_value(const CounterGetNextValueRequest* request, CounterGetNextValueResponse* response);
-    grpc::Status get_current_value(const CounterGetCurrentValueRequest* request,
-                                   CounterGetCurrentValueResponse* response);
-    grpc::Status search_key(const SearchKeyRequest* request, SearchKeyResponse* response);
+    ds::Result<ds::CounterGetNextValueResponse> get_next_value(ds::CounterGetNextValueRequest request);
+    ds::Result<ds::CounterGetCurrentValueResponse> get_current_value(ds::CounterGetCurrentValueRequest request);
+    ds::Result<ds::SearchKeyResponse> search_key(ds::SearchKeyRequest request);
 };
 
 // One row's place in one queue.
@@ -138,7 +143,7 @@ struct TaskTable {
     std::vector<std::string> function;
     std::vector<std::string> input;
     std::vector<std::string> output;
-    std::vector<TaskState> state;
+    std::vector<ds::TaskState> state;
     std::vector<std::string> worker_id;
     std::vector<double> priority;
     std::vector<std::vector<std::string>> queues;
@@ -177,18 +182,18 @@ struct TaskManager {
     // so TaskGet dispatches the highest priority row first.
     HashMap<std::string, TaskQueue> queue{};
 
-    grpc::Status add(const TaskAddRequest* request, Empty* response);
-    grpc::Status get_status(const TaskGetStatusRequest* request, TaskGetStatusResponse* response);
-    grpc::Status get_output(const TaskGetOutputRequest* request, TaskGetOutputResponse* response);
-    grpc::Status get_count_by_state(const Empty* request, TaskGetCountByStateResponse* response);
-    grpc::Status cancel(const TaskCancelRequest* request, TaskCancelResponse* response);
-    grpc::Status get_priority(const TaskGetPriorityRequest* request, TaskGetPriorityResponse* response);
-    grpc::Status set_priority(const TaskSetPriorityRequest* request, Empty* response);
-    grpc::Status get_worker_id(const TaskGetWorkerIdRequest* request, TaskGetWorkerIdResponse* response);
+    ds::Result<void> add(ds::TaskAddRequest request);
+    ds::Result<ds::TaskGetStatusResponse> get_status(ds::TaskGetStatusRequest request);
+    ds::Result<ds::TaskGetOutputResponse> get_output(ds::TaskGetOutputRequest request);
+    ds::Result<ds::TaskGetCountByStateResponse> get_count_by_state();
+    ds::Result<ds::TaskCancelResponse> cancel(ds::TaskCancelRequest request);
+    ds::Result<ds::TaskGetPriorityResponse> get_priority(ds::TaskGetPriorityRequest request);
+    ds::Result<void> set_priority(ds::TaskSetPriorityRequest request);
+    ds::Result<ds::TaskGetWorkerIdResponse> get_worker_id(ds::TaskGetWorkerIdRequest request);
     // Serves TaskSearchId, over the task ids of rows in every state.
-    grpc::Status search_id(const SearchKeyRequest* request, SearchKeyResponse* response);
-    grpc::Status get(const TaskGetRequest* request, TaskGetResponse* response);
-    grpc::Status done(const TaskDoneRequest* request, Empty* response);
+    ds::Result<ds::SearchKeyResponse> search_id(ds::SearchKeyRequest request);
+    ds::Result<ds::TaskGetResponse> get(ds::TaskGetRequest request);
+    ds::Result<void> done(ds::TaskDoneRequest request);
 
     // Push a row into each of its queues under a fresh seq.
     // The row must be Ready, and the caller must hold the lock.
@@ -204,10 +209,10 @@ struct TaskManager {
     // unless it is already Finished, Failed or Canceled, which leaves it alone.
     // The row named here is left to the caller.
     // The caller must hold the lock.
-    void propagate_to_children(std::size_t index, TaskState state, std::size_t origin);
+    void propagate_to_children(std::size_t index, ds::TaskState state, std::size_t origin);
 
     // What a Canceled row, or a row failed by a parent, reports as its output.
     // A row that its own worker finished or failed keeps whatever that worker reported.
     // The caller must hold the lock.
-    std::string terminal_output(TaskState state, std::size_t origin) const;
+    std::string terminal_output(ds::TaskState state, std::size_t origin) const;
 };

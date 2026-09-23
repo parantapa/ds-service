@@ -1,5 +1,5 @@
 #!/bin/bash
-# Regenerate the committed Python stubs from misc/ds-service.proto.
+# Regenerate the committed Python stubs from cpp/grpc/ds-service.proto.
 #
 # Takes no arguments, and runs from the repository root.
 # Copies the proto into python/ds_service_client,
@@ -14,7 +14,7 @@
 set -Eeuo pipefail
 set -x
 
-cp -f misc/ds-service.proto python/ds_service_client
+cp -f cpp/grpc/ds-service.proto python/ds_service_client
 
 cd python
 

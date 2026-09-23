@@ -19,7 +19,7 @@ class DsServiceRecipe(ConanFile):
     options = {"shared": [True, False], "fPIC": [True, False]}
     default_options = {"shared": False, "fPIC": True}
 
-    exports_sources = "CMakeLists.txt", "cpp/*", "misc/*"
+    exports_sources = "CMakeLists.txt", "cpp/*"
 
     def layout(self) -> None:
         cmake_layout(self)

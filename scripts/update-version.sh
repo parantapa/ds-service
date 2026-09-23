@@ -1,5 +1,5 @@
 #!/bin/bash
-# Set the version in cpp/ds-service.cpp, CMakeLists.txt, pyproject.toml
+# Set the version in cpp/server/main.cpp, CMakeLists.txt, pyproject.toml
 # and conanfile.py, then print the edited lines.
 #
 # Takes one argument, the version, and runs from the repository root.
@@ -39,12 +39,12 @@ CMAKE_VERSION=$(printf '%s' "$VERSION" | grep -oE '^[0-9]+(\.[0-9]+){0,2}') || {
 # because a bare "VERSION" also appears in cmake_minimum_required().
 PROJECT_BLOCK=$(sed -n '/^project(/,/)/p' CMakeLists.txt)
 
-grep -q '^const char\* VERSION = ".*";$' cpp/ds-service.cpp
+grep -q '^const char\* VERSION = ".*";$' cpp/server/main.cpp
 grep -q '^  VERSION ' <<<"$PROJECT_BLOCK"
 grep -q '^version = ".*"$' pyproject.toml
 grep -q '^    version = ".*"$' conanfile.py
 
-sed -i -E "s|^const char\* VERSION = \".*\";$|const char* VERSION = \"${VERSION}\";|" cpp/ds-service.cpp
+sed -i -E "s|^const char\* VERSION = \".*\";$|const char* VERSION = \"${VERSION}\";|" cpp/server/main.cpp
 sed -i -E "/^project\(/,/\)/ s|^  VERSION .*$|  VERSION ${CMAKE_VERSION}|" CMakeLists.txt
 
 # The [project] version is the only unindented one in pyproject.toml,
@@ -52,7 +52,7 @@ sed -i -E "/^project\(/,/\)/ s|^  VERSION .*$|  VERSION ${CMAKE_VERSION}|" CMake
 sed -i -E "s|^version = \".*\"$|version = \"${VERSION}\"|" pyproject.toml
 sed -i -E "s|^    version = \".*\"$|    version = \"${VERSION}\"|" conanfile.py
 
-grep -n '^const char\* VERSION' cpp/ds-service.cpp
+grep -n '^const char\* VERSION' cpp/server/main.cpp
 sed -n '/^project(/,/)/p' CMakeLists.txt
 grep -n '^version = ' pyproject.toml
 grep -n '^    version = ' conanfile.py
