@@ -6,21 +6,25 @@ Notes for people working on `ds-service` itself.
 
 | Path | Contents |
 | --- | --- |
-| `misc/ds-service.proto` | The protobuf/gRPC contract. The authoritative definition of the wire format, and the input to every code generator here. |
-| `cpp/ds-service.cpp` | The gRPC service, process-wide state, signal handling, and `main`, the entry point. Each RPC is handed to the data structure that owns the state. |
-| `cpp/ds-service.hpp` | Every data structure type: one struct per top level data structure, with the lock that guards it and the operations the RPCs are implemented with. |
-| `cpp/map.cpp`, `cpp/journal-map.cpp`, `cpp/time-series.cpp`, `cpp/mutexes.cpp`, `cpp/counters.cpp`, `cpp/task-manager.cpp` | One implementation file per top level data structure. |
-| `CMakeLists.txt` | Builds the generated stubs into `ds-service-grpc`, then the `ds-service` executable. |
-| `conanfile.py` | The C++ dependency set and the build/tool requirements. |
-| `pyproject.toml` | The Python package: its dependency floors, and the configuration for pytest, pyright and black. |
+| `cpp/common/include/ds-service/` | The plain C++ types that the server and the C++ client share: one struct per proto message in `messages.hpp`, `TaskState`, and `ErrorCode`, `Result` and `ClientError` in `error.hpp`. |
+| `cpp/server/core/` | The server's data structures. `data-structures.hpp` declares one struct per top level data structure, with the lock that guards it and one method per RPC. One `.cpp` file implements each structure. `system-state.hpp` holds them all. |
+| `cpp/server/transport.hpp` | `ServerTransport`, the interface every server transport implements. |
+| `cpp/server/main.cpp` | `main`, the entry point: argument parsing, signal handling, and the start and shutdown of every transport. |
+| `cpp/client/` | The C++ client. `ds::Client` and the `ClientTransport` interface in `client.hpp` and `client-transport.hpp`, and `ds::connect()` in `connect.hpp`, which picks a transport from an address. |
+| `cpp/grpc/` | Everything gRPC: the proto, the channel settings, the codec between plain types and protobuf messages, the server transport in `server/`, and the client transport in `client/`. |
+| `cpp/grpc/ds-service.proto` | The protobuf/gRPC contract. The authoritative definition of the gRPC wire format. |
+| `cpp/python/bindings.cpp` | The nanobind module `ds_service_client._ext`, which binds `ds::Client` and the message types it returns. |
+| `cpp/tests/client-smoke.cpp` | A smoke test of the C++ client against a real server, run by ctest. |
+| `CMakeLists.txt` | Every C++ target, and the options that select them. See [the transport boundary](#the-transport-boundary). |
+| `cmake/conan-install.cmake` | Runs `conan install` at configure time, for a build that starts from pip. |
+| `conanfile.py` | The C++ dependency set, the build/tool requirements, and the `with_*` options that select what the build produces. |
+| `pyproject.toml` | The Python package, built with scikit-build-core, and the configuration for pytest, pyright, black and cibuildwheel. |
 | `python/ds_service_client/__init__.py` | The package's public surface: what `ds_service_client` re-exports. |
-| `python/ds_service_client/client.py` | Both hand-written clients, the exception translation, and the shared gRPC options and helpers. |
+| `python/ds_service_client/client.py` | Both Python clients, over `_ext`, the error translation, and the shared helpers. |
+| `python/ds_service_client/errors.py` | The exceptions the clients raise, beyond the built-in ones. |
 | `python/ds_service_client/server.py` | `DsServiceServer`, which starts a `ds-service` process and stops it on `close()` or at the end of a `with` block. |
-| `python/ds_service_client/ds_service_pb2*.py`, `*.pyi` | Generated Python stubs, committed. Never edited by hand. |
-| `python/ds_service_client/ds-service.proto` | A copy of `misc/ds-service.proto`, placed there by the generator script. Not the source of truth. |
 | `docs/` | The user documentation, and these notes. |
-| `tests/` | The pytest integration suite. `conftest.py` holds the fixtures. One `test_*.py` per data structure, plus client, lifecycle, gRPC-option, server-helper, shutdown and error-translation tests. |
-| `scripts/gen_python_bindings.sh` | Regenerates the committed Python stubs. |
+| `tests/` | The pytest integration suite. `conftest.py` holds the fixtures. One `test_*.py` per data structure, plus client, lifecycle, extension module, server-helper, shutdown and error-translation tests. `tests/grpc_transport/` holds the tests that only make sense over gRPC. |
 | `scripts/update-version.sh` | Sets every version string in the repository. |
 | `scripts/Dockerfile` | The static musl build. |
 | `scripts/pb-dev.sh` | The author's own out-of-tree build wrapper. Not required to build the project. |
@@ -28,31 +32,35 @@ Notes for people working on `ds-service` itself.
 ## Building, running, and testing
 
 The [how to build the server](how-to-guides/build-the-server.md) guide
-covers how to build and run the server.
-It also covers the static musl image.
+covers how to build and run the server,
+how to build the Python module,
+and the static musl image.
 
+There are two suites.
+`ctest` runs `cpp/tests/client-smoke.cpp`,
+which starts a server and drives it through the C++ client.
 The suite in `tests/` is an integration suite driven by
 [pytest](https://pytest.org/).
-Almost every test starts a real `ds-service` process
-and drives it through the Python client over gRPC.
+Most of its tests start a real `ds-service` process
+and drive it through the Python client.
 There are no unit tests of the C++ in isolation.
-The exceptions run in process and need no binary:
-`test_client_parity.py`, `test_translate_grpc_error.py`,
-the three option checks in `test_grpc_options.py`,
-the tests in `test_client_deadline.py` that use no `client` fixture,
-and the tests in `test_server_helper.py` that start no `ds-service`.
-So the tests need a built server,
-and the development and test dependencies installed:
+
+The pytest suite imports `ds_service_client` straight from the source tree,
+because `pyproject.toml` sets `pythonpath = ["python"]`.
+The package there needs the extension module `_ext`.
+A build with `-DDS_SERVICE_BUILD_PYTHON=ON` compiles it,
+and copies it and its type stub into `python/ds_service_client/`.
+`.gitignore` covers both copies.
+So the suite needs a server binary, a build with the Python module,
+and the development and test dependencies:
 
 ```sh
-pip install -e ".[dev,test]"
+pip install black build cibuildwheel conan ifaddr nanobind pyright pytest scikit-build-core twine
 ```
 
-That pulls in `pytest`,
-and `black`, `build`, `conan`, `pyright` and `twine`.
-You do not have to install the package to use the client itself.
-`pyproject.toml` sets `pythonpath = ["python"]` for pytest,
-so the suite imports `ds_service_client` straight from the source tree.
+The list matches the `dev` and `test` extras in `pyproject.toml`.
+`pip install -e ".[dev,test]"` installs them as well,
+but it also builds the whole package, which the suite does not need.
 
 ### Pointing the tests at the binary
 
@@ -76,7 +84,8 @@ every test that needs the binary fails with a `FileNotFoundError`.
 ### Running the suite
 
 ```sh
-python -m pytest                 # everything
+ctest --test-dir build/Release   # the C++ smoke test
+python -m pytest                 # everything in tests/
 python -m pytest tests/test_journal.py
 python -m pytest tests/test_tasks.py::test_add_get_done_lifecycle
 ```
@@ -84,90 +93,118 @@ python -m pytest tests/test_tasks.py::test_add_get_done_lifecycle
 `testpaths = ["tests"]` in `pyproject.toml`
 means a bare `python -m pytest` finds the suite in the repository root.
 
-After a change to `misc/ds-service.proto` or the C++ server,
-rebuild the binary before you run the suite.
-After a proto change, also run `scripts/gen_python_bindings.sh`.
-Without these steps, the suite exercises stale code.
+After a change to any C++, rebuild before you run either suite.
+The build rebuilds both the server binary and the Python module.
+Without it, the suite exercises stale code.
 
 For the fixtures themselves, see [the test harness](#the-test-harness).
 
 ## Tools, libraries, and frameworks
 
-Server, all resolved through Conan 2.x and built with CMake (>= 3.31)
+C++, all resolved through Conan 2.x and built with CMake (>= 3.31)
 against a C++23 toolchain:
 
 | Library | Used for |
 | --- | --- |
-| gRPC and protobuf | The service itself and the generated stubs. |
-| `re2` | The regular expressions behind every `SearchKey` RPC. |
-| `parallel-hashmap` (`phmap`) | The maps holding the server's state. |
-| `spdlog` | Logging. |
-| `argparse` | Command-line parsing in `main`. |
+| gRPC and protobuf | The gRPC transports on both sides, and the code generated from the proto. |
+| `re2` | The regular expressions behind every `SearchKey` RPC. Server only. |
+| `parallel-hashmap` (`phmap`) | The maps holding the server's state. Server only. |
+| `spdlog` | Logging. Server only. |
+| `argparse` | Command-line parsing in `main`. Server only. |
 
-Client, on Python 3.12+:
+Python, on 3.12+:
 
 | Library | Used for |
 | --- | --- |
-| `grpcio` and `protobuf` | The generated stubs. |
-| `ifaddr` | Resolving an interface name to an address in `server.py`. |
+| `nanobind` | The extension module `_ext`. Needed to build it, not to run it. |
+| `scikit-build-core` | The build backend that builds the wheel through CMake. |
+| `ifaddr` | Resolving an interface name to an address in `server.py`. The one run-time dependency. |
 | `pytest` | The suite. |
-| `grpcio-tools` | `scripts/gen_python_bindings.sh`. |
+| `cibuildwheel` | The manylinux wheel. It needs docker or podman. |
 
 The formatters and checkers are under [Conventions](#conventions).
 
 ## Generated code
 
-`misc/ds-service.proto` is the source of truth for the wire format.
-Two generators consume it, and they behave differently.
-
+`cpp/grpc/ds-service.proto` is the source of truth for the gRPC wire format.
 The build generates the C++ protobuf and gRPC stubs
-(`ds-service.pb.*`, `ds-service.grpc.pb.*`)
+(`ds-service.pb.*`, `ds-service.grpc.pb.*`) from it
 into the build tree.
-There is no manual step and they are not committed.
+The build also generates `_ext.pyi`, the type stub of the Python module.
+Nothing generated is committed,
+and there is no manual generation step.
 
-The C++ build does not cover the Python stubs
-(`ds_service_pb2.py`, `ds_service_pb2.pyi`, `ds_service_pb2_grpc.py`).
-`scripts/gen_python_bindings.sh` produces them,
-and the repository keeps them in version control,
-so you regenerate them only when the proto changes.
+The proto is the wire contract of the gRPC transport, not the data model.
+The data model is the plain types in `cpp/common/include/ds-service/`.
+Only the code under `cpp/grpc/` uses the generated types.
 
-Two rules follow.
+### A proto change touches every layer
 
-### Never edit a generated file directly
+A new or changed RPC is a change to each of these, in order:
 
-Two of the three Python stubs carry a "DO NOT EDIT" banner,
-and the repository holds them anyway.
-That makes them easy to edit by mistake,
-and the next regeneration overwrites the edit without a warning.
-
-### A proto change is a four-step job
-
-Only step 2 generates code on its own.
-
-1. Edit `misc/ds-service.proto`.
-2. Rebuild the C++,
-    which regenerates `ds-service.pb.*` and `ds-service.grpc.pb.*`.
-3. Run `scripts/gen_python_bindings.sh`.
-    This one is manual. If you skip it, the Python client goes stale.
-4. Hand-update the C++ server
-    and `python/ds_service_client/client.py`
-    to implement and expose the change.
-    On the C++ side the method is declared on the data structure
-    in `cpp/ds-service.hpp`, defined in that structure's own `.cpp` file,
-    and called by a new `DsServiceImpl` method in `cpp/ds-service.cpp`.
-    A new RPC means a method on both clients in `client.py`.
+1. `cpp/grpc/ds-service.proto`.
+2. The plain struct in `cpp/common/include/ds-service/messages.hpp`,
+    with the same name and field names as the proto message.
+3. The codec in `cpp/grpc/codec.hpp` and `cpp/grpc/codec.cpp`,
+    in both directions.
+4. The server: the method on the data structure
+    in `cpp/server/core/data-structures.hpp`,
+    defined in that structure's own `.cpp` file,
+    and the `DsServiceImpl` method
+    in `cpp/grpc/server/grpc-server-transport.cpp` that calls it.
+5. The C++ client: the method on `ClientTransport`,
+    its override in `cpp/grpc/client/grpc-client-transport.cpp`,
+    and the method on `ds::Client`.
+6. The binding in `cpp/python/bindings.cpp`.
+7. The method on both Python clients in `client.py`.
     See "Two clients, one API".
+
+A `TaskState` value is the one change the compiler checks across the layers.
+`cpp/grpc/codec.cpp` holds a `static_assert` per value,
+and `tests/test_ext.py` compares the Python enum with the proto.
+
+## The transport boundary
+
+All gRPC code lives under `cpp/grpc/`.
+The rest of the C++ knows nothing of any transport:
+the server core sees plain requests,
+and `ds::Client` sees a `ClientTransport`.
+A second transport is a new sibling directory of `cpp/grpc/`,
+with a `ServerTransport` for `main.cpp` to start
+and a `ClientTransport` for `ds::connect()` to return.
+
+The build enforces the boundary.
+`ds-service-common`, `ds-service-core` and `ds-service-client`
+never link gRPC or protobuf,
+so a gRPC include in any of them fails to compile.
+`ds::connect()` has to construct every transport,
+so it lives in its own target, `ds-service-connect`,
+which the Python module and C++ programs link.
+
+The Python package is on the far side of the same boundary.
+It imports neither `grpc` nor `google.protobuf`,
+and `tests/test_no_grpc_import.py` fails if it starts to.
+
+The server core returns `ds::Result<T>`, an alias of `std::expected`,
+because a refusal there is an ordinary outcome that a transport turns into a wire status.
+The C++ client throws `ds::ClientError` instead.
+Both carry an `ErrorCode`.
+`cpp/grpc/codec.hpp` maps each code to a gRPC status and back,
+and `static_assert`s there check the round trip.
 
 ## Two clients, one API
 
-`client.py` holds two hand-written clients,
-`DsServiceClient` over grpc's blocking channel
-and `DsServiceClientAsync` over `grpc.aio`.
+`client.py` holds two Python clients,
+`DsServiceClient`, which blocks,
+and `DsServiceClientAsync`, whose methods are coroutines.
+Both call the same C++ client in `_ext`.
+The async client runs each call on a thread of its own pool,
+through `loop.run_in_executor`,
+which works because every call in `_ext` releases the GIL.
 They are separate classes on purpose.
-The two channels are different objects,
-and one class that returns either `bytes` or an awaitable
+One class that returns either `bytes` or an awaitable
 defeats both the reader and pyright.
-That leaves every RPC written out twice.
+That leaves every method written out twice.
 
 `tests/test_client_parity.py` is what keeps the copies in step.
 It fails in four cases:
@@ -177,39 +214,38 @@ It fails in four cases:
 - An async method is not a coroutine function.
 - A class loses its own context manager protocol.
 
-Add an RPC to one client without the other and it says so.
+Add a method to one client without the other and it says so.
 
 `client.py` keeps the shared parts at module level rather than copying them:
-`translate_grpc_error`, `GRPC_CLIENT_OPTIONS`,
+`translate_error`, `connect`,
 the timeout and mutex constants,
-and the `as_queue_list`, `as_parent_task_id_list`, `time_series_get_request`
-and `mutex_retry_delay` helpers.
-Only the stub call and its `await`
-must differ between the two copies of a method.
+and the `as_queue_list`, `as_parent_task_id_list` and `mutex_retry_delay` helpers.
+Only the call itself differs between the two copies of a method:
+`self.client.map_get(key)` in one,
+and `await self._call(self.client.map_get, key)` in the other.
 `mutex_acquire` is the exception, because its retry sleep differs as well.
 
-## The channel settings are one setting in two languages
+## The channel settings live in one header
 
-Two pieces of configuration are only correct as a matched pair
-between `cpp/ds-service.cpp` and `python/ds_service_client/client.py`,
-and neither language can check the other.
-`tests/test_grpc_options.py` is what keeps them in step.
-Change either side and run it.
+Two pieces of gRPC configuration are only correct as a matched pair
+between the server and its clients.
+Both sides now come from `cpp/grpc/channel-settings.hpp`,
+and `static_assert`s there check the pair at compile time.
 
 **The maximum message size.**
-`MAX_MESSAGE_SIZE_BYTES` exists in both files and must hold the same value.
-If the two disagree, one side rejects what the other sends,
-and the sender sees a `RESOURCE_EXHAUSTED` error
+`MAX_MESSAGE_SIZE_BYTES` applies to both sides.
+If the two ever disagree, one side rejects what the other sends,
+and the sender sees a message-too-large error
 with no cause in its own code.
 
 **The keepalive settings.**
-The client's ping interval must stay above the server's
-`GRPC_ARG_HTTP2_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS`.
+`CLIENT_KEEPALIVE_TIME_MS` must stay above
+`SERVER_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS`.
 Below that interval, the server answers pings with GOAWAY/ENHANCE_YOUR_CALM
 and drops the connection,
 which callers see as a `TimeoutError` with no mention of pings.
-If you raise the ping rate on the client,
-lower that interval on the server in the same change.
+A client built from an older release still has its own copy of these values,
+so lower the server's interval before you raise the client's ping rate.
 
 ## The server refuses to share its port
 
@@ -220,7 +256,7 @@ State is in memory, and the processes do not share it.
 The result is two servers with divergent state.
 Clients split between them, and nothing indicates it.
 
-`cpp/ds-service.cpp` therefore sets `GRPC_ARG_ALLOW_REUSEPORT` to `0`,
+`cpp/grpc/server/grpc-server-transport.cpp` therefore sets `GRPC_ARG_ALLOW_REUSEPORT` to `0`,
 and a second server on a bound address exits with a bind failure.
 
 `DsServiceServer` enforces the same rule from the client side.
@@ -231,7 +267,8 @@ rather than a helper object that addresses somebody else's server.
 The probe's socket options are explained at the probe.
 
 Two tests hold this in place:
-`test_second_server_on_the_same_port_fails` in `tests/test_grpc_options.py`,
+`test_second_server_on_the_same_port_fails`
+in `tests/grpc_transport/test_grpc_options.py`,
 and `test_explicit_port_already_in_use_is_refused`
 in `tests/test_server_helper.py`.
 
@@ -249,7 +286,7 @@ so a test run is never reachable from another machine.
 `DsServiceServer` starts and stops the process, not the harness,
 so the fixtures cannot drift from the helper the client library ships.
 Startup waits for the port to accept a TCP connection.
-Startup then makes one read-only RPC,
+Startup then makes one read-only call,
 which confirms that the service is registered and answers.
 Teardown terminates the process.
 If the process does not exit within the grace period `DsServiceServer` allows,
@@ -264,8 +301,11 @@ teardown kills it
 - `.clang-format` in the repository root sets the C++ formatting.
 - After changing Python, check it with pyright and format it with black.
     `pyproject.toml` configures both.
-    It excludes the generated stubs from pyright,
-    and black does not format them.
+    It excludes the generated `_ext.pyi` from the pyright check,
+    though pyright still reads it to resolve imports,
+    and black does not format it.
+    pyright needs a build with the Python module,
+    or it cannot resolve `ds_service_client._ext`.
 - Use semantic line breaks in documentation, block comments,
     and docstrings.
 
@@ -273,7 +313,7 @@ teardown kills it
 
 `scripts/update-version.sh <version>`
 sets every version string in the repository:
-`cpp/ds-service.cpp`, `CMakeLists.txt`, `pyproject.toml`,
+`cpp/server/main.cpp`, `CMakeLists.txt`, `pyproject.toml`,
 and `conanfile.py`.
 Set them through the script rather than by hand.
 The header of the script states what it edits,

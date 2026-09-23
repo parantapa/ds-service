@@ -37,7 +37,7 @@ class DsServiceRecipe(ConanFile):
         "with_python": False,
     }
 
-    exports_sources = "CMakeLists.txt", "cpp/*"
+    exports_sources = "CMakeLists.txt", "cmake/*", "cpp/*"
 
     def layout(self) -> None:
         cmake_layout(self)

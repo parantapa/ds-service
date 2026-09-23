@@ -112,8 +112,8 @@ client.map_get("nothing-here")
 ```
 
 That raises `KeyError`.
-The server answered with a gRPC `NOT_FOUND` status.
-The client turned it into the exception
+The server answered that the key was not found.
+The client turned that answer into the exception
 that an ordinary Python mapping raises.
 Every error we meet from here on arrives the same way.
 
@@ -146,9 +146,9 @@ Check it:
 client.task_get_status("job-1")
 ```
 
-A bare `1` comes back.
-States are a protobuf enum, and its members are plain integers.
-Compare against `TaskState` rather than reading the number:
+`TaskState.Ready` comes back.
+`TaskState` is an `IntEnum`, so the state also equals the plain integer `1`.
+Compare against `TaskState` rather than the number:
 
 ```python
 from ds_service_client import TaskState

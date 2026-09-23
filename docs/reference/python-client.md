@@ -1,7 +1,8 @@
 # Python client reference
 
 `ds_service_client` is a Python 3.12+ library
-that wraps the generated gRPC stubs.
+over the C++ client, which it carries in its extension module.
+Its one run-time dependency is `ifaddr`.
 It presents the server's data structures as ordinary methods
 on a `DsServiceClient` object,
 or on a `DsServiceClientAsync` object for asyncio callers.
@@ -22,12 +23,16 @@ client = DsServiceClient("127.0.0.1:5051")
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `address` | `$DS_SERVER_ADDRESS` | `<host>:<port>` of the server. The client raises `KeyError` when neither the argument nor the variable is set. |
-| `timeout` | `300` | Seconds, applied as the deadline of every RPC the client makes. |
+| `address` | `$DS_SERVER_ADDRESS` | `<host>:<port>` of the server, or `grpc://<host>:<port>`. Both select gRPC, the only transport today. The constructor raises `KeyError` when neither the argument nor the variable is set, and `ValueError` for an address that names an unknown transport. |
+| `timeout` | `300` | Seconds, applied as the deadline of every call the client makes. |
 
-`client.close()` closes the underlying gRPC channel.
+The constructor does not contact the server.
+An unreachable server fails the first call instead.
+
+`client.close()` closes the client.
+Calls in flight fail, and so does every later call.
 The object is also a context manager,
-which closes the channel when the block exits,
+which closes the client when the block exits,
 whether the block ends normally or raises:
 
 ```python
@@ -35,7 +40,8 @@ with DsServiceClient("127.0.0.1:5051") as client:
     client.map_set("greeting", b"hello")
 ```
 
-An RPC attempted after `close()` raises `ValueError`.
+A call attempted after `close()` raises `RuntimeError`.
+A second `close()` does nothing.
 
 ### Method names
 
@@ -54,23 +60,49 @@ Two methods take either one task id or a list of them:
     and a list of states for a list.
 - `task_add` takes `parent_task_ids` as one id or a list of ids.
 
+### Return types
+
+Most methods return plain Python values:
+`bytes` for a payload, `str` for a key or an id,
+`int`, `float`, `bool`, or a list of them.
+Four types come from the extension module `ds_service_client._ext`:
+
+| Type | Returned by | Attributes |
+| --- | --- | --- |
+| `TaskState` | `task_get_status` | An `enum.IntEnum`: `Waiting`, `Ready`, `Running`, `Finished`, `Failed`, `Canceled`, `Undefined`. |
+| `TaskGetResponse` | `task_get` | `task_id` (`str`), `function` and `input` (`bytes`). |
+| `TaskGetCountByStateResponse` | `task_get_count_by_state` | `waiting`, `ready`, `running`, `finished`, `failed`, `canceled` (`int`). |
+| `TimeSeriesDataPoint` | `time_series_get` | `value` (`float`), `datetime` (`str`), `step` (`int`). |
+
+The last three are read-only, and compare equal when their attributes do.
+They are not protobuf messages,
+so they have no protobuf methods such as `SerializeToString()`.
+
 ## Exceptions
 
-The client translates gRPC status codes into ordinary Python exceptions:
+The client translates each failed call into an ordinary Python exception.
+The second column names the gRPC status that carries the failure on the wire.
 
-| gRPC status | Python exception |
-| --- | --- |
-| `NOT_FOUND` | `KeyError`, or `NoTaskAvailable` from `task_get` |
-| `ALREADY_EXISTS` | `ValueError` |
-| `INVALID_ARGUMENT` | `ValueError` |
-| `RESOURCE_EXHAUSTED` | `ValueError` |
-| `FAILED_PRECONDITION` | `TaskStateError`, or `MutexNotHeld` from `mutex_release` and `mutex_get_worker_id` |
-| `UNAVAILABLE` | `TimeoutError` |
-| `DEADLINE_EXCEEDED` | `TimeoutError` |
+| Failure | gRPC status | Python exception |
+| --- | --- | --- |
+| The key, task or mutex does not exist | `NOT_FOUND` | `KeyError`, or `NoTaskAvailable` from `task_get` |
+| The task id is already known | `ALREADY_EXISTS` | `ValueError` |
+| A bad regular expression or datetime | `INVALID_ARGUMENT` | `ValueError` |
+| A message larger than 64 MiB | `RESOURCE_EXHAUSTED` | `ValueError` |
+| The state or the holder refuses the operation | `FAILED_PRECONDITION` | `TaskStateError`, or `MutexNotHeld` from `mutex_release` and `mutex_get_worker_id` |
+| The server cannot be reached | `UNAVAILABLE` | `TimeoutError` |
+| The call outlives its deadline | `DEADLINE_EXCEEDED` | `TimeoutError` |
+| The client is closed | | `RuntimeError` |
+| Anything else | any other | `TransportError` |
 
 A missing key raises `KeyError` where the call needs the key to exist,
 and a bad regular expression or an oversized message raises `ValueError`.
-Any other status reaches the caller as a raw `grpc.RpcError`.
+Each of these exceptions chains from the extension module's own error,
+which `__cause__` holds.
+
+A call that waits can be interrupted.
+Ctrl-C raises `KeyboardInterrupt` within about 100 ms,
+and cancels the call.
 
 `task_get` raises `NoTaskAvailable` when no work is ready.
 It is not a `TimeoutError`.
@@ -88,8 +120,38 @@ That covers a mutex that is already free and one that does not exist.
 `mutex_get_worker_id` raises it for a mutex that exists but is free.
 A key that does not exist at all raises `KeyError` there.
 
-`NoTaskAvailable`, `TaskStateError`, `MutexNotHeld` and `TaskState`
+`NoTaskAvailable`, `TaskStateError`, `MutexNotHeld`, `TransportError` and `TaskState`
 are importable from `ds_service_client`.
+
+## Threads and processes
+
+One client is safe to use from several threads at once.
+Each call releases the GIL while it waits,
+so other threads keep running.
+
+A client does not survive `fork()`.
+Once a process has created a client,
+every call in a child it forks raises `RuntimeError`,
+on an inherited client and on a new one alike.
+A child forked before the process created any client is unaffected.
+With `multiprocessing`, use the `spawn` or `forkserver` start method,
+or create the first client inside the worker:
+
+```python
+import multiprocessing
+
+from ds_service_client import DsServiceClient
+
+
+def work(n: int) -> int:
+    with DsServiceClient("127.0.0.1:5051") as client:
+        return client.counter_get_next_value("ids")
+
+
+if __name__ == "__main__":
+    with multiprocessing.get_context("spawn").Pool(4) as pool:
+        print(pool.map(work, range(8)))
+```
 
 ## Examples
 
@@ -258,10 +320,10 @@ assert client.counter_search_key("^ids$") == ["ids"]
 
 ## `DsServiceClientAsync`
 
-`DsServiceClientAsync` is the same API over `grpc.aio`.
+`DsServiceClientAsync` is the same API for asyncio.
 It has the same method names, the same arguments,
 and the same exceptions as the [exceptions table](#exceptions).
-The caller awaits every RPC instead of blocking.
+The caller awaits every call instead of blocking.
 Every example in this document works against it by awaiting each call.
 
 ```python
@@ -275,7 +337,7 @@ async def main() -> None:
         await client.map_set("greeting", b"hello")
         assert await client.map_get("greeting") == b"hello"
 
-        # Independent RPCs can be in flight at the same time.
+        # Independent calls can be in flight at the same time.
         first, second = await asyncio.gather(
             client.counter_get_next_value("ids"),
             client.counter_get_next_value("ids"),
@@ -286,16 +348,23 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
+The constructor takes one argument beyond those of `DsServiceClient`:
+
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `max_workers` | `None` | The most calls in flight at once. Each call waits on a thread of the client's own pool. `None` takes the default of `concurrent.futures.ThreadPoolExecutor`, which grows with `os.cpu_count()`. |
+
 Three things differ from `DsServiceClient`:
 
 - `close()` is a coroutine, so it is `await client.close()`,
     and the context manager is `async with`, not `with`.
-- The constructor must run with an event loop already running,
-    inside a coroutine rather than at import time.
-    The reason is that `grpc.aio` binds the channel
-    to the loop that is current when the channel is created.
-- An RPC attempted after `close()` raises `grpc.aio.UsageError`,
-    where the blocking client raises `ValueError`.
+    `close()` also releases the pool's threads.
+- A call beyond `max_workers` waits for a free thread before it starts.
+- Canceling the coroutine that awaits a call does not cancel the call.
+    It runs on until it completes or its deadline passes.
+
+The constructor needs no running event loop,
+so a client can be made at import time and used by any loop.
 
 `mutex_acquire` waits with `asyncio.sleep`,
 so only the coroutine that called it waits

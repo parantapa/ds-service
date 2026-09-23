@@ -202,7 +202,7 @@ bool GrpcServerTransport::start(SystemState& state) {
     // The fourth argument is different in kind from the first three:
     // it is a floor on how often a client can ping,
     // and the client's keepalive interval must stay above it.
-    // See "The channel settings are one setting in two languages"
+    // See "The channel settings live in one header"
     // in docs/developer-notes.md.
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIME_MS, ds::grpc_settings::SERVER_KEEPALIVE_TIME_MS);
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIMEOUT_MS, ds::grpc_settings::SERVER_KEEPALIVE_TIMEOUT_MS);

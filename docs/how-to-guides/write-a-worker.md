@@ -31,7 +31,7 @@ omit the address and set `DS_SERVER_ADDRESS` in the environment instead.
 
 When the worker has a definite end,
 use the client as a context manager.
-The client then closes the channel whether the block finishes or raises:
+The client then closes whether the block finishes or raises:
 
 ```python
 with DsServiceClient("127.0.0.1:5051") as client:
@@ -198,10 +198,19 @@ async def worker() -> None:
             ...
 ```
 
-Construct `DsServiceClientAsync` inside a coroutine, not at import time.
 See
 the [Python client reference](../reference/python-client.md#dsserviceclientasync)
 for the differences from the blocking client.
+
+## Run several workers in one program
+
+To run workers as separate processes with `multiprocessing`,
+use the `spawn` or `forkserver` start method,
+and create each worker's client inside the worker.
+A client does not survive `fork()`,
+so a worker forked from a process that already made a client
+refuses every call with `RuntimeError`.
+See the [Python client reference](../reference/python-client.md#threads-and-processes).
 
 ## Recover a task that a dead worker left `Running`
 

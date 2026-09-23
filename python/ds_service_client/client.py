@@ -36,6 +36,30 @@ DEFAULT_RPC_TIMEOUT_S = 5 * 60.0
 MUTEX_ACQUIRE_SLEEP_S = 0.5
 MUTEX_ACQUIRE_JITTER_S = 0.1
 
+# The gRPC inside _ext does not survive fork().
+# Once a process has created a client,
+# a call from a child it forks hangs,
+# whether the child uses an inherited client or a new one.
+# So the child refuses every call instead.
+# A child forked before any client existed is unaffected.
+FORK_MESSAGE = (
+    "ds_service_client cannot make calls in a process forked "
+    "after a client was created, because its gRPC does not survive fork(). "
+    "Use the spawn or forkserver start method of multiprocessing, "
+    "or create the first client after forking."
+)
+_client_created = False
+_forked_after_client = False
+
+
+def _after_fork_in_child() -> None:
+    global _forked_after_client
+    if _client_created:
+        _forked_after_client = True
+
+
+os.register_at_fork(after_in_child=_after_fork_in_child)
+
 
 @contextmanager
 def translate_error(
@@ -57,8 +81,13 @@ def translate_error(
     * A mutex that is free on mutex_get_worker_id.
 
     A call on a closed client raises RuntimeError.
+    So does every call in a process forked after a client was created.
+    See FORK_MESSAGE.
     A failure with no documented mapping raises TransportError.
     """
+    # Every call goes through here, so this one check covers them all.
+    if _forked_after_client:
+        raise RuntimeError(FORK_MESSAGE)
     try:
         yield
     except _ext.ClientError as e:
@@ -134,10 +163,13 @@ def connect(address: str | None, timeout: float) -> tuple[str, _ext.Client]:
     so an unreachable server fails the first call rather than this one.
     Raises ValueError for an address that names no transport.
     """
+    global _client_created
     if address is None:
         address = os.environ["DS_SERVER_ADDRESS"]
     with translate_error():
-        return address, _ext.connect(address, timeout)
+        client = _ext.connect(address, timeout)
+    _client_created = True
+    return address, client
 
 
 class DsServiceClient:

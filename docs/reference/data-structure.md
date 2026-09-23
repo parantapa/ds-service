@@ -3,9 +3,13 @@
 The data structures `ds-service` provides,
 and the RPCs that operate on each of them.
 
-`misc/ds-service.proto` is the authoritative definition
-of the wire format.
+`cpp/grpc/ds-service.proto` is the authoritative definition
+of the gRPC wire format.
 This document describes what each RPC does.
+The error names it uses, such as `NOT_FOUND`, are the gRPC status codes.
+The [Python client](python-client.md#exceptions) raises an exception for each,
+and the [C++ client](cpp-client.md#errors) throws a `ds::ClientError`
+whose `ErrorCode` has the same name in CamelCase, such as `NotFound`.
 
 Every RPC touches a single data structure
 and holds that structure's lock while it reads or changes the structure.
@@ -17,9 +21,10 @@ When it stops, every structure is lost.
 See [about the architecture](../explanation/the-architecture.md)
 for why the server is built this way.
 
-The Python names for these operations
+The Python and C++ names for these operations
 are the snake_case forms of the RPC names (`MapSet` -> `client.map_set`).
-See the [Python client reference](python-client.md).
+See the [Python client reference](python-client.md)
+and the [C++ client reference](cpp-client.md).
 
 ## Key search
 

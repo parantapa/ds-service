@@ -3,7 +3,7 @@
 cpp/grpc/channel-settings.hpp holds the settings of both sides,
 and static_asserts there keep them consistent,
 so these tests check only what a caller can observe.
-See "The channel settings are one setting in two languages"
+See "The channel settings live in one header"
 in docs/developer-notes.md.
 """
 
