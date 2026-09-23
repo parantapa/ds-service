@@ -22,10 +22,13 @@ cmake_configure() {
     . "$BUILD_DIR/generators/conanbuild.sh"
     set -Eeuo pipefail
 
+    # DS_SERVICE_BUILD_PYTHON builds ds_service_client._ext,
+    # and copies it into python/ds_service_client for the test suite.
     cmake -S . -B "$BUILD_DIR" \
         -DCMAKE_CXX_FLAGS="-g3 -Wall -Wextra" \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+        -DDS_SERVICE_BUILD_PYTHON=ON \
         -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake"
 }
 
@@ -60,7 +63,7 @@ run_setup() {
     cmake_build
 }
 
-# Rebuild, then run the pytest suite against the fresh binary.
+# Rebuild, then run the C++ smoke test and the pytest suite against the fresh build.
 run_test() {
     cmake_build
 
@@ -72,6 +75,7 @@ run_test() {
     PATH="$BUILD_DIR:$PATH"
 
     which ds-service
+    ctest --test-dir "$BUILD_DIR" --output-on-failure
     python -m pytest
 }
 
@@ -81,10 +85,14 @@ run_build-static-binary() {
     docker build -f scripts/Dockerfile --output type=local,dest=./dist .
 }
 
-# Build the client sdist and wheel into dist/, and check them with twine.
+# Build the client sdist, and the manylinux wheel, into dist/,
+# and check them with twine.
+# cibuildwheel builds the wheel in a manylinux container,
+# so it needs docker or podman.
 run_build-python-package() {
     set -x
-    python -m build
+    python -m build --sdist
+    python -m cibuildwheel --platform linux --output-dir dist
     python -m twine check dist/*.tar.gz dist/*.whl
 }
 

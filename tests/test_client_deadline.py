@@ -1,18 +1,20 @@
-"""Tests for the per-RPC deadline the client applies to every call."""
+"""Tests for the deadline the client applies to every call, and for interrupting a call."""
 
+import _thread
 import socket
+import threading
 import time
 from collections.abc import Iterator
 
-import grpc
 import pytest
 
 from ds_service_client import DsServiceClient, NoTaskAvailable
+from ds_service_client._ext import ClientError
 
 
 @pytest.fixture
 def mute_address() -> Iterator[str]:
-    """The address of a listening socket that never speaks gRPC.
+    """The address of a listening socket that never answers a call.
 
     A client connects, and then waits on a response that never arrives.
     """
@@ -32,14 +34,14 @@ def test_unresponsive_server_raises_timeout_error(mute_address):
         with pytest.raises(TimeoutError) as excinfo:
             client.map_get("anything")
         elapsed = time.monotonic() - start
-        # The caller never has to know about grpc's exception types.
-        assert not isinstance(excinfo.value, grpc.RpcError)
+        # The caller never sees the extension module's own exception type.
+        assert not isinstance(excinfo.value, ClientError)
     finally:
         client.close()
 
     # Bounded on both sides on purpose.
     # Without the deadline the call still eventually raises TimeoutError,
-    # because the connection fails with UNAVAILABLE,
+    # because the connection fails as unavailable,
     # which maps to the same exception.
     # So only the timing distinguishes
     # "the deadline cut it off" from "it failed for some other reason".
@@ -63,3 +65,23 @@ def test_task_get_on_an_unreachable_server_is_not_no_task_available():
         assert not isinstance(excinfo.value, NoTaskAvailable)
     finally:
         client.close()
+
+
+def test_keyboard_interrupt_stops_a_waiting_call(mute_address):
+    # The call releases the GIL while it waits,
+    # and polls for a pending signal about every 100 ms.
+    # interrupt_main() raises the same KeyboardInterrupt that Ctrl-C does.
+    client = DsServiceClient(mute_address, timeout=60.0)
+    timer = threading.Timer(0.3, _thread.interrupt_main)
+    try:
+        start = time.monotonic()
+        timer.start()
+        with pytest.raises(KeyboardInterrupt):
+            client.map_get("anything")
+        elapsed = time.monotonic() - start
+    finally:
+        timer.cancel()
+        client.close()
+
+    # Far below the 60 s deadline.
+    assert elapsed < 5.0

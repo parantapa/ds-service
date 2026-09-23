@@ -282,3 +282,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Built by CMake with DS_SERVICE_PYTHON_INPLACE, next to the Python package.
+# The shared object itself is covered by *.so above.
+python/ds_service_client/_ext.pyi

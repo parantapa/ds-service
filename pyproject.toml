@@ -1,6 +1,10 @@
+# The wheel holds the extension module ds_service_client._ext,
+# which CMake builds from cpp/.
+# CMake runs conan install itself for this build.
+# See cmake/conan-install.cmake.
 [build-system]
-requires = ["setuptools>=77"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core>=0.10", "nanobind>=2.4", "conan>=2"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "ds-service-client"
@@ -19,12 +23,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-# The committed stubs set the grpcio and protobuf floors.
-# See "Regeneration moves the client's dependency floors"
-# in docs/developer-notes.md.
 dependencies = [
-    "grpcio>=1.75.1",
-    "protobuf>=6.31.1",
     "ifaddr>=0.2",
 ]
 
@@ -32,35 +31,68 @@ dependencies = [
 test = [
     "pytest>=7",
 ]
+# nanobind and scikit-build-core are here as well as in build-system.requires,
+# so that a development build can find them without build isolation.
 dev = [
     "black",
     "build",
+    "cibuildwheel",
     "conan>=2",
+    "nanobind>=2.4",
     "pyright",
+    "scikit-build-core>=0.10",
     "twine",
 ]
 
 [project.urls]
 Homepage = "https://github.com/parantapa/ds-service"
 
-# Package only the ds_service_client module,
-# and keep the source .proto that lives beside the generated stubs
-# out of the wheel.
-[tool.setuptools.packages.find]
-where = ["python"]
-include = ["ds_service_client*"]
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+build-dir = "build/{wheel_tag}"
+# The module targets the stable ABI of Python 3.12,
+# so one wheel serves every later Python version.
+wheel.py-api = "cp312"
+wheel.packages = ["python/ds_service_client"]
+# The python component holds the module and its type stub, and nothing else.
+install.components = ["python"]
+# The sdist carries what the wheel build needs, and no more.
+# The patterns follow .gitignore rules,
+# so a leading / anchors one to the repository root.
+sdist.exclude = [
+    "/.cpush.json5",
+    "/CMakeUserPresets.json",
+    "/REFACTOR-PLAN.md",
+    "/compile_commands.json",
+    "/docs/",
+    "/misc/",
+    "/python/ds_service_client/_ext*",
+    "/scripts/",
+    "/tests/",
+]
 
-[tool.setuptools.exclude-package-data]
-"*" = ["*.proto"]
+[tool.scikit-build.cmake.define]
+DS_SERVICE_BUILD_SERVER = "OFF"
+DS_SERVICE_BUILD_CLIENT = "ON"
+DS_SERVICE_BUILD_PYTHON = "ON"
+DS_SERVICE_CONAN_INSTALL = "ON"
+DS_SERVICE_PYTHON_INPLACE = "OFF"
 
+# One stable ABI wheel, for manylinux x86-64 only,
+# the one platform the server runs on.
+[tool.cibuildwheel]
+build = "cp312-manylinux_x86_64"
+archs = ["x86_64"]
+
+# The suite imports ds_service_client from python/,
+# where a development build with DS_SERVICE_PYTHON_INPLACE puts _ext.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["python"]
 
 # Check the hand-written code only.
-# The generated stubs are excluded because they are not ours to fix.
-# protoc emits calls into `grpc.experimental`,
-# which grpc's own type stubs do not declare.
+# The type stub of _ext is generated, so it is excluded from the check,
+# but pyright still reads it to resolve imports.
 # The build tree is excluded because it holds stale copies of the same files,
 # which are otherwise reported twice.
 [tool.pyright]
@@ -69,14 +101,11 @@ exclude = [
     "**/__pycache__",
     "build",
     "dist",
-    "python/ds_service_client/ds_service_pb2.py",
-    "python/ds_service_client/ds_service_pb2.pyi",
-    "python/ds_service_client/ds_service_pb2_grpc.py",
+    "python/ds_service_client/_ext.pyi",
 ]
 extraPaths = ["python"]
 pythonVersion = "3.12"
 
-# Never rewrite the generated stubs.
-# Two of them carry a "DO NOT EDIT" banner, and the next regeneration replaces all three.
+# Never rewrite the generated type stub of _ext.
 [tool.black]
-force-exclude = "python/ds_service_client/ds_service_pb2.*"
+force-exclude = "python/ds_service_client/_ext.pyi"

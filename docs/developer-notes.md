@@ -158,26 +158,6 @@ Only step 2 generates code on its own.
     A new RPC means a method on both clients in `client.py`.
     See "Two clients, one API".
 
-### Regeneration moves the client's dependency floors
-
-Step 3 stamps the toolchain's own version into the committed stubs.
-Both stubs then refuse to import against an older runtime:
-
-- `ds_service_pb2_grpc.py` raises
-    when `grpcio` is below its `GRPC_GENERATED_VERSION`.
-- `ds_service_pb2.py` raises
-    when the `protobuf` runtime is older than the gencode it came from.
-
-After step 3, re-derive the `dependencies` floors in `pyproject.toml`
-from the regenerated stubs.
-Otherwise the package resolves to a runtime that cannot import it.
-
-If you regenerate with a newer `grpcio-tools`
-than the one that produced the committed stubs,
-the client's minimum requirements rise for everybody.
-Unless you intend to raise those floors,
-pin `grpcio-tools` to the version already recorded in the stubs.
-
 ## Two clients, one API
 
 `client.py` holds two hand-written clients,

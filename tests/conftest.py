@@ -14,7 +14,7 @@ from ds_service_client import DsServiceClient, DsServiceServer
 from ds_service_client.server import resolve_ds_service_bin
 
 STARTUP_TIMEOUT_S = 15
-GRPC_PROBE_TIMEOUT_S = 15.0
+PROBE_TIMEOUT_S = 15.0
 
 # The address every test server binds, through its interface.
 LOOPBACK_IP = "127.0.0.1"
@@ -33,21 +33,16 @@ def _loopback_interface() -> str:
     raise RuntimeError(f"No interface on this machine holds {LOOPBACK_IP}.")
 
 
-def _probe_grpc(address: str) -> None:
-    """Make one read-only RPC against a server that already listens."""
+def _probe(address: str) -> None:
+    """Make one read-only call against a server that already listens."""
     # A bound port only proves something listens there.
-    # This RPC proves the server registered the service and answers.
-    #
-    # Not grpc.channel_ready_future():
-    # it registers a connectivity-state watcher
-    # that makes the subsequent channel close block ~200ms per test.
-    # An RPC round-trip proves more and costs ~1ms.
+    # This call proves the server registered the service and answers.
     #
     # The deadline is short rather than the client default.
-    # A port that accepts but never speaks gRPC
+    # A port that accepts but never answers
     # fails the fixture promptly
     # instead of stalling it for minutes.
-    probe = DsServiceClient(address, timeout=GRPC_PROBE_TIMEOUT_S)
+    probe = DsServiceClient(address, timeout=PROBE_TIMEOUT_S)
     try:
         probe.task_get_count_by_state()
     finally:
@@ -88,11 +83,11 @@ def server_process(
         server.wait_until_ready(timeout=STARTUP_TIMEOUT_S)
 
         try:
-            _probe_grpc(server.address)
+            _probe(server.address)
         except Exception as exc:
             raise RuntimeError(
                 f"ds-service is listening on {server.address} but did not "
-                f"answer a gRPC request within {GRPC_PROBE_TIMEOUT_S}s: {exc!r}"
+                f"answer a request within {PROBE_TIMEOUT_S}s: {exc!r}"
             ) from exc
 
         yield server.process, server.address
