@@ -98,9 +98,12 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # musl takes the default stack size for a thread from PT_GNU_STACK,
 # and its built-in 128 KiB default is tight for gRPC's worker threads,
 # hence -z stack-size.
+#
+# The image ships only the server, so the C++ client is not built.
 RUN . build/Release/generators/conanbuild.sh \
     && cmake -S . -B build/Release \
         -DCMAKE_BUILD_TYPE=Release \
+        -DDS_SERVICE_BUILD_CLIENT=OFF \
         -DCMAKE_CXX_FLAGS="-Wall -Wextra" \
         -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,-z,stack-size=1048576" \
         -DCMAKE_TOOLCHAIN_FILE=generators/conan_toolchain.cmake \
