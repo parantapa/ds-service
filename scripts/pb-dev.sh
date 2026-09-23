@@ -102,6 +102,54 @@ run_build-python-package() {
     python -m twine check dist/*.tar.gz dist/*.whl
 }
 
+# Test the release artifacts in dist/ together:
+# install the wheel into a fresh virtual environment,
+# and run the pytest suite with it against dist/ds-service.
+# The wheel is the one whose version matches dist/ds-service --version.
+# When the build tree has the C++ smoke test, run it against dist/ds-service too.
+# Exit 1 if the binary is missing, or if no wheel or more than one matches.
+run_test-dist() {
+    local binary="dist/ds-service"
+    if [[ ! -x "$binary" ]]; then
+        echo "Error: $binary not found or not executable" >&2
+        exit 1
+    fi
+
+    local version
+    version=$("$binary" --version)
+
+    # A pre-release suffix loses its separator in the wheel's name,
+    # as in run_make-release.
+    local pyversion="${version//-/}"
+
+    local whls=()
+    shopt -s nullglob
+    whls=(dist/ds_service_client-"$pyversion"-*.whl)
+    shopt -u nullglob
+    if [[ ${#whls[@]} -ne 1 ]]; then
+        echo "Error: expected one wheel for version $pyversion in dist/, found ${#whls[@]}" >&2
+        exit 1
+    fi
+
+    # Global rather than local, because the EXIT trap runs after this function returns.
+    DIST_TEST_VENV=$(mktemp -d)
+    trap 'rm -rf "$DIST_TEST_VENV"' EXIT
+
+    set -x
+    python -m venv "$DIST_TEST_VENV"
+    "$DIST_TEST_VENV/bin/pip" install --quiet "${whls[0]}" pytest
+
+    # -o pythonpath= drops the python/ entry that pyproject.toml gives pytest,
+    # so the suite imports the installed wheel, not the source tree.
+    # The import below logs which copy that is.
+    "$DIST_TEST_VENV/bin/python" -c "import ds_service_client; print(ds_service_client.__file__)"
+    DS_SERVICE_BIN="$PWD/$binary" "$DIST_TEST_VENV/bin/python" -m pytest -o pythonpath=
+
+    if [[ -x "$BUILD_DIR/client-smoke" ]]; then
+        "$BUILD_DIR/client-smoke" "$PWD/$binary"
+    fi
+}
+
 # Upload the client sdist and wheel in dist/ with twine.
 run_upload-python-package() {
     set -x

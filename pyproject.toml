@@ -83,6 +83,15 @@ DS_SERVICE_PYTHON_INPLACE = "OFF"
 [tool.cibuildwheel]
 build = "cp312-manylinux_x86_64"
 archs = ["x86_64"]
+# Conan builds OpenSSL from source for gRPC,
+# and OpenSSL's Configure needs Perl modules,
+# such as IPC::Cmd and Time::Piece,
+# which the minimal Perl of the manylinux_2_28 image leaves out.
+# The perl package installs the full Perl distribution.
+before-all = "dnf install -y perl perl-IPC-Cmd perl-Time-Piece"
+# A build tree outside the project,
+# so that the container never reuses a build/ directory copied from the host.
+environment = { SKBUILD_BUILD_DIR = "/tmp/skbuild" }
 
 # The suite imports ds_service_client from python/,
 # where a development build with DS_SERVICE_PYTHON_INPLACE puts _ext.
