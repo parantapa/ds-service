@@ -8,7 +8,7 @@
 // The Python suite in tests/ is the full behavioral suite.
 // This test only shows that the C++ client reaches the server
 // and reports failures with the right ErrorCode.
-// Exits 0 when every check passes, and 1 otherwise.
+// Exits 0 when every check passes, 2 on a wrong argument count, and 1 otherwise.
 
 #include <atomic>
 #include <chrono>
@@ -197,6 +197,8 @@ void check_data_structures(ds::Client& client) {
     check(client.counter_get_current_value("c") == 1, "counter_get_current_value");
 }
 
+// Relies on the state check_data_structures leaves behind:
+// task t1 exists, and worker w2 holds mutex m.
 void check_refusals(ds::Client& client) {
     check_throws(ds::ErrorCode::NotFound, "map_get on a missing key", [&] { client.map_get("missing"); });
     check_throws(ds::ErrorCode::NotFound, "task_get on an empty queue", [&] { client.task_get("w1", {"empty"}); });
@@ -208,6 +210,7 @@ void check_refusals(ds::Client& client) {
                  [&] { client.mutex_release("m", "w1"); });
     check_throws(ds::ErrorCode::DeadlineExceeded, "mutex_acquire past its timeout",
                  [&] { client.mutex_acquire("m", "w1", 100ms); });
+    // 65 MiB is one MiB over MAX_MESSAGE_SIZE_BYTES in cpp/grpc/channel-settings.hpp.
     check_throws(ds::ErrorCode::MessageTooLarge, "map_set of an oversized value",
                  [&] { client.map_set("big", std::string(65 * 1024 * 1024, 'x')); });
 }
@@ -224,6 +227,7 @@ void check_transport_failures() {
     }
 
     {
+        // The timeout is far beyond the test, so only should_cancel can end the call.
         const auto start = std::chrono::steady_clock::now();
         auto client = ds::connect(
             mute.address(), {
@@ -244,6 +248,7 @@ void check_transport_failures() {
                 code = error.code();
             }
         }};
+        // Let the call get in flight, so close() cancels it rather than refusing it at the start.
         std::this_thread::sleep_for(200ms);
         client->close();
         caller.join();
@@ -282,6 +287,7 @@ int main(int argc, char* argv[]) {
 
         client->close();
         check_throws(ds::ErrorCode::Closed, "a call after close()", [&] { client->map_get("k"); });
+        // A second close() must be harmless.
         client->close();
     }
 

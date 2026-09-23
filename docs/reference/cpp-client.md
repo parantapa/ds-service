@@ -24,6 +24,8 @@ which builds the client libraries as well.
 
 A program links the CMake target `ds-service-connect`,
 which brings in `ds-service-client` and every transport.
+The install step installs neither these libraries nor their headers,
+so the target exists only inside this repository's CMake build.
 No public header includes a gRPC or protobuf header.
 
 ## `ds::connect`
@@ -66,7 +68,7 @@ A payload can hold arbitrary bytes.
 | `map_get(key)` | `std::string` |
 | `map_search_key(pattern)` | `std::vector<std::string>` |
 | `task_add(task_id, parent_task_ids, queue, priority, function, input)` | nothing |
-| `task_get_status(task_ids)` | `std::vector<ds::TaskState>`, one per id, in the same order |
+| `task_get_status(task_id)` | `std::vector<ds::TaskState>`, one per id, in the same order |
 | `task_get_output(task_id)` | `std::string` |
 | `task_get_count_by_state()` | `ds::TaskGetCountByStateResponse` |
 | `task_cancel(task_id)` | `bool`, true if this call moved the task to `Canceled` |
@@ -74,7 +76,7 @@ A payload can hold arbitrary bytes.
 | `task_set_priority(task_id, priority)` | nothing |
 | `task_get_worker_id(task_id)` | `std::string` |
 | `task_search_id(pattern)` | `std::vector<std::string>` |
-| `task_get(worker_id, queues)` | `ds::TaskGetResponse` |
+| `task_get(worker_id, queue)` | `ds::TaskGetResponse` |
 | `task_done(task_id, worker_id, output, failed = false)` | nothing |
 | `journal_size(key)` | `std::uint64_t` |
 | `journal_read(key, start, end)` | `std::vector<std::string>` |
@@ -122,7 +124,7 @@ and `code()` returns a `ds::ErrorCode`:
 | `MessageTooLarge` | A request or response larger than 64 MiB. |
 | `Unavailable` | The server cannot be reached. |
 | `DeadlineExceeded` | The call outlived its deadline, or `mutex_acquire` its timeout. |
-| `Cancelled` | `should_cancel` canceled the call. |
+| `Cancelled` | `should_cancel` canceled the call, or the server canceled it. |
 | `Closed` | The client is closed. |
 | `Transport` | Any other failure. The message is the transport's own. |
 
@@ -138,8 +140,8 @@ A client does not survive `fork()`.
 Once a process has created a client,
 a call from a child it forks hangs,
 on an inherited client and on a new one alike.
-Create the first client after forking,
-or start worker processes with `exec`.
+The hang does not occur when the first client is created after forking,
+or when worker processes start with `exec`.
 
 ## Example
 

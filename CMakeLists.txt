@@ -4,7 +4,7 @@ include(cmake/conan-install.cmake)
 
 project(
   ds-service
-  VERSION 6.1.0
+  VERSION 7.0.0
   LANGUAGES CXX)
 
 # The Conan toolchain sets defaults for the first three from the with_* options
@@ -59,9 +59,8 @@ add_custom_command(
 
 # Targets, from the bottom up.
 # ds-service-common, ds-service-core and ds-service-client
-# never link gRPC or protobuf,
-# so a gRPC include in any of them fails to compile.
-# All gRPC code lives in the ds-service-grpc-* targets, under cpp/grpc/.
+# never link gRPC or protobuf.
+# See "The transport boundary" in docs/developer-notes.md.
 
 # The code protoc generates from cpp/grpc/ds-service.proto.
 add_library(

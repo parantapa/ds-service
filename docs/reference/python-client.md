@@ -78,6 +78,62 @@ The last three are read-only, and compare equal when their attributes do.
 They are not protobuf messages,
 so they have no protobuf methods such as `SerializeToString()`.
 
+## `DsServiceClientAsync`
+
+`DsServiceClientAsync` is the same API for asyncio.
+It has the same method names, the same arguments,
+and the same exceptions as the [exceptions table](#exceptions).
+The caller awaits every call instead of blocking.
+Every example in this document works against it by awaiting each call.
+
+```python
+import asyncio
+
+from ds_service_client import DsServiceClientAsync
+
+
+async def main() -> None:
+    async with DsServiceClientAsync("127.0.0.1:5051") as client:
+        await client.map_set("greeting", b"hello")
+        assert await client.map_get("greeting") == b"hello"
+
+        # Independent calls can be in flight at the same time.
+        first, second = await asyncio.gather(
+            client.counter_get_next_value("ids"),
+            client.counter_get_next_value("ids"),
+        )
+        assert {first, second} == {1, 2}
+
+
+asyncio.run(main())
+```
+
+The constructor takes one argument beyond those of `DsServiceClient`:
+
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `max_workers` | `None` | The most calls in flight at once. Each call waits on a thread of the client's own pool. `None` takes the default of `concurrent.futures.ThreadPoolExecutor`, which grows with `os.cpu_count()`. |
+
+Three things differ from `DsServiceClient`:
+
+- `close()` is a coroutine, so it is `await client.close()`,
+    and the context manager is `async with`, not `with`.
+    `close()` also releases the pool's threads.
+- A call beyond `max_workers` waits for a free thread before it starts.
+- Canceling the coroutine that awaits a call does not cancel the call.
+    It runs on until it completes or its deadline passes.
+
+The constructor needs no running event loop,
+so a client can be made at import time and used by any loop.
+
+`mutex_acquire` waits with `asyncio.sleep`,
+so only the coroutine that called it waits
+while the rest of the loop keeps running.
+`timeout` still bounds the whole loop, sleeps included.
+
+The two clients are separate classes rather than one class with two modes.
+See [about the architecture](../explanation/the-architecture.md#two-python-clients-one-api).
+
 ## Exceptions
 
 The client translates each failed call into an ordinary Python exception.
@@ -103,6 +159,9 @@ which `__cause__` holds.
 A call that waits can be interrupted.
 Ctrl-C raises `KeyboardInterrupt` within about 100 ms,
 and cancels the call.
+This holds only for a `DsServiceClient` call on the main thread.
+A call on any other thread, and every `DsServiceClientAsync` call,
+runs on until it completes or its deadline passes.
 
 `task_get` raises `NoTaskAvailable` when no work is ready.
 It is not a `TimeoutError`.
@@ -131,11 +190,11 @@ so other threads keep running.
 
 A client does not survive `fork()`.
 Once a process has created a client,
-every call in a child it forks raises `RuntimeError`,
-on an inherited client and on a new one alike.
+every call on an inherited client in a child it forks raises `RuntimeError`,
+and so does constructing a new client there.
 A child forked before the process created any client is unaffected.
-With `multiprocessing`, use the `spawn` or `forkserver` start method,
-or create the first client inside the worker:
+With `multiprocessing`, the `spawn` and `forkserver` start methods avoid this,
+and so does creating the first client inside the worker:
 
 ```python
 import multiprocessing
@@ -317,59 +376,3 @@ assert client.counter_get_current_value("unused") == 0
 
 assert client.counter_search_key("^ids$") == ["ids"]
 ```
-
-## `DsServiceClientAsync`
-
-`DsServiceClientAsync` is the same API for asyncio.
-It has the same method names, the same arguments,
-and the same exceptions as the [exceptions table](#exceptions).
-The caller awaits every call instead of blocking.
-Every example in this document works against it by awaiting each call.
-
-```python
-import asyncio
-
-from ds_service_client import DsServiceClientAsync
-
-
-async def main() -> None:
-    async with DsServiceClientAsync("127.0.0.1:5051") as client:
-        await client.map_set("greeting", b"hello")
-        assert await client.map_get("greeting") == b"hello"
-
-        # Independent calls can be in flight at the same time.
-        first, second = await asyncio.gather(
-            client.counter_get_next_value("ids"),
-            client.counter_get_next_value("ids"),
-        )
-        assert {first, second} == {1, 2}
-
-
-asyncio.run(main())
-```
-
-The constructor takes one argument beyond those of `DsServiceClient`:
-
-| Argument | Default | Meaning |
-| --- | --- | --- |
-| `max_workers` | `None` | The most calls in flight at once. Each call waits on a thread of the client's own pool. `None` takes the default of `concurrent.futures.ThreadPoolExecutor`, which grows with `os.cpu_count()`. |
-
-Three things differ from `DsServiceClient`:
-
-- `close()` is a coroutine, so it is `await client.close()`,
-    and the context manager is `async with`, not `with`.
-    `close()` also releases the pool's threads.
-- A call beyond `max_workers` waits for a free thread before it starts.
-- Canceling the coroutine that awaits a call does not cancel the call.
-    It runs on until it completes or its deadline passes.
-
-The constructor needs no running event loop,
-so a client can be made at import time and used by any loop.
-
-`mutex_acquire` waits with `asyncio.sleep`,
-so only the coroutine that called it waits
-while the rest of the loop keeps running.
-`timeout` still bounds the whole loop, sleeps included.
-
-The two clients are separate classes rather than one class with two modes.
-See [about the architecture](../explanation/the-architecture.md#two-python-clients-one-api).

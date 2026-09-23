@@ -18,12 +18,13 @@
 using Transports = std::vector<std::unique_ptr<ServerTransport>>;
 
 // How long in-flight calls are given to finish once shutdown starts.
-// Each transport cancels anything still running when the deadline passes.
+// It stays below TERMINATE_TIMEOUT_S in python/ds_service_client/server.py,
+// after which DsServiceServer kills a server that has not exited.
 constexpr int SHUTDOWN_GRACE_S = 5;
 
 // scripts/update-version.sh rewrites this line.
 // See "Versioning" in docs/developer-notes.md.
-const char* VERSION = "6.1.0";
+const char* VERSION = "7.0.0";
 
 // The signals that start a graceful shutdown.
 sigset_t shutdown_signals() {
@@ -40,10 +41,6 @@ sigset_t shutdown_signals() {
 // so they stay pending until sigwait takes them here.
 // No signal handler runs,
 // so this thread is free to log and call shutdown().
-//
-// shutdown() refuses new calls,
-// lets in-flight ones finish until the deadline,
-// and makes the wait() in main return.
 // Every transport shares one deadline.
 void await_shutdown_signal(SystemState& state, const Transports& transports) {
     const sigset_t signals = shutdown_signals();
@@ -114,7 +111,9 @@ int main(int argc, char* argv[]) {
     }
 
     // This thread calls shutdown() on every transport.
-    // Start it only after every transport has started.
+    // Start it only after every transport has started,
+    // because a start failure returns from main,
+    // and destroying a joinable std::thread calls std::terminate.
     std::thread shutdown_thread{await_shutdown_signal, std::ref(state), std::cref(transports)};
 
     spdlog::info("starting server ...");

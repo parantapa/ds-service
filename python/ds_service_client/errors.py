@@ -6,7 +6,7 @@ class NoTaskAvailable(Exception):
 
 
 class TaskStateError(RuntimeError):
-    """Raised when an operation does not match a task's current state."""
+    """Raised when an operation does not match a task's current state or holder."""
 
 
 class MutexNotHeld(RuntimeError):
@@ -14,7 +14,7 @@ class MutexNotHeld(RuntimeError):
 
 
 class TransportError(Exception):
-    """Raised when a call fails for a reason the client does not map to another exception.
+    """Raised when a call fails in a way the client maps to no other exception.
 
     The message is the transport's own.
     The exception chains from the error the extension module raised.

@@ -16,6 +16,8 @@ ds::Result<ds::CounterGetNextValueResponse> Counters::get_next_value(ds::Counter
 ds::Result<ds::CounterGetCurrentValueResponse> Counters::get_current_value(ds::CounterGetCurrentValueRequest request) {
     std::scoped_lock guard{lock};
 
+    // find, not operator[], so that reading a counter does not create it,
+    // and search_key does not start listing it.
     auto it = data.find(request.key);
     return ds::CounterGetCurrentValueResponse{it == data.end() ? 0 : it->second};
 }

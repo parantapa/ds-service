@@ -21,8 +21,7 @@ namespace ds {
 // The methods are safe to call from several threads at once.
 // Destroying the client while another thread is in a call is not.
 //
-// Client knows nothing of any transport.
-// ds::connect() in ds-service/connect.hpp picks one from an address.
+// ds::connect() in ds-service/connect.hpp returns one for an address.
 class Client {
   public:
     explicit Client(std::unique_ptr<ClientTransport> transport);
@@ -43,6 +42,8 @@ class Client {
     void task_set_priority(std::string task_id, double priority);
     std::string task_get_worker_id(std::string task_id);
     std::vector<std::string> task_search_id(std::string pattern);
+    // The queues are searched in the order listed,
+    // and the first one holding a Ready task supplies it.
     // Throws ClientError(ErrorCode::NotFound) when no queue has a task ready.
     TaskGetResponse task_get(std::string worker_id, std::vector<std::string> queue);
     void task_done(std::string task_id, std::string worker_id, std::string output, bool failed = false);

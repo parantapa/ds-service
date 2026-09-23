@@ -214,9 +214,10 @@ See the [Python client reference](../reference/python-client.md#threads-and-proc
 
 ## Recover a task that a dead worker left `Running`
 
-Decide who recovers a task that a dead worker left `Running`.
-The queue does not do it for you.
 A worker that dies mid-task leaves that task `Running` forever.
+The queue does not recover it for you.
 Nothing reassigns it, and `task_add` refuses to reuse the id.
+Decide which process of yours does the recovery.
+
 To recover the work, cancel the task and submit it under a new id.
 See [about the task queue](../explanation/the-task-queue.md).

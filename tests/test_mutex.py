@@ -178,7 +178,8 @@ def test_search_key_finds_released_keys(client):
 
 
 def test_search_key_finds_a_key_that_was_never_acquired(client):
-    # A failed try_acquire still names the key, which creates it.
+    # The key exists from the first try_acquire that names it,
+    # and a later try_acquire that fails leaves it in place.
     client.mutex_try_acquire("contended", worker_id="w1")
     assert client.mutex_try_acquire("contended", worker_id="w2") is False
 

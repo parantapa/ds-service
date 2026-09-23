@@ -1,8 +1,4 @@
-"""Client for the ds-service server.
-
-Both clients wrap the C++ client in the extension module ds_service_client._ext.
-Neither one knows which transport the C++ client uses.
-"""
+"""Client for the ds-service server."""
 
 import asyncio
 import functools
@@ -14,6 +10,8 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from types import TracebackType
 
+# Both clients call the C++ client in _ext, which hides the transport.
+# See "The transport boundary" in docs/developer-notes.md.
 from . import _ext
 from ._ext import (
     ErrorCode,
@@ -36,12 +34,9 @@ DEFAULT_RPC_TIMEOUT_S = 5 * 60.0
 MUTEX_ACQUIRE_SLEEP_S = 0.5
 MUTEX_ACQUIRE_JITTER_S = 0.1
 
-# The gRPC inside _ext does not survive fork().
-# Once a process has created a client,
-# a call from a child it forks hangs,
-# whether the child uses an inherited client or a new one.
-# So the child refuses every call instead.
-# A child forked before any client existed is unaffected.
+# A child forked after a client was created refuses every call,
+# because a call there would hang.
+# See "A client does not survive fork()" in docs/developer-notes.md.
 FORK_MESSAGE = (
     "ds_service_client cannot make calls in a process forked "
     "after a client was created, because its gRPC does not survive fork(). "
@@ -116,7 +111,6 @@ def translate_error(
 
 def as_queue_list(queue: str | list[str]) -> list[str]:
     """Return the queue names of a queue argument, whether one or several."""
-    # Every call that takes queues accepts one name or several.
     if isinstance(queue, str):
         return [queue]
     return queue
@@ -138,8 +132,8 @@ def mutex_retry_delay(key: str, deadline: float | None) -> float:
     """Return how long to wait before the next mutex_try_acquire attempt.
 
     deadline is a time.monotonic() reading, or None for "retry forever".
-    Raises TimeoutError once the deadline passes,
-    and otherwise shortens the delay
+    Raise TimeoutError once the deadline passes.
+    Otherwise, shorten the delay
     so that the wait does not overshoot it.
     """
     delay = MUTEX_ACQUIRE_SLEEP_S + random.uniform(
@@ -157,11 +151,11 @@ def mutex_retry_delay(key: str, deadline: float | None) -> float:
 def connect(address: str | None, timeout: float) -> tuple[str, _ext.Client]:
     """Resolve the address, and connect to it.
 
-    address defaults to the DS_SERVER_ADDRESS environment variable,
-    and this function raises KeyError when neither is set.
+    address None selects the DS_SERVER_ADDRESS environment variable.
+    Raise KeyError when neither is set,
+    and ValueError for an address that names no transport.
     The connection is made lazily,
     so an unreachable server fails the first call rather than this one.
-    Raises ValueError for an address that names no transport.
     """
     global _client_created
     if address is None:
@@ -177,7 +171,8 @@ class DsServiceClient:
 
     address is host:port, or grpc://host:port.
     It defaults to the DS_SERVER_ADDRESS environment variable,
-    and the constructor raises KeyError when neither is set.
+    and the constructor raises KeyError when neither is set,
+    and ValueError for an address that names no transport.
     The client applies timeout, in seconds, as the deadline of every call.
     The methods are safe to call from several threads at once.
     """
@@ -220,7 +215,7 @@ class DsServiceClient:
     def map_get(self, key: str) -> bytes:
         """Return the value stored under key.
 
-        Raises KeyError if the key does not exist.
+        Raise KeyError if the key does not exist.
         """
         with translate_error():
             return self.client.map_get(key)
@@ -231,7 +226,7 @@ class DsServiceClient:
         The match is unanchored, so it succeeds on any substring of a key
         unless the pattern anchors itself with ^ and $.
         The server returns the keys in unspecified order.
-        Raises ValueError if the pattern does not compile.
+        Raise ValueError if the pattern does not compile.
         """
         with translate_error():
             return self.client.map_search_key(pattern)
@@ -245,7 +240,7 @@ class DsServiceClient:
         function: bytes,
         input: bytes,
     ) -> None:
-        """Register a task and enqueue it on each of its queues.
+        """Register a task, and enqueue it on each of its queues once it is Ready.
 
         parent_task_ids names the tasks this one depends on,
         as one id or a list of them.
@@ -254,8 +249,8 @@ class DsServiceClient:
         and no queue dispatches it until every parent finishes.
         Every parent must already exist,
         so a graph of tasks is added parents first.
-        Raises KeyError for a parent the server does not know,
-        and adds nothing in that case.
+        Raise KeyError for a parent the server does not know,
+        and add nothing in that case.
         A task added with a Canceled parent is added Canceled,
         and one added with a Failed parent is added Failed.
         A task with both is added Failed.
@@ -263,7 +258,7 @@ class DsServiceClient:
         queue is one queue name or a list of them,
         and the set is fixed for the life of the task.
         function and input are opaque payloads the server only stores.
-        Raises ValueError if task_id is already known.
+        Raise ValueError if task_id is already known.
         """
         with translate_error():
             self.client.task_add(
@@ -297,7 +292,7 @@ class DsServiceClient:
         A canceled task reports b"Task canceled",
         and a task failed by one it depends on reports
         b"Dependency failed (task_id=...)", naming the task whose run failed.
-        Raises KeyError for a task_id the server does not know.
+        Raise KeyError for a task_id the server does not know.
         """
         with translate_error():
             return self.client.task_get_output(task_id)
@@ -305,9 +300,7 @@ class DsServiceClient:
     def task_get_count_by_state(self) -> TaskGetCountByStateResponse:
         """Return how many tasks are in each state.
 
-        The response carries waiting, ready, running, finished,
-        failed and canceled counts,
-        which sum to every task the server knows about.
+        The counts sum to every task the server knows about.
         """
         with translate_error():
             return self.client.task_get_count_by_state()
@@ -315,7 +308,7 @@ class DsServiceClient:
     def task_get_priority(self, task_id: str) -> float:
         """Return the current priority of an existing task.
 
-        Raises KeyError for a task_id the server does not know.
+        Raise KeyError for a task_id the server does not know.
         """
         with translate_error():
             return self.client.task_get_priority(task_id)
@@ -323,7 +316,7 @@ class DsServiceClient:
     def task_set_priority(self, task_id: str, priority: float) -> None:
         """Change the priority of an existing task.
 
-        Raises KeyError for a task_id the server does not know.
+        Raise KeyError for a task_id the server does not know.
         """
         with translate_error():
             self.client.task_set_priority(task_id, priority)
@@ -331,13 +324,13 @@ class DsServiceClient:
     def task_cancel(self, task_id: str) -> bool:
         """Move a Waiting, Ready or Running task to Canceled.
 
-        Returns True if this call moved the task,
+        Return True if this call moved the task,
         and False if it was already Finished, Failed or Canceled
         and so was left alone.
         Canceling a task cancels every task waiting on it,
         and every task waiting on those.
         Each task canceled reports b"Task canceled" as its output.
-        Raises KeyError for a task_id the server does not know.
+        Raise KeyError for a task_id the server does not know.
         """
         with translate_error():
             return self.client.task_cancel(task_id)
@@ -345,7 +338,7 @@ class DsServiceClient:
     def task_get_worker_id(self, task_id: str) -> str:
         """Return the worker holding a Running task.
 
-        Raises KeyError for a task_id the server does not know,
+        Raise KeyError for a task_id the server does not know,
         and TaskStateError if the task is not Running.
         """
         with translate_error():
@@ -364,7 +357,7 @@ class DsServiceClient:
         """Claim a task for worker_id from the first queue holding one.
 
         The server tries the queues in the order given.
-        Raises NoTaskAvailable, not TimeoutError,
+        Raise NoTaskAvailable, not TimeoutError,
         when none of them has a task ready.
         """
         # A distinct exception keeps idle work
@@ -378,7 +371,7 @@ class DsServiceClient:
         """Record a task's output and mark it Finished, or Failed.
 
         worker_id must be the one that claimed the task through task_get.
-        Raises KeyError for a task_id the server does not know,
+        Raise KeyError for a task_id the server does not know,
         and TaskStateError if the task is not Running,
         or if it is held by a different worker.
 
@@ -442,7 +435,7 @@ class DsServiceClient:
         The server creates the series if it does not exist.
         datetime is an ISO 8601 UTC string.
         The server accepts the Z form, an offset form, and a bare datetime.
-        Raises ValueError if it does not parse.
+        Raise ValueError if it does not parse.
         """
         with translate_error():
             self.client.time_series_append(key, value, datetime, step)
@@ -462,7 +455,7 @@ class DsServiceClient:
         and a bound left as None imposes no restriction.
         The server returns the points in the order the caller appended them.
         A key that does not exist returns an empty list.
-        Raises ValueError if start_time or end_time does not parse.
+        Raise ValueError if start_time or end_time does not parse.
         """
         with translate_error():
             return self.client.time_series_get(
@@ -480,9 +473,9 @@ class DsServiceClient:
     def mutex_try_acquire(self, key: str, worker_id: str) -> bool:
         """Try once to acquire a mutex on behalf of worker_id.
 
-        Returns True if this call acquired it,
+        Return True if this call acquired it,
         which records worker_id as its holder.
-        Returns False if the mutex is already held,
+        Return False if the mutex is already held,
         which includes worker_id holding it already:
         the lock is not reentrant.
         """
@@ -492,7 +485,7 @@ class DsServiceClient:
     def mutex_release(self, key: str, worker_id: str) -> None:
         """Release a mutex held by worker_id.
 
-        Raises MutexNotHeld if worker_id is not its holder,
+        Raise MutexNotHeld if worker_id is not its holder,
         which includes a mutex that is already free
         and one that does not exist.
         """
@@ -502,7 +495,7 @@ class DsServiceClient:
     def mutex_get_worker_id(self, key: str) -> str:
         """Return the worker holding the mutex.
 
-        Raises KeyError if the mutex does not exist,
+        Raise KeyError if the mutex does not exist,
         and MutexNotHeld if it exists but is free.
         The mutex does not exist until a mutex_try_acquire call names the key.
         """
@@ -525,9 +518,9 @@ class DsServiceClient:
     ) -> None:
         """Block until worker_id acquires the mutex.
 
-        Raises TimeoutError once timeout seconds elapse.
-        With timeout None, it retries forever.
-        This timeout bounds the whole loop, sleeps included.
+        Raise TimeoutError once timeout seconds elapse.
+        With timeout None, retry forever.
+        The timeout bounds the whole loop, sleeps included.
         """
         # The server offers no blocking acquire,
         # so this loop polls mutex_try_acquire.
@@ -566,6 +559,9 @@ class DsServiceClient:
             return self.client.counter_search_key(pattern)
 
 
+# Each method mirrors one on DsServiceClient,
+# and tests/test_client_parity.py fails when the two drift apart.
+# See "Two clients, one API" in docs/developer-notes.md.
 class DsServiceClientAsync:
     """An asyncio connection to a ds-service server, and the calls it offers.
 
@@ -604,6 +600,8 @@ class DsServiceClientAsync:
             # A closed client raises at once without blocking,
             # and the pool accepts no more work.
             return method(*args, **kwargs)
+        # See "Two clients, one API" in docs/developer-notes.md
+        # for why a thread pool is enough to run calls concurrently.
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             self._executor, functools.partial(method, *args, **kwargs)
@@ -617,6 +615,8 @@ class DsServiceClientAsync:
         """
         self._closed = True
         self.client.close()
+        # A wait here would block the event loop.
+        # The calls still in flight fail on their own, now that the client is closed.
         self._executor.shutdown(wait=False)
 
     async def __aenter__(self) -> "DsServiceClientAsync":
@@ -641,7 +641,7 @@ class DsServiceClientAsync:
     async def map_get(self, key: str) -> bytes:
         """Return the value stored under key.
 
-        Raises KeyError if the key does not exist.
+        Raise KeyError if the key does not exist.
         """
         with translate_error():
             return await self._call(self.client.map_get, key)
@@ -652,7 +652,7 @@ class DsServiceClientAsync:
         The match is unanchored, so it succeeds on any substring of a key
         unless the pattern anchors itself with ^ and $.
         The server returns the keys in unspecified order.
-        Raises ValueError if the pattern does not compile.
+        Raise ValueError if the pattern does not compile.
         """
         with translate_error():
             return await self._call(self.client.map_search_key, pattern)
@@ -666,7 +666,7 @@ class DsServiceClientAsync:
         function: bytes,
         input: bytes,
     ) -> None:
-        """Register a task and enqueue it on each of its queues.
+        """Register a task, and enqueue it on each of its queues once it is Ready.
 
         parent_task_ids names the tasks this one depends on,
         as one id or a list of them.
@@ -675,8 +675,8 @@ class DsServiceClientAsync:
         and no queue dispatches it until every parent finishes.
         Every parent must already exist,
         so a graph of tasks is added parents first.
-        Raises KeyError for a parent the server does not know,
-        and adds nothing in that case.
+        Raise KeyError for a parent the server does not know,
+        and add nothing in that case.
         A task added with a Canceled parent is added Canceled,
         and one added with a Failed parent is added Failed.
         A task with both is added Failed.
@@ -684,7 +684,7 @@ class DsServiceClientAsync:
         queue is one queue name or a list of them,
         and the set is fixed for the life of the task.
         function and input are opaque payloads the server only stores.
-        Raises ValueError if task_id is already known.
+        Raise ValueError if task_id is already known.
         """
         with translate_error():
             await self._call(
@@ -721,7 +721,7 @@ class DsServiceClientAsync:
         A canceled task reports b"Task canceled",
         and a task failed by one it depends on reports
         b"Dependency failed (task_id=...)", naming the task whose run failed.
-        Raises KeyError for a task_id the server does not know.
+        Raise KeyError for a task_id the server does not know.
         """
         with translate_error():
             return await self._call(self.client.task_get_output, task_id)
@@ -729,9 +729,7 @@ class DsServiceClientAsync:
     async def task_get_count_by_state(self) -> TaskGetCountByStateResponse:
         """Return how many tasks are in each state.
 
-        The response carries waiting, ready, running, finished,
-        failed and canceled counts,
-        which sum to every task the server knows about.
+        The counts sum to every task the server knows about.
         """
         with translate_error():
             return await self._call(self.client.task_get_count_by_state)
@@ -739,7 +737,7 @@ class DsServiceClientAsync:
     async def task_get_priority(self, task_id: str) -> float:
         """Return the current priority of an existing task.
 
-        Raises KeyError for a task_id the server does not know.
+        Raise KeyError for a task_id the server does not know.
         """
         with translate_error():
             return await self._call(self.client.task_get_priority, task_id)
@@ -747,7 +745,7 @@ class DsServiceClientAsync:
     async def task_set_priority(self, task_id: str, priority: float) -> None:
         """Change the priority of an existing task.
 
-        Raises KeyError for a task_id the server does not know.
+        Raise KeyError for a task_id the server does not know.
         """
         with translate_error():
             await self._call(self.client.task_set_priority, task_id, priority)
@@ -755,13 +753,13 @@ class DsServiceClientAsync:
     async def task_cancel(self, task_id: str) -> bool:
         """Move a Waiting, Ready or Running task to Canceled.
 
-        Returns True if this call moved the task,
+        Return True if this call moved the task,
         and False if it was already Finished, Failed or Canceled
         and so was left alone.
         Canceling a task cancels every task waiting on it,
         and every task waiting on those.
         Each task canceled reports b"Task canceled" as its output.
-        Raises KeyError for a task_id the server does not know.
+        Raise KeyError for a task_id the server does not know.
         """
         with translate_error():
             return await self._call(self.client.task_cancel, task_id)
@@ -769,7 +767,7 @@ class DsServiceClientAsync:
     async def task_get_worker_id(self, task_id: str) -> str:
         """Return the worker holding a Running task.
 
-        Raises KeyError for a task_id the server does not know,
+        Raise KeyError for a task_id the server does not know,
         and TaskStateError if the task is not Running.
         """
         with translate_error():
@@ -788,7 +786,7 @@ class DsServiceClientAsync:
         """Claim a task for worker_id from the first queue holding one.
 
         The server tries the queues in the order given.
-        Raises NoTaskAvailable, not TimeoutError,
+        Raise NoTaskAvailable, not TimeoutError,
         when none of them has a task ready.
         """
         # A distinct exception keeps idle work
@@ -804,7 +802,7 @@ class DsServiceClientAsync:
         """Record a task's output and mark it Finished, or Failed.
 
         worker_id must be the one that claimed the task through task_get.
-        Raises KeyError for a task_id the server does not know,
+        Raise KeyError for a task_id the server does not know,
         and TaskStateError if the task is not Running,
         or if it is held by a different worker.
 
@@ -868,7 +866,7 @@ class DsServiceClientAsync:
         The server creates the series if it does not exist.
         datetime is an ISO 8601 UTC string.
         The server accepts the Z form, an offset form, and a bare datetime.
-        Raises ValueError if it does not parse.
+        Raise ValueError if it does not parse.
         """
         with translate_error():
             await self._call(self.client.time_series_append, key, value, datetime, step)
@@ -888,7 +886,7 @@ class DsServiceClientAsync:
         and a bound left as None imposes no restriction.
         The server returns the points in the order the caller appended them.
         A key that does not exist returns an empty list.
-        Raises ValueError if start_time or end_time does not parse.
+        Raise ValueError if start_time or end_time does not parse.
         """
         with translate_error():
             return await self._call(
@@ -911,9 +909,9 @@ class DsServiceClientAsync:
     async def mutex_try_acquire(self, key: str, worker_id: str) -> bool:
         """Try once to acquire a mutex on behalf of worker_id.
 
-        Returns True if this call acquired it,
+        Return True if this call acquired it,
         which records worker_id as its holder.
-        Returns False if the mutex is already held,
+        Return False if the mutex is already held,
         which includes worker_id holding it already:
         the lock is not reentrant.
         """
@@ -923,7 +921,7 @@ class DsServiceClientAsync:
     async def mutex_release(self, key: str, worker_id: str) -> None:
         """Release a mutex held by worker_id.
 
-        Raises MutexNotHeld if worker_id is not its holder,
+        Raise MutexNotHeld if worker_id is not its holder,
         which includes a mutex that is already free
         and one that does not exist.
         """
@@ -933,7 +931,7 @@ class DsServiceClientAsync:
     async def mutex_get_worker_id(self, key: str) -> str:
         """Return the worker holding the mutex.
 
-        Raises KeyError if the mutex does not exist,
+        Raise KeyError if the mutex does not exist,
         and MutexNotHeld if it exists but is free.
         The mutex does not exist until a mutex_try_acquire call names the key.
         """
@@ -956,9 +954,9 @@ class DsServiceClientAsync:
     ) -> None:
         """Wait until worker_id acquires the mutex.
 
-        Raises TimeoutError once timeout seconds elapse.
-        With timeout None, it retries forever.
-        This timeout bounds the whole loop, sleeps included.
+        Raise TimeoutError once timeout seconds elapse.
+        With timeout None, retry forever.
+        The timeout bounds the whole loop, sleeps included.
         Only this coroutine waits:
         the sleeps yield to the event loop.
         """

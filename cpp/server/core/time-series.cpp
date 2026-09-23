@@ -21,6 +21,8 @@ std::optional<std::chrono::system_clock::time_point> parse_iso8601_utc(const std
          }) {
         std::istringstream ss{s};
         std::chrono::system_clock::time_point tp{};
+        // parse stops where the format ends,
+        // so the eof test is what rejects anything left over but whitespace.
         if (ss >> std::chrono::parse(std::string{fmt}, tp)) {
             ss >> std::ws;
             if (ss.eof()) {
@@ -57,8 +59,6 @@ ds::Result<void> TimeSeriesMap::append(ds::TimeSeriesAppendRequest request) {
 }
 
 ds::Result<ds::TimeSeriesGetResponse> TimeSeriesMap::get(ds::TimeSeriesGetRequest request) {
-    // An empty time string means "no bound", like an absent one.
-    // A non-empty one that fails to parse is an error.
     std::optional<std::chrono::system_clock::time_point> start_time{}, end_time{};
     if (request.start_time && !request.start_time->empty()) {
         start_time = parse_iso8601_utc(*request.start_time);

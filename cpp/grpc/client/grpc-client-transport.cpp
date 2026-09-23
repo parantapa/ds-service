@@ -217,8 +217,8 @@ class GrpcClientTransport final : public ClientTransport {
     // Returns the response, or throws ClientError.
     //
     // The call always runs to completion before this returns or throws,
-    // because the callback writes into request and response,
-    // which live on this stack frame.
+    // because the call reads request and the callback writes into response,
+    // and both live on this stack frame.
     template <typename ProtoResponse, typename ProtoRequest, typename Start>
     ProtoResponse invoke(const ProtoRequest& request, Start start) {
         auto call = begin_call();

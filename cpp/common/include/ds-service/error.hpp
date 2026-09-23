@@ -8,8 +8,6 @@
 namespace ds {
 
 // Why an operation failed.
-// The server core uses only the first four codes.
-// A client-side transport raises the rest.
 enum class ErrorCode {
     // Sent by the server.
     NotFound,
@@ -32,8 +30,7 @@ struct Error {
 };
 
 // What an operation of the server core returns.
-// A refusal is an ordinary outcome there,
-// which the transport turns into a status on the wire.
+// See "The transport boundary" in docs/developer-notes.md for why it is not an exception.
 template <typename T>
 using Result = std::expected<T, Error>;
 

@@ -1,9 +1,5 @@
 """Tests that the async client mirrors the synchronous one.
 
-Each RPC appears twice, once per client class.
-Only these tests stop one class from gaining a method,
-or changing an argument, that the other never hears about.
-
 See "Two clients, one API" in docs/developer-notes.md
 for why the two classes are separate.
 """
@@ -79,6 +75,6 @@ def test_only_the_async_client_has_coroutine_methods(name: str):
 
 
 def test_async_client_supports_the_async_context_manager_protocol():
-    # test_client_lifecycle.py uses the synchronous protocol against a server.
+    # test_client_lifecycle.py uses both protocols against a server.
     assert inspect.iscoroutinefunction(DsServiceClientAsync.__aenter__)
     assert inspect.iscoroutinefunction(DsServiceClientAsync.__aexit__)

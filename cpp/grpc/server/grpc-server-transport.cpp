@@ -199,9 +199,7 @@ bool GrpcServerTransport::start(SystemState& state) {
     builder.AddListeningPort(address_, grpc::InsecureServerCredentials());
     builder.RegisterService(service_.get());
 
-    // The fourth argument is different in kind from the first three:
-    // it is a floor on how often a client can ping,
-    // and the client's keepalive interval must stay above it.
+    // These are only correct as a pair with the client's keepalive settings.
     // See "The channel settings live in one header"
     // in docs/developer-notes.md.
     builder.AddChannelArgument(GRPC_ARG_KEEPALIVE_TIME_MS, ds::grpc_settings::SERVER_KEEPALIVE_TIME_MS);

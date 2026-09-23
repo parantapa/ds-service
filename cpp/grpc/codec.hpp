@@ -28,12 +28,14 @@
 
 namespace ds::grpc_codec {
 
-// TaskState. cpp/grpc/codec.cpp checks that the two enums agree.
+// The proto value of state.
+// cpp/grpc/codec.cpp checks that the two enums agree.
 ::TaskState to_proto(TaskState state);
 // A value this build does not know, from a newer peer, reads as Undefined.
 TaskState from_proto(int state);
 
 // The gRPC status code for each ErrorCode.
+// Closed and Transport have no counterpart, and map to UNKNOWN.
 constexpr grpc::StatusCode to_status_code(ErrorCode code) {
     switch (code) {
     case ErrorCode::NotFound:
@@ -84,6 +86,7 @@ constexpr ErrorCode from_status_code(grpc::StatusCode code) {
     }
 }
 
+// The gRPC status for error, with the code to_status_code gives it and its message.
 grpc::Status to_status(const Error& error);
 
 // Server side: decode a request.

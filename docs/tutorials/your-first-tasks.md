@@ -148,7 +148,7 @@ client.task_get_status("job-1")
 
 `TaskState.Ready` comes back.
 `TaskState` is an `IntEnum`, so the state also equals the plain integer `1`.
-Compare against `TaskState` rather than the number:
+We compare against `TaskState` rather than the number:
 
 ```python
 from ds_service_client import TaskState
@@ -159,10 +159,10 @@ client.task_get_status("job-1") == TaskState.Ready
 `True`.
 The task waits on the queue named `work`.
 
-To read a state rather than test it, ask for its name:
+To read a state rather than test it, ask for its `.name`:
 
 ```python
-TaskState.Name(client.task_get_status("job-1"))
+client.task_get_status("job-1").name
 ```
 
 `'Ready'`.
@@ -183,7 +183,7 @@ We receive `('job-1', b'greet', b'world')`.
 Look at the status again:
 
 ```python
-TaskState.Name(client.task_get_status("job-1"))
+client.task_get_status("job-1").name
 ```
 
 `'Running'`.
@@ -196,15 +196,15 @@ client.task_get_worker_id("job-1")
 
 `'worker-a'`, the name we passed to `task_get`.
 
-Now do the work.
-Then report the result.
-The result is bytes again:
+Now do the work and report the result.
+Here the work is one assignment,
+and the result is bytes again:
 
 ```python
 result = b"hello world"
 client.task_done("job-1", worker_id="worker-a", output=result)
 
-TaskState.Name(client.task_get_status("job-1"))
+client.task_get_status("job-1").name
 client.task_get_output("job-1")
 ```
 
@@ -241,7 +241,10 @@ Finish it properly:
 client.task_done("job-2", worker_id="worker-a", output=b"hello again")
 ```
 
-When the queue is empty, ask for more work:
+## Step 8: ask an empty queue for work
+
+The queue is now empty.
+Ask it for more work anyway:
 
 ```python
 client.task_get(worker_id="worker-a", queue="work")
@@ -252,19 +255,14 @@ Notice that this is not a `TimeoutError`.
 An empty queue and an unreachable server are different problems.
 A worker loop sleeps on the first and gives up on the second.
 
-## Step 8: count the tasks
+## Step 9: count the tasks
 
 ```python
 client.task_get_count_by_state()
 ```
 
 ```
-waiting: 0
-ready: 0
-running: 0
-finished: 2
-failed: 0
-canceled: 0
+TaskGetCountByStateResponse(waiting=0, ready=0, running=0, finished=2, failed=0, canceled=0)
 ```
 
 Two finished, nothing else.
@@ -280,7 +278,7 @@ Both are finished,
 and both are still there.
 The server remembers every task we give it.
 
-## Step 9: stop the server
+## Step 10: stop the server
 
 ```python
 client.close()
@@ -321,7 +319,7 @@ We also saw the server do three things:
 - It distinguished an empty queue from an unreachable server.
 - It lost everything on restart.
 
-Start a fresh server and client as in step 9.
+Start a fresh server and client as in step 10.
 Then repeat steps 5 and 6 a few times with different ids and priorities.
 The loop becomes familiar quickly.
 It is the same loop every real worker runs.

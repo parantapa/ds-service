@@ -84,7 +84,7 @@ for as long as the server lives.
 Nothing detects the death, and nothing hands the work to another worker.
 No RPC returns a task to `Ready`,
 and `TaskAdd` refuses a `task_id` that already exists.
-So you resubmit the work under a new id, or not at all.
+So the work runs again only if it is resubmitted under a new id.
 
 The server has no liveness signal.
 The server never hears from a worker between `TaskGet` and `TaskDone`.

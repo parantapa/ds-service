@@ -166,7 +166,7 @@ class DsServiceServer:
     def wait_until_ready(self, timeout: float = 30) -> None:
         """Block until the server accepts TCP connections.
 
-        Raises TimeoutError if it does not listen within timeout seconds,
+        Raise TimeoutError if it does not listen within timeout seconds,
         and RuntimeError if the process exits before then.
         """
         deadline = time.monotonic() + timeout
@@ -205,12 +205,11 @@ class DsServiceServer:
     def close(self) -> None:
         """Stop the server: SIGTERM, then SIGKILL if it outlives TERMINATE_TIMEOUT_S.
 
-        This method signals the whole process group,
+        Signal the whole process group,
         not just the process the constructor started.
         A group signal also stops a server left behind
         by a wrapper that exited earlier.
-
-        Safe to call more than once: the second call does nothing.
+        A second call does nothing.
         """
         if self._closed:
             return

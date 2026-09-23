@@ -12,14 +12,11 @@ class DsServiceRecipe(ConanFile):
     """The ds-service executable as a Conan package, built with CMake.
 
     with_server, with_client and with_python select what the build produces.
-    They reach CMake as DS_SERVICE_BUILD_SERVER, DS_SERVICE_BUILD_CLIENT
-    and DS_SERVICE_BUILD_PYTHON.
-    The server alone needs spdlog, argparse, parallel-hashmap and re2.
     """
 
     name = "ds-service"
     # Set by scripts/update-version.sh, along with the other version strings.
-    version = "6.1.0"
+    version = "7.0.0"
 
     settings = "os", "compiler", "build_type", "arch"
     options = {
@@ -53,6 +50,9 @@ class DsServiceRecipe(ConanFile):
         self.requires("protobuf/6.33.5")
 
     def build_requirements(self) -> None:
+        # protoc and grpc_cpp_plugin generate code from the proto at build time.
+        # The versions match requirements(),
+        # because generated protobuf code only works with the runtime it came from.
         self.tool_requires("grpc/1.82.0")
         self.tool_requires("protobuf/6.33.5")
 
@@ -76,8 +76,7 @@ class DsServiceRecipe(ConanFile):
         cmake.install()
 
     def package_info(self) -> None:
-        # This package ships an executable, not a library:
-        # CMakeLists.txt installs only the ds-service target.
-        # An entry for ds-service-grpc here
-        # hands consumers an unresolvable -lds-service-grpc.
+        # This package ships no C++ library for a consumer to link.
+        # CMakeLists.txt installs the ds-service executable with with_server,
+        # and the _ext module and its stub with with_python.
         self.cpp_info.libs = []

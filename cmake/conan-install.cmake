@@ -13,6 +13,8 @@
 # The DS_SERVICE_BUILD_* options are not declared yet at that point,
 # so this file reads the values given with -D,
 # and passes each one to Conan as the matching with_* option.
+#
+# See "Pip builds run conan install from CMake" in docs/developer-notes.md.
 
 if(NOT DS_SERVICE_CONAN_INSTALL OR CMAKE_TOOLCHAIN_FILE)
   return()
@@ -42,6 +44,8 @@ execute_process(COMMAND "${DS_SERVICE_CONAN_EXE}" profile detect --exist-ok
 
 # user_presets is emptied so that Conan leaves CMakeUserPresets.json
 # in the source tree alone.
+# build_type is Release whatever CMAKE_BUILD_TYPE is,
+# because the toolchain path set below names the Release layout.
 execute_process(
   COMMAND
     "${DS_SERVICE_CONAN_EXE}" install "${CMAKE_SOURCE_DIR}" --build=missing

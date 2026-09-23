@@ -1,7 +1,6 @@
-"""The Python package must not import grpc or protobuf.
+"""Tests that importing the Python package imports neither grpc nor protobuf.
 
-The C++ client carries its own gRPC,
-so neither grpcio nor protobuf is a dependency any more.
+See "The transport boundary" in docs/developer-notes.md.
 """
 
 import subprocess

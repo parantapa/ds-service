@@ -159,6 +159,8 @@ struct TimeSeriesDataPoint {
 
 // A bound left as std::nullopt imposes no restriction,
 // where the proto leaves the field unset.
+// An empty time string imposes no restriction either.
+// The server refuses a non-empty time string that does not parse.
 struct TimeSeriesGetRequest {
     std::string key;
     std::optional<std::string> start_time;

@@ -82,39 +82,6 @@ with DsServiceClient("127.0.0.1:5051") as client:
     assert client.task_get_output("job-1") == b"hello world"
 ```
 
-## Upgrading from 6.x
-
-Version 7.0.0 moves the Python client onto a C++ client,
-which it carries in its extension module.
-The wire format is unchanged,
-so a 6.x client works with a 7.0.0 server, and the other way round.
-These changes can break code written for 6.x:
-
-- `grpcio` and `protobuf` are no longer dependencies.
-    A failure that 6.x passed on as a raw `grpc.RpcError`
-    now raises `TransportError`, from `ds_service_client`.
-- `task_get`, `task_get_count_by_state` and `time_series_get`
-    return read-only objects instead of protobuf messages.
-    Their attributes are unchanged,
-    but protobuf methods such as `SerializeToString()` are gone.
-- `TaskState` is an `enum.IntEnum`.
-    Use `state.name` and `TaskState["Ready"]`
-    where 6.x code called `TaskState.Name()` and `TaskState.Value()`.
-- A call on a closed client raises `RuntimeError` on both clients.
-    6.x raised `ValueError`, or `grpc.aio.UsageError` on the async client.
-- `DsServiceClientAsync` no longer needs a running event loop to be constructed.
-    It runs each call on a thread pool, sized with the new `max_workers` argument.
-- A client does not survive `fork()`.
-    Every call in a process forked after a client was created
-    raises `RuntimeError`.
-    With `multiprocessing`, use the `spawn` or `forkserver` start method.
-- The module-level internals of `ds_service_client.client` changed,
-    among them `translate_grpc_error` and `GRPC_CLIENT_OPTIONS`,
-    and the clients lost their `channel` and `stub` attributes.
-
-See the [Python client reference](docs/reference/python-client.md)
-for the details.
-
 ## Documentation
 
 ### User documentation
@@ -128,14 +95,14 @@ for the details.
 | [C++ client reference](docs/reference/cpp-client.md) | `ds::connect` and `ds::Client`: headers, options, methods, errors, and an example. |
 | [Server helper reference](docs/reference/server-helper.md) | `DsServiceServer`, which starts a private `ds-service` process and stops it on `close()`. |
 | [About the architecture](docs/explanation/the-architecture.md) | The pieces and the transport boundary between them, why the server does not persist state, one lock per structure, and why there are two Python clients. |
-| [About the task queue](docs/explanation/the-task-queue.md) | Task ownership, what canceling does and does not do, and why there is no fault tolerance. |
-| [About the static musl build](docs/explanation/the-static-musl-build.md) | Why the static image exists and why its Conan profile differs. |
+| [About the task queue](docs/explanation/the-task-queue.md) | Task ownership, what canceling does and does not do, how failure and cancellation pass to dependents, why there is no fault tolerance, and why the server reclaims nothing. |
 
 ### Developer documentation
 
 | Document | What it covers |
 | --- | --- |
 | [How to build the ds-service server](docs/how-to-guides/build-the-server.md) | Requirements, the Conan and CMake build, the options that select the server, the C++ client and the Python module, the tests, how to install and run the binary, and the static musl build. |
+| [About the static musl build](docs/explanation/the-static-musl-build.md) | Why the static image exists and why its Conan profile differs. |
 | [Developer notes](docs/developer-notes.md) | A map of the source, the build and the test suites, the generated code, the transport boundary, and the invariants that span C++ and Python. |
 
 ## License

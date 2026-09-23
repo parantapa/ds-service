@@ -7,12 +7,13 @@
 // A method named after an RPC serves that RPC:
 // it takes the struct's own lock,
 // and cpp/grpc/ds-service.proto states the contract it answers with.
-// Each method takes the plain request by value and moves what it keeps out of it.
+// Each method takes the plain request by value and moves each payload it keeps out of it.
 // It returns the plain response, or the Error for a refusal.
 // The method body holds the error code for each refusal,
-// and the proto names only some of them.
+// and the proto names each of them.
 //
 // Nothing here depends on gRPC or protobuf.
+// See "The transport boundary" in docs/developer-notes.md.
 // A transport decodes each request, calls the method, and encodes the result.
 
 #include <chrono>

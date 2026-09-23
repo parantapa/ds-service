@@ -24,7 +24,8 @@ Notes for people working on `ds-service` itself.
 | `python/ds_service_client/errors.py` | The exceptions the clients raise, beyond the built-in ones. |
 | `python/ds_service_client/server.py` | `DsServiceServer`, which starts a `ds-service` process and stops it on `close()` or at the end of a `with` block. |
 | `docs/` | The user documentation, and these notes. |
-| `tests/` | The pytest integration suite. `conftest.py` holds the fixtures. One `test_*.py` per data structure, plus client, lifecycle, extension module, server-helper, shutdown and error-translation tests. `tests/grpc_transport/` holds the tests that only make sense over gRPC. |
+| `misc/` | The banner image of the README. |
+| `tests/` | The pytest integration suite. `conftest.py` holds the fixtures. One `test_*.py` per data structure, plus client, lifecycle, extension module, fork, no-gRPC-import, server-helper, shutdown and error-translation tests. `tests/grpc_transport/` holds the tests that only make sense over gRPC. |
 | `scripts/update-version.sh` | Sets every version string in the repository. |
 | `scripts/Dockerfile` | The static musl build. |
 | `scripts/pb-dev.sh` | The author's own out-of-tree build wrapper. Not required to build the project. |
@@ -58,7 +59,8 @@ and the development and test dependencies:
 pip install black build cibuildwheel conan ifaddr nanobind pyright pytest scikit-build-core twine
 ```
 
-The list matches the `dev` and `test` extras in `pyproject.toml`.
+The list is the `dev` and `test` extras in `pyproject.toml`,
+plus `ifaddr`, the one run-time dependency.
 `pip install -e ".[dev,test]"` installs them as well,
 but it also builds the whole package, which the suite does not need.
 
@@ -190,7 +192,8 @@ because a refusal there is an ordinary outcome that a transport turns into a wir
 The C++ client throws `ds::ClientError` instead.
 Both carry an `ErrorCode`.
 `cpp/grpc/codec.hpp` maps each code to a gRPC status and back,
-and `static_assert`s there check the round trip.
+and `static_assert`s in `cpp/grpc/codec.cpp` check the round trip
+of every code a transport carries.
 
 ## Two clients, one API
 
@@ -212,7 +215,7 @@ It fails in four cases:
 - The two classes stop offering the same method names.
 - A shared method's parameters or return annotation drift apart.
 - An async method is not a coroutine function.
-- A class loses its own context manager protocol.
+- The async class loses its async context manager protocol.
 
 Add a method to one client without the other and it says so.
 
@@ -223,14 +226,16 @@ and the `as_queue_list`, `as_parent_task_id_list` and `mutex_retry_delay` helper
 Only the call itself differs between the two copies of a method:
 `self.client.map_get(key)` in one,
 and `await self._call(self.client.map_get, key)` in the other.
-`mutex_acquire` is the exception, because its retry sleep differs as well.
+`mutex_acquire` is one exception, because its retry sleep differs as well.
+`close` is the other, because the async client also shuts down its pool.
 
 ## The channel settings live in one header
 
 Two pieces of gRPC configuration are only correct as a matched pair
 between the server and its clients.
-Both sides now come from `cpp/grpc/channel-settings.hpp`,
-and `static_assert`s there check the pair at compile time.
+Both sides come from `cpp/grpc/channel-settings.hpp`.
+One constant there serves both sides for the message size,
+and a `static_assert` there checks the keepalive pair at compile time.
 
 **The maximum message size.**
 `MAX_MESSAGE_SIZE_BYTES` applies to both sides.
@@ -246,6 +251,60 @@ and drops the connection,
 which callers see as a `TimeoutError` with no mention of pings.
 A client built from an older release still has its own copy of these values,
 so lower the server's interval before you raise the client's ping rate.
+
+## A client does not survive fork()
+
+The gRPC inside `_ext` does not survive `fork()`.
+Once a process has created a client,
+a call from a child it forks hangs,
+on an inherited client and on a new one alike.
+A child forked before the process created any client works.
+The 6.x client, on `grpcio`, did not have this problem,
+because `grpcio` registers gRPC's own fork handlers.
+
+Setting the `GRPC_ENABLE_FORK_SUPPORT` environment variable did not help.
+gRPC core registers its fork handlers with `pthread_atfork`
+only when it is compiled with `GRPC_POSIX_FORK_ALLOW_PTHREAD_ATFORK`,
+and its posix event engine only with `GRPC_ENABLE_FORK_SUPPORT` as well
+(`src/core/lib/iomgr/fork_posix.cc`, `src/core/lib/event_engine/posix_engine/posix_engine.cc`).
+The `setup.py` that builds `grpcio` defines both,
+as do the Ruby extension build and the `fork_support` config in `tools/bazel.rc`.
+The CMake build of gRPC, which Conan uses, defines neither.
+Two ways out were not tried:
+building gRPC through Conan with both macros defined,
+and calling gRPC's internal prefork and postfork hooks from `_ext`,
+which would tie the module to gRPC internals.
+
+So `client.py` refuses instead of hanging.
+`connect()` records the first client,
+an `os.register_at_fork` hook marks any child forked after it,
+and `translate_error` raises `RuntimeError(FORK_MESSAGE)` there
+before a call reaches `_ext`.
+`tests/test_fork.py` covers both sides of the rule.
+The cost is that such a child cannot use the client at all.
+`multiprocessing` callers use the `spawn` or `forkserver` start method.
+The C++ client has no such guard, and a C++ child hangs.
+
+## Pip builds run conan install from CMake
+
+pip runs CMake through scikit-build-core with no Conan toolchain.
+So `pyproject.toml` sets `DS_SERVICE_CONAN_INSTALL`,
+and `cmake/conan-install.cmake` runs `conan install` before `project()`,
+then builds with the toolchain it generated.
+Every other build passes the toolchain on the command line,
+and the file does nothing.
+
+The alternative, the `cmake-conan` dependency provider,
+would mean vendoring a large third-party CMake file.
+The cost is the build time with no Conan cache:
+gRPC, protobuf and their dependencies compile from source,
+which took about five and a half minutes on 16 cores.
+A wheel build in a fresh manylinux container pays that every time,
+unless the CI caches `CONAN_HOME`.
+
+Because of this file, `cmake/` is part of every build.
+`exports_sources` in `conanfile.py` and the `COPY` lines in `scripts/Dockerfile`
+carry it.
 
 ## The server refuses to share its port
 
@@ -269,7 +328,7 @@ The probe's socket options are explained at the probe.
 Two tests hold this in place:
 `test_second_server_on_the_same_port_fails`
 in `tests/grpc_transport/test_grpc_options.py`,
-and `test_explicit_port_already_in_use_is_refused`
+and `test_failed_start_leaves_the_running_server_alone`
 in `tests/test_server_helper.py`.
 
 ## The test harness
@@ -292,6 +351,8 @@ Teardown terminates the process.
 If the process does not exit within the grace period `DsServiceServer` allows,
 teardown kills it
 (`TERMINATE_TIMEOUT_S` in `python/ds_service_client/server.py`).
+That grace period stays above `SHUTDOWN_GRACE_S` in `cpp/server/main.cpp`,
+so the helper never kills a server that is still draining its calls.
 
 ## Conventions
 
@@ -299,7 +360,7 @@ teardown kills it
     Pass `--compile-commands-dir` explicitly.
     Do not update the top-level `compile_commands.json` symlink.
 - `.clang-format` in the repository root sets the C++ formatting.
-- After changing Python, check it with pyright and format it with black.
+- After changing Python, format it with black, then check it with pyright.
     `pyproject.toml` configures both.
     It excludes the generated `_ext.pyi` from the pyright check,
     though pyright still reads it to resolve imports,
@@ -308,6 +369,9 @@ teardown kills it
     or it cannot resolve `ds_service_client._ext`.
 - Use semantic line breaks in documentation, block comments,
     and docstrings.
+- The gate for a change runs in this order:
+    clang-format and black, then clangd and pyright,
+    then a build, `ctest` and `python -m pytest`.
 
 ## Versioning
 
@@ -359,9 +423,10 @@ so its cost grows the same way.
 
 Compaction is not a local change.
 The index of a row is its address,
-and `TaskManager::task_index`, every queue entry in `TaskManager::queue`
-and every entry in `TaskTable::children` hold that index.
-If you move a row, you rewrite all three.
+and `TaskManager::task_index`, every queue entry in `TaskManager::queue`,
+every entry in `TaskTable::children`
+and every entry in `TaskTable::terminal_origin` hold that index.
+If you move a row, you rewrite all four.
 
 The server does not reclaim dead queue entries either.
 A heap cannot erase an entry from the middle.

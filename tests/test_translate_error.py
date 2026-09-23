@@ -1,10 +1,4 @@
-"""Tests for translate_error, the client's error-code mapping.
-
-These tests check the mapping directly, without a server.
-A constructed ClientError carries the code,
-so a test can reach every branch,
-whether or not a real server produces it.
-"""
+"""Tests for translate_error, the client's error-code mapping."""
 
 import pytest
 
@@ -18,6 +12,10 @@ from ds_service_client._ext import ClientError, ErrorCode
 from ds_service_client.client import translate_error
 
 
+# These tests need no server.
+# A constructed ClientError carries the code,
+# so a test can reach every branch,
+# whether or not a real server produces it.
 def _raise(code: ErrorCode, message: str = "details") -> None:
     raise ClientError(code, message)
 

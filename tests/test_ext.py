@@ -36,6 +36,7 @@ def test_client_error_carries_code_and_message():
     with pytest.raises(_ext.ClientError) as excinfo:
         _ext.connect("carrier-pigeon://127.0.0.1:1", 1.0)
     error = excinfo.value
+    # The generated stub declares ClientError with no attributes.
     assert error.code == _ext.ErrorCode.InvalidArgument  # type: ignore[attr-defined]
     assert "carrier-pigeon" in error.message  # type: ignore[attr-defined]
     assert error.args == (error.code, error.message)  # type: ignore[attr-defined]

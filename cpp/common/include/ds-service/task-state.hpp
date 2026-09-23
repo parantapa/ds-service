@@ -10,6 +10,8 @@ namespace ds {
 // Finished is a task that ran without error.
 // Failed is a task that ran and reported an error,
 // or one that never ran because a task it depends on failed.
+// Canceled is a task that TaskCancel canceled,
+// or one that never ran because a task it depends on was canceled.
 // TaskGetStatus reports Undefined for a task_id that does not exist.
 enum class TaskState : int {
     Waiting = 0,

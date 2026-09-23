@@ -33,6 +33,9 @@ ds::Result<void> Mutexes::release(ds::MutexReleaseRequest request) {
                                           request.worker_id));
     }
 
+    // Reset rather than erase, so the key stays known:
+    // search_key still lists it,
+    // and get_worker_id reports it as not held rather than not found.
     it->second = MutexState{};
     return {};
 }

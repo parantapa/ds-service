@@ -1,5 +1,7 @@
 edition = "2023";
 
+// The RPCs a ds-service server answers.
+// The comment on each request message states the contract of its RPC.
 service DsService {
     rpc MapSet(MapSetRequest) returns (Empty) {}
     rpc MapGet(MapGetRequest) returns (MapGetResponse) {}
@@ -39,11 +41,13 @@ service DsService {
 
 message Empty {}
 
+// MapSet stores value under key, replacing any value already there.
 message MapSetRequest {
     string key = 1;
     bytes value = 2;
 }
 
+// MapGet returns NOT_FOUND for a key that no MapSet has stored.
 message MapGetRequest {
     string key = 1;
 }
@@ -52,10 +56,17 @@ message MapGetResponse {
     bytes value = 1;
 }
 
+// MapSearchKey, JournalSearchKey, TimeSeriesSearchKey, MutexSearchKey
+// and CounterSearchKey search the keys of their own structure.
+// TaskSearchId searches the task_id of every task, in any state.
+// pattern is an RE2 regular expression,
+// and a key matches when the pattern matches any part of it.
+// An invalid pattern returns INVALID_ARGUMENT.
 message SearchKeyRequest {
     string pattern = 1;
 }
 
+// The matching keys, in no guaranteed order.
 message SearchKeyResponse {
     repeated string key = 1;
 }
@@ -69,6 +80,10 @@ message SearchKeyResponse {
 // and one added with a Failed parent is added Failed,
 // because neither parent ever finishes.
 // A task with both a Canceled and a Failed parent is added Failed.
+//
+// TaskAdd returns ALREADY_EXISTS for a task_id already added.
+// A Ready task waits on every queue it names,
+// until a TaskGet on any one of them claims it.
 message TaskAddRequest {
     string task_id = 1;
     repeated string parent_task_ids = 2;
@@ -96,7 +111,6 @@ enum TaskState {
 
 // TaskGetStatus reports the state of every requested task_id,
 // in the same order as the request.
-// TaskGetStatus reports Undefined for a task_id that does not exist.
 message TaskGetStatusRequest {
     repeated string task_id = 1;
 }
@@ -105,6 +119,9 @@ message TaskGetStatusResponse {
     repeated TaskState state = 1;
 }
 
+// TaskGetOutput returns the output stored for the task,
+// which is empty until the task is Finished, Failed or Canceled.
+// NOT_FOUND for a task_id that does not exist.
 message TaskGetOutputRequest {
     string task_id = 1;
 }
@@ -130,6 +147,7 @@ message TaskGetCountByStateResponse {
 // Canceling a task cancels every task waiting on it, and so on down the graph,
 // because a canceled task never finishes.
 // Every task canceled this way reports "Task canceled" as its output.
+// NOT_FOUND for a task_id that does not exist.
 message TaskCancelRequest {
     string task_id = 1;
 }
@@ -142,6 +160,7 @@ message TaskCancelResponse {
     bool success = 1;
 }
 
+// NOT_FOUND for a task_id that does not exist.
 message TaskGetPriorityRequest {
     string task_id = 1;
 }
@@ -152,6 +171,7 @@ message TaskGetPriorityResponse {
 
 // TaskSetPriority on a Ready task moves it within every queue it waits on,
 // and it goes behind the tasks with equal priority already waiting.
+// NOT_FOUND for a task_id that does not exist.
 message TaskSetPriorityRequest {
     string task_id = 1;
     double priority = 2;
@@ -168,6 +188,11 @@ message TaskGetWorkerIdResponse {
     string worker_id = 1;
 }
 
+// TaskGet claims one Ready task for worker_id and moves it to Running.
+// It tries the queues in the order the request lists them,
+// and takes the highest priority task of the first queue that holds one.
+// Tasks of equal priority leave in the order they entered the queue.
+// NOT_FOUND when no listed queue holds a Ready task.
 message TaskGetRequest {
     string worker_id = 1;
     repeated string queue = 2;
@@ -180,9 +205,11 @@ message TaskGetResponse {
 }
 
 // worker_id must be the one that claimed the task through TaskGet.
-// TaskDone from any other worker is refused.
-// TaskDone on a Canceled task is accepted but does nothing.
+// TaskDone from any other worker is refused with FAILED_PRECONDITION,
+// and so is TaskDone on a task that is neither Running nor Canceled.
+// TaskDone on a Canceled task is accepted from any worker, but does nothing.
 // The task stays Canceled and the output is discarded.
+// NOT_FOUND for a task_id that does not exist.
 //
 // failed says how the task ended.
 // A task reported with failed = false is Finished,
@@ -200,6 +227,7 @@ message TaskDoneRequest {
     bool failed = 4;
 }
 
+// JournalSize reports 0 for a key that has no journal.
 message JournalSizeRequest {
     string key = 1;
 }
@@ -208,6 +236,10 @@ message JournalSizeResponse {
     uint64 size = 1;
 }
 
+// JournalRead returns the entries from index start up to end, exclusive,
+// in the order they were appended.
+// A range past the end of the journal is cut short there,
+// and a key that has no journal reads as empty.
 message JournalReadRequest {
     string key = 1;
     uint64 start = 2;
@@ -218,6 +250,8 @@ message JournalReadResponse {
     repeated bytes entry = 1;
 }
 
+// JournalAppend adds value at the end of the journal under key,
+// and creates the journal if it does not exist.
 message JournalAppendRequest {
     string key = 1;
     bytes value = 2;
@@ -227,6 +261,7 @@ message JournalAppendRequest {
 // for example "2024-01-02T03:04:05Z" or "...+00:00".
 // step is optional.
 // When the request omits it, step defaults to 0.
+// A datetime that does not parse returns INVALID_ARGUMENT.
 message TimeSeriesAppendRequest {
     string key = 1;
     double value = 2;
@@ -234,6 +269,8 @@ message TimeSeriesAppendRequest {
     int64 step = 4;
 }
 
+// datetime is a UTC datetime string ending in "Z".
+// It has six fractional digits, unless it falls on a whole second.
 message TimeSeriesDataPoint {
     double value = 1;
     string datetime = 2;
@@ -245,6 +282,11 @@ message TimeSeriesDataPoint {
 // end_time / end_step are exclusive upper bounds.
 // An unset field imposes no bound.
 // Time bounds are ISO 8601 UTC datetime strings.
+// An empty time bound imposes no bound either,
+// and one that does not parse returns INVALID_ARGUMENT.
+// TimeSeriesGet returns the points within every bound,
+// in the order they were appended.
+// A key that has no series returns no points.
 message TimeSeriesGetRequest {
     string key = 1;
     string start_time = 2;

@@ -25,6 +25,7 @@ class ServerTransport {
     // Block until shutdown() has completed.
     virtual void wait() = 0;
 
-    // Refuse new calls, and give in-flight calls until deadline to finish.
+    // Refuse new calls, give in-flight calls until deadline to finish,
+    // and cancel any still running then.
     virtual void shutdown(std::chrono::system_clock::time_point deadline) = 0;
 };

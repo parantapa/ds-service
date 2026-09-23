@@ -66,8 +66,8 @@ A flat `string -> bytes` key-value store.
 | `MapSearchKey(pattern)` | Return every key matching the regular expression `pattern`. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
 
 Values are binary blobs,
-so callers are free to store data using whatever serialization
-they like (JSON, pickle, protobuf, raw binary).
+so a value can hold data in any serialization,
+such as JSON, pickle, protobuf or raw binary.
 
 [Key search](#key-search) describes how `MapSearchKey` matches keys.
 
@@ -98,8 +98,6 @@ No live task holds the seventh state, `Undefined`.
 | RPC | Description |
 | --- | --- |
 | `TaskAdd(task_id, parent_task_ids, queue, priority, function, input)` | Register a new task and enqueue it on each named queue. A task with a parent that is `Waiting`, `Ready` or `Running` starts `Waiting` and enters no queue yet, unless another parent is `Canceled` or `Failed`. Returns `ALREADY_EXISTS` if the id is already known, and `NOT_FOUND`, adding nothing, for a parent the server does not know. |
-| `TaskGet(worker_id, queue)` | Claim the highest-priority `Ready` task from the first queue that has one, mark it `Running` on behalf of `worker_id`, and return its payload. `TaskGet` tries the queues in the order given. Returns `NOT_FOUND` when none of them has work ready. |
-| `TaskDone(task_id, output, worker_id, failed)` | Store a `Running` task's output and mark it `Finished`, or `Failed` when `failed` is true. Failing a task fails every task waiting on it. Returns `NOT_FOUND` for an unknown `task_id`, and `FAILED_PRECONDITION` if the task is not `Running` or is held by a different worker. A `Canceled` task is accepted and left alone. |
 | `TaskGetStatus(task_id...)` | Return the state of each requested task, in request order. An unknown `task_id` reports `Undefined` rather than being an error. |
 | `TaskGetOutput(task_id)` | Return a single task's output. Returns `NOT_FOUND` if the task does not exist. A task that has not ended yet has empty output, a canceled task reports `Task canceled`, and a task failed by one it depends on reports `Dependency failed (task_id=...)`, naming the task whose run failed. |
 | `TaskGetCountByState()` | Return how many tasks are currently in each of the `Waiting`, `Ready`, `Running`, `Finished`, `Failed` and `Canceled` states. Takes no arguments. |
@@ -108,6 +106,8 @@ No live task holds the seventh state, `Undefined`.
 | `TaskSetPriority(task_id, priority)` | Change the task's priority. A `Ready` task is moved within every queue it waits on. A `Waiting` task records the new priority and enters its queues at that priority when its parents finish. A task in any other state records the new priority but is never dispatched again. Returns `NOT_FOUND` for an unknown `task_id`. |
 | `TaskGetWorkerId(task_id)` | Return the `worker_id` holding a `Running` task. Returns `NOT_FOUND` for an unknown `task_id`, and `FAILED_PRECONDITION` if the task is not `Running`. |
 | `TaskSearchId(pattern)` | Return every `task_id` matching the regular expression `pattern`. `TaskSearchId` searches tasks in every state. Returns `INVALID_ARGUMENT` if the pattern does not compile. |
+| `TaskGet(worker_id, queue)` | Claim the highest-priority `Ready` task from the first queue that has one, mark it `Running` on behalf of `worker_id`, and return its payload. `TaskGet` tries the queues in the order given. Returns `NOT_FOUND` when none of them has work ready. |
+| `TaskDone(task_id, output, worker_id, failed)` | Store a `Running` task's output and mark it `Finished`, or `Failed` when `failed` is true. Failing a task fails every task waiting on it. Returns `NOT_FOUND` for an unknown `task_id`, and `FAILED_PRECONDITION` if the task is not `Running` or is held by a different worker. A `Canceled` task is accepted and left alone. |
 
 ### Dispatch order
 
@@ -291,15 +291,15 @@ Mutexes have no expiry.
 A worker that acquires a mutex and then dies leaves it held
 for the life of the server.
 
-The Python clients add a waiting `mutex_acquire`
+The Python and C++ clients add a waiting `mutex_acquire`
 on top of `MutexTryAcquire`.
 See the [Python client reference](python-client.md).
 
 ## Counters
 
 A `string -> uint64` map of named counters
-that hand out successive integers.
-They are useful for unique ids or sequence numbers across workers.
+that hand out successive integers,
+for unique ids or sequence numbers across workers.
 
 | RPC | Description |
 | --- | --- |

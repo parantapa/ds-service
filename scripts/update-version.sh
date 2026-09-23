@@ -1,6 +1,6 @@
 #!/bin/bash
-# Set the version in cpp/server/main.cpp, CMakeLists.txt, pyproject.toml
-# and conanfile.py, then print the edited lines.
+# Sets the version in cpp/server/main.cpp, CMakeLists.txt, pyproject.toml
+# and conanfile.py, then prints the edited lines.
 #
 # Takes one argument, the version, and runs from the repository root.
 # CMakeLists.txt gets only the leading numeric part,

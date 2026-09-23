@@ -1,8 +1,4 @@
-"""Pytest harness for ds-service.
-
-Each test that needs a server runs against a freshly started ``ds-service`` process.
-Starting and stopping it is left to ``ds_service_client.DsServiceServer``.
-"""
+"""Pytest harness for ds-service."""
 
 import subprocess
 from collections.abc import Iterator

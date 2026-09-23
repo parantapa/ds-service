@@ -17,6 +17,8 @@ BUILD_DIR="$BUILD_ROOT/build/Release"
 
 # Conan's generated environment scripts do not run under strict mode,
 # so each function turns it off while it sources one.
+
+# Configure the build tree, with the Python module turned on.
 cmake_configure() {
     set +Eeuo pipefail
     . "$BUILD_DIR/generators/conanbuild.sh"
@@ -32,6 +34,7 @@ cmake_configure() {
         -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake"
 }
 
+# Build every target in the build tree.
 cmake_build() {
     set +Eeuo pipefail
     . "$BUILD_DIR/generators/conanbuild.sh"
@@ -74,6 +77,8 @@ run_test() {
     # The suite finds the server on PATH when DS_SERVICE_BIN is unset.
     PATH="$BUILD_DIR:$PATH"
 
+    # Logs which server binary the suite starts,
+    # and under set -e stops the run if the build produced none.
     which ds-service
     ctest --test-dir "$BUILD_DIR" --output-on-failure
     python -m pytest
@@ -104,7 +109,7 @@ run_upload-python-package() {
 
 # Create a GitHub release named after the version of dist/ds-service,
 # with the binary, the sdist and the wheel of that version attached.
-# Exits 1 if any of them is missing, or if gh is missing or not logged in.
+# Exit 1 if any of them is missing, or if gh is missing or not logged in.
 run_make-release() {
     local binary="dist/ds-service"
     local repo="https://github.com/parantapa/ds-service"
@@ -171,6 +176,7 @@ run_make-release() {
         "$binary" "${sdists[@]}" "${whls[@]}"
 }
 
+# Print the usage and the list of commands.
 show_help() {
     echo "Usage: $0 (help | command)"
     echo

@@ -42,7 +42,7 @@ It is not the data model.
 The plain types in `cpp/common/` are,
 and a codec under `cpp/grpc/` converts between the two.
 So a new transport needs its own encoding of the same plain types,
-and nothing outside its own directory changes.
+and neither the plain types, the server core nor `ds::Client` changes.
 
 The Python client carries its own copy of the C++ client and its transport.
 It needs neither `grpcio` nor `protobuf`,

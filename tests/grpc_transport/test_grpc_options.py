@@ -1,8 +1,7 @@
 """Tests for the gRPC channel settings, seen from a client.
 
-cpp/grpc/channel-settings.hpp holds the settings of both sides,
-and static_asserts there keep them consistent,
-so these tests check only what a caller can observe.
+These tests check only what a caller can observe.
+Compile-time checks cover the rest.
 See "The channel settings live in one header"
 in docs/developer-notes.md.
 """

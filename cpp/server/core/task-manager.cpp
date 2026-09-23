@@ -299,6 +299,8 @@ ds::Result<void> TaskManager::set_priority(ds::TaskSetPriorityRequest request) {
         return {};
     }
 
+    // The entry at the old priority stays in each queue as a dead entry.
+    // See "Known limitations" in docs/developer-notes.md.
     enqueue(index);
 
     return {};
@@ -344,9 +346,6 @@ ds::Result<ds::SearchKeyResponse> TaskManager::search_id(ds::SearchKeyRequest re
 ds::Result<ds::TaskGetResponse> TaskManager::get(ds::TaskGetRequest request) {
     std::scoped_lock guard{lock};
 
-    // TaskGet searches the queues in the order the caller listed them:
-    // the first one holding a Ready task wins.
-    //
     // Dead queue entries are discarded lazily here,
     // as they reach the top of the heap.
     // A popped entry that is not usable is dropped rather than skipped.

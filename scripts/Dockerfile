@@ -54,6 +54,9 @@ ENV CONAN_HOME=/opt/conan_home
 # The version declared here only has to satisfy those ranges,
 # and the tool itself only has to satisfy
 # CMakeLists.txt's `cmake_minimum_required(VERSION 3.31)`.
+#
+# The grpc options build the C++ code generator the build runs on the proto,
+# and skip the plugins for other languages.
 RUN mkdir -p "$CONAN_HOME/profiles" \
     && cat > "$CONAN_HOME/profiles/default" <<'EOF'
 [settings]

@@ -3,8 +3,6 @@
 The gRPC inside the extension module does not survive fork().
 The client refuses calls in a child forked after a client existed,
 rather than hang there.
-Each test runs its scenario in a fresh interpreter,
-because this process has created clients already.
 """
 
 import subprocess
@@ -56,8 +54,14 @@ sys.exit("the child hung")
 """
 
 
+# Each test runs its scenario in a fresh interpreter,
+# because this process has created clients already.
+# The script enforces CHILD_TIMEOUT_S itself,
+# so the outer timeout is only a backstop.
 def _run(address: str, scenario: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
+        # -W ignore silences the DeprecationWarning that os.fork() gives
+        # in a process that runs threads, as every process with a client does.
         [sys.executable, "-W", "ignore", "-c", SCRIPT, address, scenario],
         capture_output=True,
         text=True,
