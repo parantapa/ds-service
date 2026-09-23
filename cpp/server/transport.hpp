@@ -19,7 +19,7 @@ class ServerTransport {
 
     // Bind and start serving state.
     // state must outlive the transport.
-    // Returns false on a bind failure, after logging it.
+    // Return false on a bind failure, after logging it.
     virtual bool start(SystemState& state) = 0;
 
     // Block until shutdown() has completed.

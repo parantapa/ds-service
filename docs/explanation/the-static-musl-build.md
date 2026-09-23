@@ -18,7 +18,7 @@ That matters most where the deployment target is not the build machine.
 
 ## Why the Conan profile differs
 
-Musl forces three details
+Musl and the static link force three details
 that differ from the normal build.
 
 First, the profile marks `cmake` as platform-provided,
@@ -45,4 +45,5 @@ and its built-in 128 KiB default is tight for gRPC's worker threads.
 ConanCenter publishes no musl binaries,
 so the first build compiles the whole dependency tree from source.
 That cost is the price of the target, not a misconfiguration,
-and the Conan cache absorbs it on subsequent builds.
+and Docker's build cache absorbs it on subsequent builds
+while `conanfile.py` is unchanged.

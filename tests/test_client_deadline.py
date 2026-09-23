@@ -1,4 +1,4 @@
-"""Tests for the deadline the client applies to every call, and for interrupting a call."""
+"""Tests for the deadline on every call, and for interrupting a call."""
 
 import _thread
 import socket

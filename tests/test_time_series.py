@@ -65,7 +65,11 @@ def test_invalid_datetime_leaves_series_usable(client):
 
 @pytest.fixture
 def stepped_series(client: DsServiceClient) -> DsServiceClient:
-    # value == step, times one second apart, for readable filter assertions.
+    """The client, with five points in series "m" for the filter tests.
+
+    Point i has value i, step i,
+    and a time i seconds past 2024-01-01T00:00:00Z.
+    """
     for i in range(5):
         client.time_series_append("m", float(i), f"2024-01-01T00:00:0{i}Z", step=i)
     return client
@@ -146,7 +150,6 @@ def test_search_key_invalid_pattern_raises_valueerror(client):
 
 
 def test_get_does_not_create_series(client):
-    # A read of a missing series must not add it to the store.
     assert client.time_series_get("never-seen") == []
 
     assert client.time_series_search_key(".*") == []

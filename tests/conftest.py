@@ -49,10 +49,11 @@ def _probe(address: str) -> None:
 def server_binary() -> str:
     """How to start the server under test.
 
-    DsServiceServer's own helper resolves it,
-    so it can be a whole command line rather than a path,
+    It can be a whole command line rather than a path,
     which ``shlex.split`` turns into the arguments to run.
     """
+    # DsServiceServer resolves its binary through the same function,
+    # so this value and the fixtures' servers cannot disagree.
     return resolve_ds_service_bin()
 
 

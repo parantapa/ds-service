@@ -402,7 +402,7 @@ def test_get_worker_id_of_a_finished_task_raises(client):
     client.task_get(worker_id="w1", queue="work")
     client.task_done("t", worker_id="w1", output=b"result")
 
-    # The server released the task when it finished.
+    # task_get_worker_id names a holder only while the task is Running.
     with pytest.raises(TaskStateError):
         client.task_get_worker_id("t")
 
@@ -592,7 +592,6 @@ def test_search_id_invalid_pattern_raises_valueerror(client):
 
 
 def test_reads_do_not_create_task(client):
-    # None of these reads adds a row for the id it asks about.
     assert client.task_get_status("never-seen") == TaskState.Undefined
     for read in (
         client.task_get_output,

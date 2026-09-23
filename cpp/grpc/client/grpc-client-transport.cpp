@@ -22,6 +22,8 @@ namespace ds::grpc_client {
 namespace {
 
 // How often a waiting call polls ClientOptions::should_cancel.
+// The comment on should_cancel in client-transport.hpp promises callers this interval,
+// so change the two together.
 constexpr auto CANCEL_POLL_INTERVAL = std::chrono::milliseconds(100);
 
 // A timeout at or above this many seconds sets no deadline at all,
@@ -214,7 +216,8 @@ class GrpcClientTransport final : public ClientTransport {
     }
 
     // Make one call and wait for it, polling should_cancel.
-    // Returns the response, or throws ClientError.
+    // Returns the response, or throws ClientError,
+    // or rethrows what should_cancel threw.
     //
     // The call always runs to completion before this returns or throws,
     // because the call reads request and the callback writes into response,
@@ -235,7 +238,8 @@ class GrpcClientTransport final : public ClientTransport {
         try {
             wait(*call);
         } catch (...) {
-            // should_cancel threw. Stop the call, and wait it out before unwinding.
+            // should_cancel threw.
+            // Stop the call, and wait it out before unwinding.
             failure = std::current_exception();
             call->context.TryCancel();
             std::unique_lock guard{call->lock};
@@ -321,6 +325,8 @@ class GrpcClientTransport final : public ClientTransport {
     std::unique_ptr<::DsService::Stub> stub_;
 
     // Guards closed_ and calls_.
+    // calls_ does not own its entries.
+    // invoke keeps each call alive until end_call has removed it.
     std::mutex calls_lock_;
     bool closed_ = false;
     std::unordered_set<Call*> calls_;

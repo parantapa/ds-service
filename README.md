@@ -28,7 +28,8 @@ described in the [data structure reference](docs/reference/data-structure.md).
 
 ## Installation
 
-The server is a single statically linked binary.
+The server is a single binary for x86-64 Linux,
+statically linked against musl with no dynamic dependencies.
 Download the latest release, make it executable,
 and put it somewhere on your `PATH`:
 
@@ -38,9 +39,6 @@ curl -sSL -o ds-service \
 chmod +x ds-service
 ```
 
-It links against musl with no dynamic dependencies,
-so it runs on any x86-64 Linux host.
-
 The Python client needs Python 3.12 or newer.
 It comes from PyPI:
 
@@ -48,9 +46,10 @@ It comes from PyPI:
 pip install ds-service-client
 ```
 
-PyPI has a prebuilt wheel for x86-64 Linux.
+PyPI has a prebuilt manylinux wheel for x86-64 Linux.
 On any other platform, pip builds the client from source,
 which needs a C++23 toolchain and takes several minutes.
+See [how to build the Python module](docs/how-to-guides/build-the-server.md#build-the-python-module).
 
 The C++ client comes from source only.
 See the [C++ client reference](docs/reference/cpp-client.md).
@@ -90,10 +89,10 @@ with DsServiceClient("127.0.0.1:5051") as client:
 | Document | What it covers |
 | --- | --- |
 | [Run your first tasks through ds-service](docs/tutorials/your-first-tasks.md) | Start a server, store a value, and take a task from `Ready` to `Finished`. Start here. |
-| [How to write a worker](docs/how-to-guides/write-a-worker.md) | The claim-work-report loop, mutexes around shared resources, progress reporting, and the asyncio variant. |
+| [How to write a worker](docs/how-to-guides/write-a-worker.md) | Connecting, the claim-work-report loop, mutexes around shared resources, progress reporting, unique ids, the asyncio variant, several workers in one program, and recovering a task a dead worker left `Running`. |
 | [Data structure reference](docs/reference/data-structure.md) | Every operation, its arguments and error codes, and the exact semantics of each data structure. |
 | [Python client reference](docs/reference/python-client.md) | `DsServiceClient` and `DsServiceClientAsync`: constructors, method names, return types, the mapping from a failure to an exception, threads and processes, and examples. |
-| [C++ client reference](docs/reference/cpp-client.md) | `ds::connect` and `ds::Client`: headers, options, methods, errors, and an example. |
+| [C++ client reference](docs/reference/cpp-client.md) | `ds::connect` and `ds::Client`: headers, options, methods, errors, threads and processes, and an example. |
 | [Server helper reference](docs/reference/server-helper.md) | `DsServiceServer`, which starts a private `ds-service` process and stops it on `close()`. |
 | [About the architecture](docs/explanation/the-architecture.md) | The pieces and the transport boundary between them, why the server does not persist state, one lock per structure, and why there are two Python clients. |
 | [About the task queue](docs/explanation/the-task-queue.md) | Task ownership, what canceling does and does not do, how failure and cancellation pass to dependents, why there is no fault tolerance, and why the server reclaims nothing. |

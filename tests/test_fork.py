@@ -1,8 +1,6 @@
 """Tests for the client in a process created by fork().
 
-The gRPC inside the extension module does not survive fork().
-The client refuses calls in a child forked after a client existed,
-rather than hang there.
+See "A client does not survive fork()" in docs/developer-notes.md.
 """
 
 import subprocess

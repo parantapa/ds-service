@@ -22,8 +22,10 @@ static_assert(static_cast<int>(TaskState::Undefined) == ::TaskState::Undefined);
 static_assert(::TaskState_MIN == ::TaskState::Waiting);
 static_assert(::TaskState_MAX == ::TaskState::Undefined);
 
-// Each code the server sends must come back as itself on the client,
-// or a client reports a different failure than the server meant.
+// Each code with a gRPC status of its own must come back as itself on the client,
+// or a client reports a different failure than the status meant.
+// Closed and Transport arise only in a client and never cross the wire,
+// so they are not checked.
 constexpr bool round_trips(ErrorCode code) {
     return from_status_code(to_status_code(code)) == code;
 }

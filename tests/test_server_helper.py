@@ -1,6 +1,6 @@
 """Tests for DsServiceServer, the helper that runs temporary servers.
 
-The rest of the suite starts its servers through this class,
+The fixtures in conftest.py start their servers through this class,
 so a fault here appears everywhere at once.
 """
 

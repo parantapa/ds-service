@@ -19,8 +19,8 @@ def public_methods(cls: type) -> dict[str, Callable[..., Any]]:
     the dunder methods included.
     """
     # Each side spells the context manager protocol differently,
-    # so test_client_lifecycle.py and
-    # test_async_client_supports_the_async_context_manager_protocol
+    # so test_client_lifecycle.py
+    # and test_async_client_supports_the_async_context_manager_protocol
     # check it on their own.
     return {
         name: member

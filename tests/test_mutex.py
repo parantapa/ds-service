@@ -198,7 +198,6 @@ def test_search_key_invalid_pattern_raises_valueerror(client):
 
 
 def test_release_does_not_create_mutex(client):
-    # A refused release must not leave the key behind.
     with pytest.raises(MutexNotHeld):
         client.mutex_release("never-seen", worker_id="w1")
 

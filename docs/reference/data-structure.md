@@ -4,7 +4,9 @@ The data structures `ds-service` provides,
 and the operations that act on each of them.
 
 This document describes what each operation does.
-It names each operation and its arguments the way both clients do.
+Each operation is a method of the same name on both clients
+(`map_set` is `client.map_set` in Python and `client->map_set` in C++).
+It names each argument the way both clients do.
 It names each error by its error code, such as `NotFound`.
 Each client reports these error codes as its own reference describes.
 The [Python client](python-client.md#exceptions) raises an exception for each,
@@ -20,11 +22,6 @@ The server persists no state.
 When it stops, every structure is lost.
 See [about the architecture](../explanation/the-architecture.md)
 for why the server is built this way.
-
-Each operation is a method of the same name on both clients
-(`map_set` is `client.map_set` in Python and `client->map_set` in C++).
-See the [Python client reference](python-client.md)
-and the [C++ client reference](cpp-client.md).
 
 ## Key search
 
@@ -146,7 +143,6 @@ That worker can still call `task_done`.
 The call succeeds, the task stays `Canceled`,
 and the server discards the output.
 `task_done` on a `Canceled` task is accepted from any worker.
-`task_cancel` also drops the record of which worker held the task.
 
 ### Dependencies
 
@@ -293,7 +289,8 @@ for the life of the server.
 
 The Python and C++ clients add a waiting `mutex_acquire`
 on top of `mutex_try_acquire`.
-See the [Python client reference](python-client.md).
+See the [Python client reference](python-client.md)
+and the [C++ client reference](cpp-client.md#methods).
 
 ## Counters
 
@@ -307,12 +304,8 @@ for unique ids or sequence numbers across workers.
 | `counter_get_current_value(key)` | Return the counter's current value without changing it, or `0` if it does not exist. Read-only: it never creates the counter. |
 | `counter_search_key(pattern)` | Return every counter key matching the regular expression `pattern`. Returns `InvalidArgument` if the pattern does not compile. |
 
-`counter_get_next_value` both creates and advances a counter.
-The first `counter_get_next_value` for a key creates the counter and returns `1`.
-`counter_get_current_value` only reads:
-it returns the value the last `counter_get_next_value` handed out,
-and leaves the counter untouched.
-An unused counter reports `0`.
+`counter_get_current_value` returns the value
+the last `counter_get_next_value` handed out.
 
 Because the counters' lock serializes every counter operation,
 concurrent callers always receive distinct, gap-free values.

@@ -2,9 +2,6 @@
 
 // The operations of ds-service, as plain C++ types.
 //
-// There is one struct per request and one per response,
-// and together with the server core in cpp/server/core/
-// they define what the server and its clients exchange.
 // The comment on each request struct states the contract of its operation,
 // under the snake_case name that both clients use,
 // and the comment on a response struct states what its fields report.
@@ -13,10 +10,8 @@
 // and task_get_count_by_state takes no request.
 // A payload field is a std::string that can hold arbitrary binary data.
 //
-// Each transport encodes these types for its own wire.
-// The gRPC transport encodes them as the messages of cpp/grpc/ds-service.proto,
-// which have the same names and the same field names,
-// and cpp/grpc/codec.cpp converts between the two.
+// See "The plain types define the system" in docs/developer-notes.md
+// for how these types relate to the server core and to each transport.
 
 #include <cstdint>
 #include <optional>
@@ -234,7 +229,6 @@ struct JournalAppendRequest {
 
 // datetime is an ISO 8601 UTC datetime string,
 // for example "2024-01-02T03:04:05Z" or "...+00:00".
-// step is optional, and defaults to 0.
 // time_series_append refuses with InvalidArgument a datetime that does not parse.
 struct TimeSeriesAppendRequest {
     std::string key;
@@ -251,7 +245,6 @@ struct TimeSeriesDataPoint {
     std::int64_t step = 0;
 };
 
-// All four filter fields are optional.
 // start_time and start_step are inclusive lower bounds.
 // end_time and end_step are exclusive upper bounds.
 // A bound left as std::nullopt imposes no bound.
@@ -320,10 +313,9 @@ struct CounterGetNextValueResponse {
     std::uint64_t value = 0;
 };
 
-// counter_get_current_value is read-only:
-// it returns the counter's current value without changing it,
-// or 0 if the counter does not exist.
-// The call does not create the counter.
+// counter_get_current_value returns the counter's current value,
+// or 0 if the counter does not exist,
+// and neither changes nor creates the counter.
 struct CounterGetCurrentValueRequest {
     std::string key;
 };

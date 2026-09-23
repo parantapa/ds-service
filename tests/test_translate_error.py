@@ -46,6 +46,7 @@ def test_each_code_maps_to_its_exception(code: ErrorCode, expected: type):
 
 def test_every_code_is_mapped():
     # A new ErrorCode must get a deliberate mapping, not fall through unnoticed.
+    # 10 is the number of rows in the table above.
     assert len(ErrorCode) == 10
 
 

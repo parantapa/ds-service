@@ -6,7 +6,7 @@ Notes for people working on `ds-service` itself.
 
 | Path | Contents |
 | --- | --- |
-| `cpp/common/include/ds-service/` | The plain C++ types that define the operations, shared by the server and the C++ client: one struct per request and response in `messages.hpp`, whose comments state the contract of each operation, `TaskState`, and `ErrorCode`, `Result` and `ClientError` in `error.hpp`. |
+| `cpp/common/include/ds-service/` | The plain C++ types that define the operations and their contracts, shared by the server and the C++ client. See [the plain types define the system](#the-plain-types-define-the-system). |
 | `cpp/server/core/` | The server's data structures. `data-structures.hpp` declares one struct per top level data structure, with the lock that guards it and one method per operation. One `.cpp` file implements each structure. `system-state.hpp` holds them all. |
 | `cpp/server/transport.hpp` | `ServerTransport`, the interface every server transport implements. |
 | `cpp/server/main.cpp` | `main`, the entry point: argument parsing, signal handling, and the start and shutdown of every transport. |
@@ -25,7 +25,7 @@ Notes for people working on `ds-service` itself.
 | `python/ds_service_client/server.py` | `DsServiceServer`, which starts a `ds-service` process and stops it on `close()` or at the end of a `with` block. |
 | `docs/` | The user documentation, and these notes. |
 | `misc/` | The banner image of the README. |
-| `tests/` | The pytest integration suite. `conftest.py` holds the fixtures. One `test_*.py` per data structure, plus client, lifecycle, extension module, fork, no-gRPC-import, server-helper, shutdown and error-translation tests. `tests/grpc_transport/` holds the tests that only make sense over gRPC. |
+| `tests/` | The pytest integration suite. `conftest.py` holds the fixtures. One `test_*.py` per data structure, and one per behavior of the clients, the extension module, the server or the server helper. `tests/grpc_transport/` holds the tests that only make sense over gRPC. |
 | `scripts/update-version.sh` | Sets every version string in the repository. |
 | `scripts/Dockerfile` | The static musl build. |
 | `scripts/pb-dev.sh` | The author's own out-of-tree build wrapper. Not required to build the project. |
@@ -52,8 +52,11 @@ The package there needs the extension module `_ext`.
 A build with `-DDS_SERVICE_BUILD_PYTHON=ON` compiles it,
 and copies it and its type stub into `python/ds_service_client/`.
 `.gitignore` covers both copies.
-So the suite needs a server binary, a build with the Python module,
-and the development and test dependencies:
+So the suite needs, in this order,
+the development and test dependencies,
+then a build with both the server and the Python module,
+as in [build the Python module](how-to-guides/build-the-server.md#build-the-python-module).
+The dependencies come first, because the build needs `conan` and `nanobind` from them:
 
 ```sh
 pip install black build cibuildwheel conan ifaddr nanobind pyright pytest scikit-build-core twine
@@ -71,7 +74,7 @@ The fixtures start the server through
 which locates it in one of two ways, in order:
 
 1. `DS_SERVICE_BIN`, if set. It can be a whole command,
-    such as `docker run --rm --network host ds-service`, not only a path.
+    such as `docker run --rm --network host ds-service:static`, not only a path.
 2. Otherwise, a `ds-service` found on `PATH`.
 
 After an in-tree build, point the variable at the binary:
@@ -130,12 +133,9 @@ The formatters and checkers are under [Conventions](#conventions).
 
 The operations of `ds-service` are defined in C++,
 apart from any transport.
-`cpp/common/include/ds-service/messages.hpp` holds one struct per request and response.
-The comment on each request struct states the contract of its operation:
-what it does, and what it refuses and with which `ErrorCode`.
-The comment on a response struct states what its fields report.
-`task_get_count_by_state` takes no request,
-so the comment on its response struct states its contract.
+`cpp/common/include/ds-service/messages.hpp` holds one struct per request and response,
+and the comments on them state the contract of each operation.
+The header comment of `messages.hpp` says which comment carries which contract.
 `error.hpp` holds `ErrorCode`, and `task-state.hpp` holds `TaskState`.
 The server core in `cpp/server/core/` implements those contracts.
 Outside `cpp/grpc/`, documentation and comments name an operation
@@ -149,6 +149,17 @@ whose messages have the same names and field names as the plain structs,
 and `cpp/grpc/codec.cpp` converts between the two.
 Each RPC there is named after its operation in CamelCase,
 such as `TaskGet` for `task_get`.
+
+The proto is not the definition,
+because a second transport would then have to start from gRPC's encoding,
+and the core and the C++ client would depend on protobuf.
+With the definition in plain C++,
+a new transport adds its own encoding,
+and neither the plain types, the server core nor `ds::Client` changes.
+The cost is that every type exists twice,
+once as a plain struct and once as a proto message,
+with the codec between them.
+See [a new operation touches every layer](#a-new-operation-touches-every-layer).
 
 ## Generated code
 
@@ -244,7 +255,8 @@ It fails in four cases:
 
 - The two classes stop offering the same method names.
 - A shared method's parameters or return annotation drift apart.
-- An async method is not a coroutine function.
+- An async method is not a coroutine function,
+    or a synchronous method is one.
 - The async class loses its async context manager protocol.
 
 Add a method to one client without the other and it says so.
@@ -279,7 +291,9 @@ with no cause in its own code.
 `SERVER_MIN_RECV_PING_INTERVAL_WITHOUT_DATA_MS`.
 Below that interval, the server answers pings with GOAWAY/ENHANCE_YOUR_CALM
 and drops the connection,
-which callers see as a `TimeoutError` with no mention of pings.
+which callers see as an unavailable server,
+a `TimeoutError` in Python,
+with no mention of pings.
 A client built from an older release still has its own copy of these values,
 so lower the server's interval before you raise the client's ping rate.
 
@@ -390,14 +404,15 @@ so the helper never kills a server that is still draining its calls.
 ## Conventions
 
 - After changing C++, check it with clangd.
-    Pass `--compile-commands-dir` explicitly.
+    clangd reads `compile_commands.json`,
+    which a build configured with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
+    writes into its build directory, such as `build/Release`.
+    Pass that directory with `--compile-commands-dir`.
     Do not update the top-level `compile_commands.json` symlink.
 - `.clang-format` in the repository root sets the C++ formatting.
 - After changing Python, format it with black, then check it with pyright.
-    `pyproject.toml` configures both.
-    It excludes the generated `_ext.pyi` from the pyright check,
-    though pyright still reads it to resolve imports,
-    and black does not format it.
+    `pyproject.toml` configures both,
+    and its comments say why each leaves the generated `_ext.pyi` alone.
     pyright needs a build with the Python module,
     or it cannot resolve `ds_service_client._ext`.
 - Use semantic line breaks in documentation, block comments,
@@ -409,13 +424,11 @@ so the helper never kills a server that is still draining its calls.
 ## Versioning
 
 `scripts/update-version.sh <version>`
-sets every version string in the repository:
-`cpp/server/main.cpp`, `CMakeLists.txt`, `pyproject.toml`,
-and `conanfile.py`.
+sets every version string in the repository.
 Set them through the script rather than by hand.
-The header of the script states what it edits,
-what it gives `CMakeLists.txt`,
-and when it refuses to edit anything.
+The header of the script names the files it edits,
+states what it gives `CMakeLists.txt`,
+and says when it refuses to edit anything.
 
 ## The dependency graph is built at task_add
 

@@ -31,6 +31,7 @@ namespace ds::grpc_codec {
 // The proto value of state.
 // cpp/grpc/codec.cpp checks that the two enums agree.
 ::TaskState to_proto(TaskState state);
+// The plain value of a proto state.
 // A value this build does not know, from a newer peer, reads as Undefined.
 TaskState from_proto(int state);
 

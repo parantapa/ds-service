@@ -3,14 +3,11 @@ edition = "2023";
 // The gRPC encoding of ds-service.
 //
 // The plain C++ types in cpp/common/include/ds-service/ define the operations
-// and their contracts:
-// messages.hpp holds one struct per request and response,
-// with the contract of each operation in the comments on its structs,
-// error.hpp holds ErrorCode, and task-state.hpp holds TaskState.
-// The server core in cpp/server/core/ implements those contracts.
-// This file only encodes those types for the gRPC transport.
+// and their contracts,
+// and this file only encodes those types for the gRPC transport.
 // Each message here has the same name and field names as its plain struct,
 // and cpp/grpc/codec.cpp converts between the two.
+// See "The plain types define the system" in docs/developer-notes.md.
 
 // One RPC per operation.
 // Each RPC is named after its operation in CamelCase,
@@ -210,6 +207,8 @@ message TimeSeriesDataPoint {
 
 // Each of the four bounds can be left unset,
 // and an unset bound decodes as std::nullopt.
+// Edition 2023 gives every singular field explicit presence,
+// which is what lets the codec tell an unset bound from 0 or "".
 message TimeSeriesGetRequest {
     string key = 1;
     string start_time = 2;

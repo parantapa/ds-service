@@ -32,7 +32,8 @@ class Client {
 
     void task_add(std::string task_id, std::vector<std::string> parent_task_ids, std::vector<std::string> queue,
                   double priority, std::string function, std::string input);
-    // One state per id, in the same order. An unknown id reports TaskState::Undefined.
+    // One state per id, in the same order.
+    // An unknown id reports TaskState::Undefined.
     std::vector<TaskState> task_get_status(std::vector<std::string> task_id);
     std::string task_get_output(std::string task_id);
     TaskGetCountByStateResponse task_get_count_by_state();
@@ -42,9 +43,6 @@ class Client {
     void task_set_priority(std::string task_id, double priority);
     std::string task_get_worker_id(std::string task_id);
     std::vector<std::string> task_search_id(std::string pattern);
-    // The queues are searched in the order listed,
-    // and the first one holding a Ready task supplies it.
-    // Throws ClientError(ErrorCode::NotFound) when no queue has a task ready.
     TaskGetResponse task_get(std::string worker_id, std::vector<std::string> queue);
     void task_done(std::string task_id, std::string worker_id, std::string output, bool failed = false);
 
@@ -63,15 +61,18 @@ class Client {
                                                      std::optional<std::int64_t> end_step = std::nullopt);
     std::vector<std::string> time_series_search_key(std::string pattern);
 
-    // True if this call acquired the mutex. The lock is not reentrant.
+    // True if this call acquired the mutex.
+    // The lock is not reentrant.
     bool mutex_try_acquire(std::string key, std::string worker_id);
     void mutex_release(std::string key, std::string worker_id);
     std::string mutex_get_worker_id(std::string key);
     std::vector<std::string> mutex_search_key(std::string pattern);
 
-    // Retry mutex_try_acquire until it succeeds, sleeping about half a second between attempts.
-    // With a timeout, throws ClientError(ErrorCode::DeadlineExceeded) once it has elapsed,
-    // sleeps included. With std::nullopt, retries forever.
+    // Retry mutex_try_acquire until it succeeds,
+    // sleeping about half a second between attempts.
+    // With a timeout, throw ClientError(ErrorCode::DeadlineExceeded) once it has elapsed,
+    // sleeps included.
+    // With std::nullopt, retry forever.
     // Each attempt is an ordinary call, which ClientOptions::should_cancel can cancel,
     // but the sleeps between them do not poll it.
     void mutex_acquire(std::string key, std::string worker_id,
@@ -81,7 +82,8 @@ class Client {
     std::uint64_t counter_get_current_value(std::string key);
     std::vector<std::string> counter_search_key(std::string pattern);
 
-    // Cancel every call in flight, and make every later call throw ClientError(ErrorCode::Closed).
+    // Cancel every call in flight,
+    // and make every later call throw ClientError(ErrorCode::Closed).
     // Safe to call more than once.
     void close();
 

@@ -1,7 +1,7 @@
 // The nanobind module ds_service_client._ext.
 //
-// It binds the C++ client and the message types it returns,
-// and nothing else.
+// It binds ds::connect(), the C++ client, the types the client returns,
+// and the ClientError it throws with its ErrorCode, and nothing else.
 // python/ds_service_client/client.py builds the public Python API on top of it.
 //
 // Every method that makes a call follows the same three steps:
@@ -81,7 +81,8 @@ auto released(Body&& body) {
     }
 }
 
-// Polled by a waiting call. Returns true once a signal handler has raised,
+// Polled by a waiting call.
+// Returns true once a signal handler has raised,
 // such as the KeyboardInterrupt that Ctrl-C raises,
 // and leaves that exception pending for the caller.
 // PyErr_CheckSignals runs the handlers only on the main thread,
@@ -99,7 +100,7 @@ std::string task_get_response_repr(const ds::TaskGetResponse& response) {
 } // namespace
 
 NB_MODULE(_ext, m) {
-    m.doc() = "The C++ ds-service client. Use ds_service_client, which wraps it.";
+    m.doc() = "The C++ ds-service client, which ds_service_client wraps.";
 
     nb::enum_<ds::TaskState>(m, "TaskState", nb::is_arithmetic(), "The state of a task.")
         .value("Waiting", ds::TaskState::Waiting)
@@ -186,7 +187,7 @@ NB_MODULE(_ext, m) {
             return self.value == other.value && self.datetime == other.datetime && self.step == other.step;
         });
 
-    nb::class_<ds::Client>(m, "Client", "A connection to a ds-service server. Make one with connect().")
+    nb::class_<ds::Client>(m, "Client", "A connection to a ds-service server, which connect() returns.")
         .def(
             "map_set",
             [](ds::Client& self, std::string key, const nb::bytes& value) {

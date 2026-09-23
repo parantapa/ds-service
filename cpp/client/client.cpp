@@ -20,6 +20,8 @@ constexpr std::chrono::duration<double> MUTEX_ACQUIRE_SLEEP{0.5};
 constexpr std::chrono::duration<double> MUTEX_ACQUIRE_JITTER{0.1};
 
 std::chrono::duration<double> mutex_retry_jitter() {
+    // thread_local, because the Client methods run on several threads at once,
+    // and std::mt19937 is not safe to share between them.
     thread_local std::mt19937 generator{std::random_device{}()};
     std::uniform_real_distribution<double> distribution{-MUTEX_ACQUIRE_JITTER.count(), MUTEX_ACQUIRE_JITTER.count()};
     return std::chrono::duration<double>{distribution(generator)};

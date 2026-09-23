@@ -55,7 +55,6 @@ def test_search_key_invalid_pattern_leaves_server_usable(client):
 
 
 def test_get_does_not_create_key(client):
-    # A read of a missing key must not add it to the map.
     with pytest.raises(KeyError):
         client.map_get("never-seen")
 

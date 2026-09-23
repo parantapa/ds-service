@@ -159,7 +159,8 @@ client.task_get_status("job-1") == TaskState.Ready
 `True`.
 The task waits on the queue named `work`.
 
-To read a state rather than test it, ask for its `.name`:
+We also want to read a state, not only test it.
+For that, we ask for its `.name`:
 
 ```python
 client.task_get_status("job-1").name
@@ -278,7 +279,7 @@ Both are finished,
 and both are still there.
 The server remembers every task we give it.
 
-## Step 10: stop the server
+## Step 10: restart the server
 
 ```python
 client.close()

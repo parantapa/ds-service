@@ -13,7 +13,8 @@ import pytest
 
 from ds_service_client import TransportError
 
-# MAX_MESSAGE_SIZE_BYTES in cpp/grpc/channel-settings.hpp.
+# A copy of MAX_MESSAGE_SIZE_BYTES in cpp/grpc/channel-settings.hpp.
+# Change the two together.
 MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024
 
 

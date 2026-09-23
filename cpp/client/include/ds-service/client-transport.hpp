@@ -15,6 +15,8 @@ struct ClientOptions {
     // Polled about every 100 ms while a call waits, from the calling thread.
     // Returning true cancels the call,
     // which then throws ClientError(ErrorCode::Cancelled).
+    // An exception it throws cancels the call too,
+    // and the call rethrows that exception.
     // Left empty, a call waits until it completes or its deadline passes.
     std::function<bool()> should_cancel{};
 };
@@ -64,7 +66,8 @@ class ClientTransport {
     virtual CounterGetCurrentValueResponse counter_get_current_value(CounterGetCurrentValueRequest request) = 0;
     virtual SearchKeyResponse counter_search_key(SearchKeyRequest request) = 0;
 
-    // Cancel every call in flight, and make every later call throw ClientError(ErrorCode::Closed).
+    // Cancel every call in flight,
+    // and make every later call throw ClientError(ErrorCode::Closed).
     // A call that close() cancels throws ClientError(ErrorCode::Closed) as well.
     // Safe to call more than once, and from any thread.
     virtual void close() = 0;

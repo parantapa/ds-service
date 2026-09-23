@@ -197,7 +197,7 @@ run_make-release() {
 
     # The sdist name is fixed,
     # so the script tests for it rather than globbing.
-    # Only the wheel has a trailing build tag to match.
+    # Only the wheel has trailing tags to match.
     local sdists=() whls=() v
     shopt -s nullglob
     for v in "${versions[@]}"; do

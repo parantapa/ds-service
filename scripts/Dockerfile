@@ -28,7 +28,7 @@ FROM alpine:3.24.1 AS build
 #
 # * The OpenSSL build that gRPC pulls in needs perl and linux-headers.
 # * Any Conan dependency without a musllinux wheel needs python3-dev.
-# * Sourcing Conan's generated conanbuild.sh needs bash.
+# * The SHELL line below, which sets pipefail, needs bash.
 RUN apk add --no-cache \
         g++ musl-dev linux-headers make cmake git bash \
         perl python3 python3-dev py3-pip \
@@ -46,7 +46,7 @@ ENV CONAN_HOME=/opt/conan_home
 # ConanCenter's cmake package repackages Kitware's glibc binaries,
 # which cannot run on musl.
 # This line is needed even though conanfile.py does not tool_require cmake.
-# The abseil, c-ares, openssl, re2 and zlib recipes each tool_require
+# The abseil, grpc, protobuf and re2 recipes each tool_require
 # `cmake/[>=3.16]` or later to build themselves.
 # Without this line Conan satisfies those from ConanCenter.
 # The dependency build then dies with "Could not find CMAKE_ROOT".
@@ -116,14 +116,9 @@ RUN . build/Release/generators/conanbuild.sh \
 
 # Fail the build rather than ship something that silently kept an interpreter.
 #
-# readelf writes to a file instead of piping straight into grep.
-# In `if readelf ... | grep -q INTERP`
-# the shell consults only grep's status.
-# A readelf that fails,
-# because the binary moved or the tool is missing,
-# feeds grep an empty input.
-# The condition then reads as "no interpreter found",
-# and the check passes without a check of anything.
+# readelf writes to a file rather than into a pipe to grep.
+# In a pipe, a readelf that failed would feed grep nothing,
+# and the check would pass, with or without pipefail.
 RUN readelf -l build/Release/ds-service > /tmp/ds-service-phdrs.txt \
     && if grep -q INTERP /tmp/ds-service-phdrs.txt; then \
         echo "ERROR: ds-service is not statically linked" >&2; \

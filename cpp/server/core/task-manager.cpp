@@ -17,6 +17,7 @@ using ds::TaskState;
 // and for a task that failed because a task it depends on failed.
 // The failed one names the task whose run failed,
 // which is the task a caller has to look at.
+// ds-service/messages.hpp quotes both in the contracts of task_cancel and task_done.
 constexpr const char* CANCELED_OUTPUT = "Task canceled";
 constexpr const char* DEPENDENCY_FAILED_FORMAT = "Dependency failed (task_id={})";
 
@@ -127,7 +128,7 @@ ds::Result<void> TaskManager::add(ds::TaskAddRequest request) {
     // so it names the task whose run failed
     // rather than the parent it was added under.
     // The origin is always a parent's here:
-    // a row that has not run cannot be the origin of anything.
+    // a row being added has not yet ended on its own account.
     const auto index = tasks.task_id.size();
     auto state = TaskState::Ready;
     auto origin = index;

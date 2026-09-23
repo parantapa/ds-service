@@ -1,12 +1,7 @@
 # Run conan install at configure time, and build with the toolchain it generates.
 #
-# A build that starts from pip goes through scikit-build-core,
-# which runs CMake with no Conan toolchain,
-# so pyproject.toml sets DS_SERVICE_CONAN_INSTALL.
-# Every other build runs conan install itself
-# and passes the toolchain on the command line,
-# as docs/how-to-guides/build-the-server.md describes,
-# and this file then does nothing.
+# It acts only when DS_SERVICE_CONAN_INSTALL is set and no toolchain file is given,
+# which is the case for a build that starts from pip.
 #
 # CMakeLists.txt includes this file before project(),
 # because the toolchain file must be set before project() reads it.

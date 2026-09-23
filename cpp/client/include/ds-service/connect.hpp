@@ -12,7 +12,7 @@ namespace ds {
 // A bare host:port and grpc://host:port both select gRPC.
 // The connection is made lazily,
 // so an unreachable server fails the first call rather than this one.
-// Throws ClientError(ErrorCode::InvalidArgument) for an empty address,
+// Throw ClientError(ErrorCode::InvalidArgument) for an empty address,
 // or for a scheme that names no transport.
 //
 // This function lives in the ds-service-connect library,

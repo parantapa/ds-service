@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.31)
 
 include(cmake/conan-install.cmake)
 
+# Set by scripts/update-version.sh, along with the other version strings.
 project(
   ds-service
   VERSION 7.0.0
@@ -22,7 +23,7 @@ if(DS_SERVICE_BUILD_PYTHON AND NOT DS_SERVICE_BUILD_CLIENT)
   message(FATAL_ERROR "DS_SERVICE_BUILD_PYTHON needs DS_SERVICE_BUILD_CLIENT.")
 endif()
 
-# The Python module links every static library below into one shared object,
+# The Python module links the client's static libraries below into one shared object,
 # so they must be position independent.
 # Hidden visibility keeps their symbols out of the module's exports.
 if(DS_SERVICE_BUILD_PYTHON)

@@ -55,6 +55,8 @@ def test_close_cancels_a_call_in_flight():
         async def main() -> float:
             client = DsServiceClientAsync(address, timeout=60.0)
             call = asyncio.ensure_future(client.map_get("k"))
+            # Let the call get in flight,
+            # so close() cancels it rather than refusing it at the start.
             await asyncio.sleep(0.3)
             start = time.monotonic()
             await client.close()
@@ -81,8 +83,8 @@ def test_async_context_manager_closes_the_client(server):
 
 
 def test_async_client_needs_no_running_event_loop(server):
-    # Nothing binds to an event loop any more,
-    # so the client can be made outside one and used inside one.
+    # The client binds to no event loop,
+    # so it can be made outside one and used inside one.
     client = DsServiceClientAsync(server)
 
     async def main() -> bytes:
@@ -128,5 +130,8 @@ def test_async_calls_run_concurrently_without_blocking_the_loop():
             return elapsed, ticks
 
         elapsed, ticks = asyncio.run(main())
+        # Both bounds leave a wide margin.
+        # A serial run takes 4 s,
+        # and a ticker that never blocks ticks about 50 times in 0.5 s.
         assert elapsed < 2.5
         assert ticks > 20

@@ -47,6 +47,7 @@ and every task waiting on those.
 `task_add` does it in advance:
 it adds a task named with a `Canceled` parent as `Canceled`,
 and a task named with a `Failed` parent as `Failed`.
+A task named with both is added `Failed`.
 
 All of it follows from one fact.
 The server releases a task only after its last parent reaches `Finished`,
@@ -95,6 +96,8 @@ Rather than guess, the server does nothing,
 and leaves the policy to a caller that knows how long its own tasks take.
 
 `task_cancel` is the tool for retiring such a task.
+[How to write a worker](../how-to-guides/write-a-worker.md#recover-a-task-that-a-dead-worker-left-running)
+gives the steps of that recovery.
 
 ## The server reclaims nothing
 
@@ -109,7 +112,7 @@ rather than the number currently outstanding.
 `task_search_id` walks all of them.
 
 Queue entries accumulate the same way.
-`task_set_priority` is the reliable way to produce them.
+`task_set_priority` is what reliably produces them.
 A raised priority leaves a dead entry at the old value
 that a busy queue never pops.
 

@@ -70,7 +70,9 @@ A C++ program that uses the client links the CMake target `ds-service-connect`.
 
 The Python module needs [nanobind](https://nanobind.readthedocs.io/)
 in the Python that CMake finds,
-and Python 3.12 or later with its development headers:
+and Python 3.12 or later with its development headers.
+Run these commands after the `conan install` in [Build the server](#build-the-server),
+in the shell that sourced `conanbuild.sh`:
 
 ```sh
 pip install nanobind
@@ -116,6 +118,8 @@ cmake --install build/Release --prefix /path/to/prefix
 
 This installs the `ds-service` binary under `/path/to/prefix/bin`.
 It installs neither the client libraries nor their headers.
+A build with the Python module also installs the module and its type stub
+under `/path/to/prefix/ds_service_client`.
 
 ## Run the server
 
@@ -129,7 +133,9 @@ Run `ds-service --help` for the full argument list.
 ## Static musl binary
 
 `scripts/Dockerfile` builds `ds-service` against musl on Alpine 3.24,
-and links it statically:
+and links it statically.
+It needs Docker with BuildKit,
+which is the default builder from Docker Engine 23.0 on:
 
 ```sh
 docker build -f scripts/Dockerfile -t ds-service:static .

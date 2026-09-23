@@ -17,9 +17,12 @@ enum class ErrorCode {
     // Raised on the client side by a transport.
     MessageTooLarge,
     Unavailable,
+    // Also what Client::mutex_acquire throws once its timeout has elapsed.
     DeadlineExceeded,
     Cancelled,
+    // The client was closed before or during the call.
     Closed,
+    // A transport failure that no other code describes.
     Transport,
 };
 

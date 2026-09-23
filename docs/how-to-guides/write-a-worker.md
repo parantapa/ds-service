@@ -6,8 +6,9 @@ This guide covers the loop itself
 and the coordination problems that come with running several of them.
 
 It assumes you have a server to talk to.
-If you do not, see
-[how to build the server](build-the-server.md),
+If you do not, install one as in the
+[README installation section](../../README.md#installation),
+build one as in [how to build the server](build-the-server.md),
 or start a private one with
 [`DsServiceServer`](../reference/server-helper.md).
 
@@ -76,14 +77,14 @@ while True:
         pass
 ```
 
-If the work fails, pass `failed=True`.
+If the work fails, pass `failed=True`,
+and do not let the exception escape.
 The server then marks the task `Failed` rather than `Finished`.
 The server stores the output either way,
 so whoever asks gets the traceback through `task_get_output`.
 Failing a task also fails every task waiting on it,
 and those report `Dependency failed (task_id=...)` as their own output,
 naming this task.
-Do not let the exception escape.
 A worker that lets the exception escape
 leaves the task `Running` for the life of the server,
 and nothing waiting on it ever runs.

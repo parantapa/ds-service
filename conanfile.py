@@ -9,7 +9,7 @@ from conan.tools.cmake import cmake_layout, CMakeDeps, CMakeToolchain, CMake
 
 
 class DsServiceRecipe(ConanFile):
-    """The ds-service executable as a Conan package, built with CMake.
+    """The ds-service executable and the _ext module as a Conan package, built with CMake.
 
     with_server, with_client and with_python select what the build produces.
     """
@@ -34,6 +34,7 @@ class DsServiceRecipe(ConanFile):
         "with_python": False,
     }
 
+    # scripts/Dockerfile copies the same paths, so keep the two in step.
     exports_sources = "CMakeLists.txt", "cmake/*", "cpp/*"
 
     def layout(self) -> None:

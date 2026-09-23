@@ -31,7 +31,7 @@ dependencies = [
 test = [
     "pytest>=7",
 ]
-# nanobind and scikit-build-core are here as well as in build-system.requires,
+# conan, nanobind and scikit-build-core are here as well as in build-system.requires,
 # so that a development build can find them without build isolation.
 dev = [
     "black",
@@ -56,7 +56,7 @@ wheel.py-api = "cp312"
 wheel.packages = ["python/ds_service_client"]
 # The python component holds the module and its type stub, and nothing else.
 install.components = ["python"]
-# The sdist carries what the wheel build needs, and no more.
+# The sdist leaves out these paths, which the wheel build does not need.
 # The patterns follow .gitignore rules,
 # so a leading / anchors one to the repository root.
 sdist.exclude = [
@@ -102,8 +102,8 @@ pythonpath = ["python"]
 # Check the hand-written code only.
 # The type stub of _ext is generated, so it is excluded from the check,
 # but pyright still reads it to resolve imports.
-# The build tree is excluded because it holds stale copies of the same files,
-# which are otherwise reported twice.
+# The build tree holds a stale copy of the stub.
+# include already leaves it out, and the exclude keeps it out.
 [tool.pyright]
 include = ["python", "tests"]
 exclude = [

@@ -2,14 +2,16 @@
 
 // The types the server keeps its state in.
 //
-// Each struct below owns one top level data structure
-// and the lock that guards it.
+// Map, JournalMap, TimeSeriesMap, Mutexes, Counters and TaskManager
+// each own one top level data structure and the lock that guards it.
 // A method named after an operation serves that operation,
 // such as Map::set for map_set:
 // it takes the struct's own lock,
 // and the comments in ds-service/messages.hpp state the contract it answers with.
-// Each method takes the plain request by value and moves each payload it keeps out of it.
-// It returns the plain response, or the Error for a refusal.
+// Each method takes the plain request by value, where its operation has one,
+// and moves each payload it keeps out of it.
+// It returns the plain response, or nothing where its operation has none,
+// or the Error for a refusal.
 // The method body holds the ErrorCode for each refusal,
 // and the comment on the request struct names each of them.
 //
@@ -60,7 +62,8 @@ struct JournalMap {
     ds::Result<ds::SearchKeyResponse> search_key(ds::SearchKeyRequest request);
 };
 
-// Parse an ISO 8601 datetime string into a system_clock time_point, or return nullopt if it does not parse.
+// Parse an ISO 8601 datetime string into a system_clock time_point,
+// or return nullopt if it does not parse.
 // The seconds can carry a fractional part.
 // The string can end in a UTC offset such as '+HH:MM' or '+HHMM', which is converted to UTC,
 // in a 'Z', or in no designator, which is read as UTC.
@@ -124,7 +127,8 @@ struct Counters {
 
 // One row's place in one queue.
 // A row has an entry per queue it waits on,
-// and a further entry per queue for every seq it has held since.
+// and a further entry per queue for every seq it has held since,
+// until task_get pops it.
 struct TaskQueueEntry {
     double priority;
     std::uint64_t seq;
@@ -140,6 +144,8 @@ struct TaskQueueEntryOrder {
 using TaskQueue = std::priority_queue<TaskQueueEntry, std::vector<TaskQueueEntry>, TaskQueueEntryOrder>;
 
 // The task rows, one vector per column.
+// A row is never removed, because other structures hold its index.
+// See "Known limitations" in docs/developer-notes.md.
 struct TaskTable {
     std::vector<std::string> task_id;
     std::vector<std::string> function;
@@ -192,7 +198,7 @@ struct TaskManager {
     ds::Result<ds::TaskGetPriorityResponse> get_priority(ds::TaskGetPriorityRequest request);
     ds::Result<void> set_priority(ds::TaskSetPriorityRequest request);
     ds::Result<ds::TaskGetWorkerIdResponse> get_worker_id(ds::TaskGetWorkerIdRequest request);
-    // Serves task_search_id, over the task ids of rows in every state.
+    // Serves task_search_id.
     ds::Result<ds::SearchKeyResponse> search_id(ds::SearchKeyRequest request);
     ds::Result<ds::TaskGetResponse> get(ds::TaskGetRequest request);
     ds::Result<void> done(ds::TaskDoneRequest request);

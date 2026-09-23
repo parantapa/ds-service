@@ -161,6 +161,7 @@ void wait_until_ready(const std::string& address) {
 
 void check_data_structures(ds::Client& client) {
     // Binary payloads survive the round trip.
+    // The explicit length keeps the string from ending at the leading NUL.
     const std::string payload{"\0\xff\x01payload", 10};
     client.map_set("k", payload);
     check(client.map_get("k") == payload, "map_set then map_get");

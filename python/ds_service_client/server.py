@@ -18,6 +18,8 @@ DS_SERVICE_BIN_ENV_VAR = "DS_SERVICE_BIN"
 DEFAULT_DS_SERVICE_BIN = "ds-service"
 
 # How long close() waits for a server to exit after SIGTERM, before SIGKILL.
+# It stays above SHUTDOWN_GRACE_S in cpp/server/main.cpp,
+# so close() never kills a server that is still draining its calls.
 TERMINATE_TIMEOUT_S = 10.0
 
 # Gap between connection attempts in wait_until_ready.
@@ -28,7 +30,7 @@ EXIT_POLL_INTERVAL_S = 0.01
 
 
 def resolve_ds_service_bin(ds_service_bin: str | None = None) -> str:
-    """How to start the server: the argument, $DS_SERVICE_BIN, or the default.
+    """Return how to start the server: the argument, $DS_SERVICE_BIN, or the default.
 
     A blank value counts as unset.
     """
@@ -43,17 +45,17 @@ def resolve_ds_service_bin(ds_service_bin: str | None = None) -> str:
 
 
 def resolve_interface_ipv4(interface: str) -> str:
-    """The IPv4 address assigned to interface, as a dotted quad.
+    """Return the IPv4 address assigned to interface, as a dotted quad.
 
     interface matches an adapter's name or its nice name.
-    If the interface has several IPv4 addresses, the first one is returned.
-    Raises ValueError if this machine has no such interface,
+    If the interface has several IPv4 addresses, return the first one.
+    Raise ValueError if this machine has no such interface,
     or has it but with no IPv4 address on it.
     """
     # Neither case has an address to bind.
     # A bind to some other address puts the server on a network
     # the caller did not ask for.
-    known = []
+    known: list[str] = []
     for adapter in ifaddr.get_adapters():
         known.append(adapter.name)
         if adapter.name != interface and adapter.nice_name != interface:
@@ -155,7 +157,7 @@ class DsServiceServer:
 
         # start_new_session makes the child a session and group leader,
         # so its pid is the group id.
-        # The pid is kept because os.getpgid() stops
+        # The pid is kept because os.getpgid() fails
         # after the process is reaped,
         # and close() can run after that.
         self.pgid = self.process.pid
@@ -168,6 +170,8 @@ class DsServiceServer:
 
         Raise TimeoutError if it does not listen within timeout seconds,
         and RuntimeError if the process exits before then.
+        Each connection attempt can itself take up to timeout seconds,
+        so the call can return or raise later than timeout.
         """
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -242,17 +246,15 @@ class DsServiceServer:
             self.process.wait()
 
     def _signal_process_group(self, signal_number: int) -> None:
-        """Signal the server's process group.
-
-        Do nothing if the group already exited.
-        """
+        """Signal the server's process group."""
         try:
             os.killpg(self.pgid, signal_number)
         except ProcessLookupError:
+            # The group already exited, so there is nothing left to signal.
             pass
 
     def _process_group_alive(self) -> bool:
-        """Whether any process is left in the server's process group."""
+        """Return whether any process is left in the server's process group."""
         try:
             # Signal 0 checks for the group without signaling it.
             os.killpg(self.pgid, 0)

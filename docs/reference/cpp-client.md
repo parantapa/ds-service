@@ -52,13 +52,15 @@ for an empty address, or for a scheme that names no transport.
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `timeout` | 5 minutes | The deadline of every call, as a `std::chrono::duration<double>` in seconds. |
-| `should_cancel` | empty | A `std::function<bool()>` that a waiting call polls about every 100 ms, from the calling thread. When it returns true, the call is canceled and throws `ErrorCode::Cancelled`. |
+| `should_cancel` | empty | A `std::function<bool()>` that a waiting call polls about every 100 ms, from the calling thread. When it returns true, the call is canceled and throws `ErrorCode::Cancelled`. When it throws, the call is canceled and the method rethrows that exception. |
 
 ## Methods
 
 Every method is one operation of the [data structure reference](data-structure.md),
 with one addition, `mutex_acquire`.
 Keys, ids, patterns and payloads are `std::string`.
+The lists `parent_task_ids` and `queue`, and the `task_id` of `task_get_status`,
+are `std::vector<std::string>`.
 A payload can hold arbitrary bytes.
 
 | Method | Returns |

@@ -102,7 +102,8 @@ never one dressed as the other.
 Both call the same blocking C++ client.
 The async client runs each call on a thread of its own pool,
 and the event loop goes on with other work while the call waits.
-The C++ client releases the GIL for the whole call,
+The C++ client releases the GIL while the call runs,
+and takes it back every 100 ms only to check for a signal such as Ctrl-C,
 so the threads do not hold each other up.
 So there is one call path per transport,
 and the asyncio support costs no second implementation of any transport.

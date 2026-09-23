@@ -10,7 +10,10 @@ class TaskStateError(RuntimeError):
 
 
 class MutexNotHeld(RuntimeError):
-    """Raised when an operation needs a mutex that is free or held by another."""
+    """Raised when an operation needs a mutex that is free or held by another.
+
+    mutex_release also raises it for a mutex that does not exist.
+    """
 
 
 class TransportError(Exception):

@@ -81,7 +81,9 @@ def translate_error(
     See FORK_MESSAGE.
     A failure with no documented mapping raises TransportError.
     """
-    # Every call goes through here, so this one check covers them all.
+    # Every call to the server goes through here,
+    # so this one check covers them all.
+    # close() does not, and it makes no call to the server.
     if _forked_after_client:
         raise RuntimeError(FORK_MESSAGE)
     try:
@@ -154,7 +156,7 @@ def connect(address: str | None, timeout: float) -> tuple[str, _ext.Client]:
 
     address None selects the DS_SERVER_ADDRESS environment variable.
     Raise KeyError when neither is set,
-    and ValueError for an address that names no transport.
+    and ValueError for an empty address or one that names no transport.
     The connection is made lazily,
     so an unreachable server fails the first call rather than this one.
     """
@@ -163,6 +165,7 @@ def connect(address: str | None, timeout: float) -> tuple[str, _ext.Client]:
         address = os.environ["DS_SERVER_ADDRESS"]
     with translate_error():
         client = _ext.connect(address, timeout)
+    # Arms the fork guard in _after_fork_in_child. See FORK_MESSAGE.
     _client_created = True
     return address, client
 
@@ -173,7 +176,7 @@ class DsServiceClient:
     address is host:port, or grpc://host:port.
     It defaults to the DS_SERVER_ADDRESS environment variable,
     and the constructor raises KeyError when neither is set,
-    and ValueError for an address that names no transport.
+    and ValueError for an empty address or one that names no transport.
     The client applies timeout, in seconds, as the deadline of every call.
     The methods are safe to call from several threads at once.
     """
@@ -318,6 +321,7 @@ class DsServiceClient:
     def task_set_priority(self, task_id: str, priority: float) -> None:
         """Change the priority of an existing task.
 
+        A Ready task goes behind the tasks of equal priority already waiting.
         Raise KeyError for a task_id the server does not know.
         """
         with translate_error():
@@ -359,6 +363,8 @@ class DsServiceClient:
         """Claim a task for worker_id from the first queue holding one.
 
         The server tries the queues in the order given.
+        From that queue it takes the task with the highest priority,
+        and tasks of equal priority in the order they entered the queue.
         Raise NoTaskAvailable, not TimeoutError,
         when none of them has a task ready.
         """
@@ -455,6 +461,7 @@ class DsServiceClient:
         start_time and start_step are inclusive,
         end_time and end_step exclusive,
         and a bound left as None imposes no restriction.
+        An empty string as start_time or end_time imposes none either.
         The server returns the points in the order the caller appended them.
         A key that does not exist returns an empty list.
         Raise ValueError if start_time or end_time does not parse.
@@ -576,7 +583,7 @@ class DsServiceClientAsync:
     while the event loop goes on with other work.
     max_workers caps how many calls run at once.
     None takes the default of concurrent.futures.ThreadPoolExecutor,
-    which grows with os.cpu_count().
+    which grows with the number of CPUs.
     Canceling the coroutine does not cancel the call itself,
     which runs on until it completes or its deadline passes.
     """
@@ -748,6 +755,7 @@ class DsServiceClientAsync:
     async def task_set_priority(self, task_id: str, priority: float) -> None:
         """Change the priority of an existing task.
 
+        A Ready task goes behind the tasks of equal priority already waiting.
         Raise KeyError for a task_id the server does not know.
         """
         with translate_error():
@@ -789,6 +797,8 @@ class DsServiceClientAsync:
         """Claim a task for worker_id from the first queue holding one.
 
         The server tries the queues in the order given.
+        From that queue it takes the task with the highest priority,
+        and tasks of equal priority in the order they entered the queue.
         Raise NoTaskAvailable, not TimeoutError,
         when none of them has a task ready.
         """
@@ -887,6 +897,7 @@ class DsServiceClientAsync:
         start_time and start_step are inclusive,
         end_time and end_step exclusive,
         and a bound left as None imposes no restriction.
+        An empty string as start_time or end_time imposes none either.
         The server returns the points in the order the caller appended them.
         A key that does not exist returns an empty list.
         Raise ValueError if start_time or end_time does not parse.

@@ -23,7 +23,7 @@ client = DsServiceClient("127.0.0.1:5051")
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `address` | `$DS_SERVER_ADDRESS` | `<host>:<port>` of the server, or `grpc://<host>:<port>`. Both select gRPC, the only transport today. The constructor raises `KeyError` when neither the argument nor the variable is set, and `ValueError` for an address that names an unknown transport. |
+| `address` | `$DS_SERVER_ADDRESS` | `<host>:<port>` of the server, or `grpc://<host>:<port>`. Both select gRPC, the only transport today. The constructor raises `KeyError` when neither the argument nor the variable is set, and `ValueError` for an empty address or one that names an unknown transport. |
 | `timeout` | `300` | Seconds, applied as the deadline of every call the client makes. |
 
 The constructor does not contact the server.
@@ -58,6 +58,9 @@ Two methods take either one task id or a list of them:
 - `task_get_status` returns one state for a single string,
     and a list of states for a list.
 - `task_add` takes `parent_task_ids` as one id or a list of ids.
+
+In the same way, `task_add` and `task_get` take `queue`
+as one queue name or a list of them.
 
 ### Return types
 
@@ -111,7 +114,7 @@ The constructor takes one argument beyond those of `DsServiceClient`:
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `max_workers` | `None` | The most calls in flight at once. Each call waits on a thread of the client's own pool. `None` takes the default of `concurrent.futures.ThreadPoolExecutor`, which grows with `os.cpu_count()`. |
+| `max_workers` | `None` | The most calls in flight at once. Each call waits on a thread of the client's own pool. `None` takes the default of `concurrent.futures.ThreadPoolExecutor`, which grows with the number of CPUs. |
 
 Three things differ from `DsServiceClient`:
 
@@ -140,7 +143,7 @@ The second column names the error code the client receives for the failure.
 
 | Failure | Error code | Python exception |
 | --- | --- | --- |
-| The key, task or mutex does not exist | `NotFound` | `KeyError`, or `NoTaskAvailable` from `task_get` |
+| The call needs a key, task or mutex that does not exist | `NotFound` | `KeyError`, or `NoTaskAvailable` from `task_get` |
 | The task id is already known | `AlreadyExists` | `ValueError` |
 | A bad regular expression or datetime | `InvalidArgument` | `ValueError` |
 | A message larger than 64 MiB | `MessageTooLarge` | `ValueError` |
@@ -150,9 +153,7 @@ The second column names the error code the client receives for the failure.
 | The client is closed | `Closed` | `RuntimeError` |
 | Anything else | any other | `TransportError` |
 
-A missing key raises `KeyError` where the call needs the key to exist,
-and a bad regular expression or an oversized message raises `ValueError`.
-Each of these exceptions chains from the extension module's own error,
+Every exception in the table chains from the extension module's own error,
 which `__cause__` holds.
 
 A call that waits can be interrupted.
@@ -216,7 +217,7 @@ if __name__ == "__main__":
 ```python
 from ds_service_client import DsServiceClient, TaskState
 
-client = DsServiceClient("127.0.0.1:5051")  # or set DS_SERVER_ADDRESS and call DsServiceClient()
+client = DsServiceClient("127.0.0.1:5051")  # DsServiceClient() with no argument reads DS_SERVER_ADDRESS
 
 # Key-value map
 client.map_set("greeting", b"hello")
@@ -237,8 +238,8 @@ assert client.task_get_worker_id(task.task_id) == "worker-a"
 # worker_id must be the one that claimed the task.
 client.task_done(task.task_id, worker_id="worker-a", output=b"result")
 
-# Poll the state of one or more tasks; an unknown id reports Undefined.
-# A single string returns one state; a list returns a list of states.
+# The state of one or more tasks. An unknown id reports Undefined.
+# A single string returns one state, and a list returns a list of states.
 assert client.task_get_status("job-1") == TaskState.Finished
 assert client.task_get_status(["job-1", "ghost"]) == [
     TaskState.Finished,

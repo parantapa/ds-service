@@ -25,6 +25,11 @@ The process starts as soon as the object is constructed.
 | `port` | a free ephemeral port | Port the server binds. `0` means the same as leaving it out. |
 | `ds_service_bin` | `$DS_SERVICE_BIN`, else `ds-service` | How to start the server. |
 
+The server never binds a wildcard address.
+The interface decides who can reach it:
+`lo` for this machine only,
+`eth0` or `ib0` for other machines on that network.
+
 The constructor raises `ValueError` for an interface
 that does not exist on this machine,
 or that exists with no IPv4 address on it.
@@ -35,17 +40,12 @@ that is already in use.
 
 `ds_service_bin` and `DS_SERVICE_BIN` can hold a whole command,
 not only a path.
-`docker run --rm --network host ds-service` works as well as `/usr/bin/ds-service`.
+`docker run --rm --network host ds-service:static` works as well as `/usr/bin/ds-service`.
 `DsServiceServer` appends `--address <host>:<port>` to that command.
 Then it splits the result with `shlex.split`.
 `shlex.split` understands quoting, but it does not understand shell syntax.
 
 ## Attributes
-
-The server never binds a wildcard address.
-The interface decides who can reach it:
-`lo` for this machine only,
-`eth0` or `ib0` for other machines on that network.
 
 | Attribute | Value |
 | --- | --- |
@@ -63,13 +63,17 @@ server.address   # -> "172.17.0.2:45999", the address to hand to remote clients
 Polls until the port accepts a TCP connection.
 Raises `RuntimeError` if the process exits first,
 and `TimeoutError` if the server does not listen within `timeout` seconds.
+One connection attempt can itself take up to `timeout` seconds,
+so the call can return or raise later than `timeout`.
 `wait_until_ready` reports the server ready
 only while the process it started still runs.
 
 ## `close()`
 
-Sends `SIGTERM`, waits up to the grace period set by
+Sends `SIGTERM` to the server's process group,
+waits up to the grace period set by
 `TERMINATE_TIMEOUT_S` in `python/ds_service_client/server.py`,
-and then sends `SIGKILL` if the server is still running.
+and then sends `SIGKILL` if any process of the group is still running.
+A second `close()` does nothing.
 The exit of a `with` block calls `close()`.
 Code that does not use the object as a context manager calls `close()` directly.
