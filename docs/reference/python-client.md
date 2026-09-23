@@ -8,7 +8,7 @@ on a `DsServiceClient` object,
 or on a `DsServiceClientAsync` object for asyncio callers.
 
 This document describes the client library.
-For what each underlying RPC does, see
+For what each operation does, see
 the [data structure reference](data-structure.md).
 For the process helper that starts a server,
 see the [server helper reference](server-helper.md).
@@ -45,11 +45,10 @@ A second `close()` does nothing.
 
 ### Method names
 
-Every method is the snake_case form of the RPC it calls
-(`MapSet` -> `client.map_set`),
+Every method is one operation of the [data structure reference](data-structure.md),
 with one addition:
-`mutex_acquire` has no RPC of its own.
-It retries `MutexTryAcquire` in a loop with the same `worker_id`,
+`mutex_acquire` is not an operation of its own.
+It retries `mutex_try_acquire` in a loop with the same `worker_id`,
 and sleeps between attempts.
 It raises `TimeoutError` once `timeout` seconds elapse.
 With `timeout=None` (the default) it retries forever.
@@ -75,8 +74,8 @@ Four types come from the extension module `ds_service_client._ext`:
 | `TimeSeriesDataPoint` | `time_series_get` | `value` (`float`), `datetime` (`str`), `step` (`int`). |
 
 The last three are read-only, and compare equal when their attributes do.
-They are not protobuf messages,
-so they have no protobuf methods such as `SerializeToString()`.
+They are plain value objects,
+so they have no methods that serialize them.
 
 ## `DsServiceClientAsync`
 
@@ -137,18 +136,18 @@ See [about the architecture](../explanation/the-architecture.md#two-python-clien
 ## Exceptions
 
 The client translates each failed call into an ordinary Python exception.
-The second column names the gRPC status that carries the failure on the wire.
+The second column names the error code the client receives for the failure.
 
-| Failure | gRPC status | Python exception |
+| Failure | Error code | Python exception |
 | --- | --- | --- |
-| The key, task or mutex does not exist | `NOT_FOUND` | `KeyError`, or `NoTaskAvailable` from `task_get` |
-| The task id is already known | `ALREADY_EXISTS` | `ValueError` |
-| A bad regular expression or datetime | `INVALID_ARGUMENT` | `ValueError` |
-| A message larger than 64 MiB | `RESOURCE_EXHAUSTED` | `ValueError` |
-| The state or the holder refuses the operation | `FAILED_PRECONDITION` | `TaskStateError`, or `MutexNotHeld` from `mutex_release` and `mutex_get_worker_id` |
-| The server cannot be reached | `UNAVAILABLE` | `TimeoutError` |
-| The call outlives its deadline | `DEADLINE_EXCEEDED` | `TimeoutError` |
-| The client is closed | | `RuntimeError` |
+| The key, task or mutex does not exist | `NotFound` | `KeyError`, or `NoTaskAvailable` from `task_get` |
+| The task id is already known | `AlreadyExists` | `ValueError` |
+| A bad regular expression or datetime | `InvalidArgument` | `ValueError` |
+| A message larger than 64 MiB | `MessageTooLarge` | `ValueError` |
+| The state or the holder refuses the operation | `FailedPrecondition` | `TaskStateError`, or `MutexNotHeld` from `mutex_release` and `mutex_get_worker_id` |
+| The server cannot be reached | `Unavailable` | `TimeoutError` |
+| The call outlives its deadline | `DeadlineExceeded` | `TimeoutError` |
+| The client is closed | `Closed` | `RuntimeError` |
 | Anything else | any other | `TransportError` |
 
 A missing key raises `KeyError` where the call needs the key to exist,

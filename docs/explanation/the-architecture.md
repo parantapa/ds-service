@@ -3,7 +3,7 @@
 How `ds-service` is put together,
 and why it has that shape.
 
-For what each RPC does, see
+For what each operation does, see
 the [data structure reference](../reference/data-structure.md).
 
 ## The pieces
@@ -20,9 +20,9 @@ the [data structure reference](../reference/data-structure.md).
     and a source file of its own implements it.
     The server core takes plain requests and returns plain responses,
     and knows nothing of any transport.
-- **Transports** (`cpp/grpc/`): the code that carries requests between the two sides.
-    gRPC is the only transport today.
-    Its server half decodes each request, hands it to the core,
+- **Transports**: the code that carries requests between the two sides.
+    Each transport lives in a directory of its own, `cpp/grpc/` for gRPC.
+    A transport's server half decodes each request, hands it to the core,
     and encodes the answer.
     Its client half does the reverse.
 - **C++ client** (`cpp/client/`): `ds::Client`,
@@ -37,9 +37,12 @@ the [data structure reference](../reference/data-structure.md).
     which starts a private server process
     and stops it on `close()` or at the end of a `with` block.
 
-`cpp/grpc/ds-service.proto` is the wire contract of the gRPC transport.
-It is not the data model.
-The plain types in `cpp/common/` are,
+The plain types in `cpp/common/` and the behavior of the server core
+define the system.
+gRPC is the transport in use today,
+and more transports may be added later.
+`cpp/grpc/ds-service.proto` is only the gRPC transport's encoding
+of the plain types,
 and a codec under `cpp/grpc/` converts between the two.
 So a new transport needs its own encoding of the same plain types,
 and neither the plain types, the server core nor `ds::Client` changes.
@@ -72,20 +75,20 @@ Anything that must survive the run belongs somewhere else.
 ## One lock per structure
 
 Each top-level data structure has its own lock,
-and an RPC takes at most one of them.
-Each RPC touches a single structure,
+and an operation takes at most one of them.
+Each operation touches a single structure,
 so no request ever holds more than one lock.
 Two properties follow.
 
 First, operations on different structures do not contend:
-a slow `MapSearchKey` does not delay a `CounterGetNextValue`.
+a slow `map_search_key` does not delay a `counter_get_next_value`.
 Second, the lock fully serializes operations on the same structure,
 which is what makes the counters gap-free
 and the mutexes meaningful.
 
 One lock per structure also means
 that a single expensive call blocks its whole structure.
-The `SearchKey` family walks every key under the structure's lock.
+The search_key operations walk every key under the structure's lock.
 So a search over a large key space blocks every other operation
 on that structure until it finishes.
 

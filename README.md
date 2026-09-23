@@ -3,7 +3,8 @@
 ![Futuristic banner image.](misc/banner-image.png "Futuristic banner image.")
 
 `ds-service` is a small, in-memory data structure server
-that is accessible via [gRPC](https://grpc.io/).
+that clients reach over the network,
+through [gRPC](https://grpc.io/) today.
 
 `ds-service` runs a single server process
 that holds shared state in memory
@@ -22,7 +23,7 @@ The state only has to live as long as the run does.
 Presently, it provides six data structures:
 a key-value store, a task queue, a journal store, a time series store,
 named mutexes, and counters.
-Each is a separate key space with its own set of RPCs,
+Each is a separate key space with its own set of operations,
 described in the [data structure reference](docs/reference/data-structure.md).
 
 ## Installation
@@ -90,7 +91,7 @@ with DsServiceClient("127.0.0.1:5051") as client:
 | --- | --- |
 | [Run your first tasks through ds-service](docs/tutorials/your-first-tasks.md) | Start a server, store a value, and take a task from `Ready` to `Finished`. Start here. |
 | [How to write a worker](docs/how-to-guides/write-a-worker.md) | The claim-work-report loop, mutexes around shared resources, progress reporting, and the asyncio variant. |
-| [Data structure reference](docs/reference/data-structure.md) | Every RPC, its arguments and error statuses, and the exact semantics of each data structure. |
+| [Data structure reference](docs/reference/data-structure.md) | Every operation, its arguments and error codes, and the exact semantics of each data structure. |
 | [Python client reference](docs/reference/python-client.md) | `DsServiceClient` and `DsServiceClientAsync`: constructors, method names, return types, the mapping from a failure to an exception, threads and processes, and examples. |
 | [C++ client reference](docs/reference/cpp-client.md) | `ds::connect` and `ds::Client`: headers, options, methods, errors, and an example. |
 | [Server helper reference](docs/reference/server-helper.md) | `DsServiceServer`, which starts a private `ds-service` process and stops it on `close()`. |

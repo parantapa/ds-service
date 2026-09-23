@@ -21,8 +21,9 @@ struct ClientOptions {
 
 // A way for a client to reach the server, such as gRPC.
 //
-// There is one method per RPC in cpp/grpc/ds-service.proto.
-// Each takes the plain request, returns the plain response,
+// There is one method per operation that ds-service/messages.hpp defines.
+// Each takes the plain request and returns the plain response,
+// where its operation has them,
 // and throws ClientError on failure.
 // Every method is safe to call from several threads at once.
 class ClientTransport {

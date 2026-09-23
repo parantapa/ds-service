@@ -6,13 +6,13 @@ Notes for people working on `ds-service` itself.
 
 | Path | Contents |
 | --- | --- |
-| `cpp/common/include/ds-service/` | The plain C++ types that the server and the C++ client share: one struct per proto message in `messages.hpp`, `TaskState`, and `ErrorCode`, `Result` and `ClientError` in `error.hpp`. |
-| `cpp/server/core/` | The server's data structures. `data-structures.hpp` declares one struct per top level data structure, with the lock that guards it and one method per RPC. One `.cpp` file implements each structure. `system-state.hpp` holds them all. |
+| `cpp/common/include/ds-service/` | The plain C++ types that define the operations, shared by the server and the C++ client: one struct per request and response in `messages.hpp`, whose comments state the contract of each operation, `TaskState`, and `ErrorCode`, `Result` and `ClientError` in `error.hpp`. |
+| `cpp/server/core/` | The server's data structures. `data-structures.hpp` declares one struct per top level data structure, with the lock that guards it and one method per operation. One `.cpp` file implements each structure. `system-state.hpp` holds them all. |
 | `cpp/server/transport.hpp` | `ServerTransport`, the interface every server transport implements. |
 | `cpp/server/main.cpp` | `main`, the entry point: argument parsing, signal handling, and the start and shutdown of every transport. |
 | `cpp/client/` | The C++ client. `ds::Client` and the `ClientTransport` interface in `client.hpp` and `client-transport.hpp`, and `ds::connect()` in `connect.hpp`, which picks a transport from an address. |
 | `cpp/grpc/` | Everything gRPC: the proto, the channel settings, the codec between plain types and protobuf messages, the server transport in `server/`, and the client transport in `client/`. |
-| `cpp/grpc/ds-service.proto` | The protobuf/gRPC contract. The authoritative definition of the gRPC wire format. |
+| `cpp/grpc/ds-service.proto` | The gRPC encoding of the plain types, and so the definition of the gRPC wire format. |
 | `cpp/python/bindings.cpp` | The nanobind module `ds_service_client._ext`, which binds `ds::Client` and the message types it returns. |
 | `cpp/tests/client-smoke.cpp` | A smoke test of the C++ client against a real server, run by ctest. |
 | `CMakeLists.txt` | Every C++ target, and the options that select them. See [the transport boundary](#the-transport-boundary). |
@@ -109,7 +109,7 @@ against a C++23 toolchain:
 | Library | Used for |
 | --- | --- |
 | gRPC and protobuf | The gRPC transports on both sides, and the code generated from the proto. |
-| `re2` | The regular expressions behind every `SearchKey` RPC. Server only. |
+| `re2` | The regular expressions behind `task_search_id` and every `*_search_key` operation. Server only. |
 | `parallel-hashmap` (`phmap`) | The maps holding the server's state. Server only. |
 | `spdlog` | Logging. Server only. |
 | `argparse` | Command-line parsing in `main`. Server only. |
@@ -126,44 +126,74 @@ Python, on 3.12+:
 
 The formatters and checkers are under [Conventions](#conventions).
 
+## The plain types define the system
+
+The operations of `ds-service` are defined in C++,
+apart from any transport.
+`cpp/common/include/ds-service/messages.hpp` holds one struct per request and response.
+The comment on each request struct states the contract of its operation:
+what it does, and what it refuses and with which `ErrorCode`.
+The comment on a response struct states what its fields report.
+`task_get_count_by_state` takes no request,
+so the comment on its response struct states its contract.
+`error.hpp` holds `ErrorCode`, and `task-state.hpp` holds `TaskState`.
+The server core in `cpp/server/core/` implements those contracts.
+Outside `cpp/grpc/`, documentation and comments name an operation
+by the snake_case name both clients use, such as `task_get`,
+and an error by its `ErrorCode`, such as `NotFound`.
+
+A transport only carries these types between a client and the server.
+gRPC is the one transport today.
+Its encoding is `cpp/grpc/ds-service.proto`,
+whose messages have the same names and field names as the plain structs,
+and `cpp/grpc/codec.cpp` converts between the two.
+Each RPC there is named after its operation in CamelCase,
+such as `TaskGet` for `task_get`.
+
 ## Generated code
 
-`cpp/grpc/ds-service.proto` is the source of truth for the gRPC wire format.
 The build generates the C++ protobuf and gRPC stubs
-(`ds-service.pb.*`, `ds-service.grpc.pb.*`) from it
+(`ds-service.pb.*`, `ds-service.grpc.pb.*`) from the proto
 into the build tree.
 The build also generates `_ext.pyi`, the type stub of the Python module.
 Nothing generated is committed,
 and there is no manual generation step.
-
-The proto is the wire contract of the gRPC transport, not the data model.
-The data model is the plain types in `cpp/common/include/ds-service/`.
 Only the code under `cpp/grpc/` uses the generated types.
 
-### A proto change touches every layer
+## A new operation touches every layer
 
-A new or changed RPC is a change to each of these, in order:
+A new or changed operation is a change to each of these, in order:
 
-1. `cpp/grpc/ds-service.proto`.
-2. The plain struct in `cpp/common/include/ds-service/messages.hpp`,
-    with the same name and field names as the proto message.
-3. The codec in `cpp/grpc/codec.hpp` and `cpp/grpc/codec.cpp`,
-    in both directions.
-4. The server: the method on the data structure
+1. The plain structs in `cpp/common/include/ds-service/messages.hpp`,
+    with the contract of the operation in the comment on its request struct.
+2. The server core: the method on the data structure
     in `cpp/server/core/data-structures.hpp`,
-    defined in that structure's own `.cpp` file,
-    and the `DsServiceImpl` method
-    in `cpp/grpc/server/grpc-server-transport.cpp` that calls it.
-5. The C++ client: the method on `ClientTransport`,
-    its override in `cpp/grpc/client/grpc-client-transport.cpp`,
-    and the method on `ds::Client`.
-6. The binding in `cpp/python/bindings.cpp`.
-7. The method on both Python clients in `client.py`.
+    defined in that structure's own `.cpp` file.
+3. The C++ client: the method on `ClientTransport`
+    and the method on `ds::Client`,
+    which `cpp/client/client.cpp` defines.
+4. The encoding of the operation in each transport.
+    For gRPC, that is four places:
+    - The RPC and its messages in `cpp/grpc/ds-service.proto`,
+        with the same names and field names as the plain structs.
+    - The codec in `cpp/grpc/codec.hpp` and `cpp/grpc/codec.cpp`,
+        in both directions.
+    - The `DsServiceImpl` method
+        in `cpp/grpc/server/grpc-server-transport.cpp`
+        that calls the server core.
+    - The override of the `ClientTransport` method
+        in `cpp/grpc/client/grpc-client-transport.cpp`.
+5. The binding in `cpp/python/bindings.cpp`.
+6. The method on both Python clients in `client.py`.
     See "Two clients, one API".
 
-A `TaskState` value is the one change the compiler checks across the layers.
-`cpp/grpc/codec.cpp` holds a `static_assert` per value,
-and `tests/test_ext.py` compares the Python enum with the proto.
+Some drift between the layers fails the build.
+A transport that does not override every `ClientTransport` method
+fails where it is constructed.
+The `static_assert`s on `TaskState` in `cpp/grpc/codec.cpp` fail
+when the plain enum and the proto number a value differently,
+or when the proto gains a value.
+`tests/test_ext.py` compares the Python enum with the proto.
 
 ## The transport boundary
 
@@ -231,7 +261,8 @@ and `await self._call(self.client.map_get, key)` in the other.
 
 ## The channel settings live in one header
 
-Two pieces of gRPC configuration are only correct as a matched pair
+Two pieces of the gRPC transport's configuration
+are only correct as a matched pair
 between the server and its clients.
 Both sides come from `cpp/grpc/channel-settings.hpp`.
 One constant there serves both sides for the message size,
@@ -254,6 +285,7 @@ so lower the server's interval before you raise the client's ping rate.
 
 ## A client does not survive fork()
 
+This is a limit of the gRPC transport.
 The gRPC inside `_ext` does not survive `fork()`.
 Once a process has created a client,
 a call from a child it forks hangs,
@@ -308,6 +340,7 @@ carry it.
 
 ## The server refuses to share its port
 
+This is a behavior of the gRPC transport.
 gRPC enables `SO_REUSEPORT` by default,
 so a second `ds-service` started on an address that is already bound
 joins the first rather than failing.
@@ -384,27 +417,27 @@ The header of the script states what it edits,
 what it gives `CMakeLists.txt`,
 and when it refuses to edit anything.
 
-## The dependency graph is built at TaskAdd
+## The dependency graph is built at task_add
 
-`TaskAdd` resolves every id in `parent_task_ids` before it adds the row,
+`task_add` resolves every id in `parent_task_ids` before it adds the row,
 and refuses the whole request if one of them is unknown.
 That rule is what keeps the graph acyclic:
 a parent must already exist,
 so no task can name itself or close a loop through its own descendants.
-Nothing after `TaskAdd` adds an edge,
+Nothing after `task_add` adds an edge,
 so no later call has to look for a cycle.
 
 Each row carries the two halves of the graph,
 `TaskTable::pending_parents` and `TaskTable::children`:
 
-- `TaskDone` decrements the count on each child of the row it finishes,
-    and enqueues a child whose count reaches zero.
+- `task_done` decrements the count on each child of the row it finishes,
+    and enqueues a child whose count reaches zero while it is still `Waiting`.
     A row reported failed releases nothing:
     it hands its children the failure instead.
-- `TaskCancel` walks `children` from the row it cancels
+- `task_cancel` walks `children` from the row it cancels
     and cancels everything it reaches.
     `TaskManager::propagate_to_children` is that walk,
-    and a failing `TaskDone` runs it with `Failed` instead.
+    and a failing `task_done` runs it with `Failed` instead.
 
 A row is registered with a parent only while that parent is unfinished,
 because a parent that has already finished has nothing left to release.
@@ -418,7 +451,7 @@ A task keeps its row for the life of the server process,
 even after it reaches `Finished`, `Failed` or `Canceled`.
 A long-lived server therefore holds one row per task ever added,
 rather than one per task still outstanding.
-`TaskSearchId` walks that table,
+`task_search_id` walks that table,
 so its cost grows the same way.
 
 Compaction is not a local change.
@@ -430,9 +463,9 @@ If you move a row, you rewrite all four.
 
 The server does not reclaim dead queue entries either.
 A heap cannot erase an entry from the middle.
-`TaskGet` therefore discards dead entries only as it pops them,
+`task_get` therefore discards dead entries only as it pops them,
 and it never pops an entry that sorts below the live work.
-`TaskSetPriority` is the way to accumulate them.
+`task_set_priority` is the way to accumulate them.
 A rise in a task's priority leaves an entry at the old, lower value,
 and a busy queue never reaches that entry.
 A client that reprioritizes on a loop therefore grows the heap

@@ -10,8 +10,8 @@ namespace {
 
 using RepeatedStrings = google::protobuf::RepeatedPtrField<std::string>;
 
-// A reordering or a new value on either side must fail the build,
-// or the two ends of the wire read one state as another.
+// A reordering on either side, or a new value in the proto, fails the build here.
+// Otherwise the two ends of the wire read one state as another.
 static_assert(static_cast<int>(TaskState::Waiting) == ::TaskState::Waiting);
 static_assert(static_cast<int>(TaskState::Ready) == ::TaskState::Ready);
 static_assert(static_cast<int>(TaskState::Running) == ::TaskState::Running);

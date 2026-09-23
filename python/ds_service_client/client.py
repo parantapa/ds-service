@@ -72,7 +72,8 @@ def translate_error(
 
     * A task that is not Running, or is held by another worker, on task_done.
     * A task that is not Running on task_get_worker_id.
-    * A mutex that is free, or held by another worker, on mutex_release.
+    * A mutex that does not exist, is free, or is held by another worker,
+      on mutex_release.
     * A mutex that is free on mutex_get_worker_id.
 
     A call on a closed client raises RuntimeError.
@@ -246,6 +247,7 @@ class DsServiceClient:
         as one id or a list of them.
         An empty list means the task has no parents.
         A task with a parent that is not Finished starts TaskState.Waiting,
+        unless a parent is Canceled or Failed,
         and no queue dispatches it until every parent finishes.
         Every parent must already exist,
         so a graph of tasks is added parents first.
@@ -672,6 +674,7 @@ class DsServiceClientAsync:
         as one id or a list of them.
         An empty list means the task has no parents.
         A task with a parent that is not Finished starts TaskState.Waiting,
+        unless a parent is Canceled or Failed,
         and no queue dispatches it until every parent finishes.
         Every parent must already exist,
         so a graph of tasks is added parents first.

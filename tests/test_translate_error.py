@@ -59,8 +59,8 @@ def test_closed_is_a_plain_runtime_error():
 
 
 def test_failed_precondition_is_overridable_for_mutex_release():
-    # MutexRelease reports a refused release
-    # the same way TaskDone reports a foreign worker,
+    # mutex_release reports a refused release
+    # the same way task_done reports a foreign worker,
     # but it is not a task-state problem.
     with pytest.raises(MutexNotHeld):
         with translate_error(failed_precondition=MutexNotHeld):
@@ -68,7 +68,7 @@ def test_failed_precondition_is_overridable_for_mutex_release():
 
 
 def test_not_found_is_overridable_for_task_get():
-    # TaskGet reports an idle queue as NotFound,
+    # task_get reports an idle queue as NotFound,
     # which means "no work", not "no such key".
     with pytest.raises(NoTaskAvailable):
         with translate_error(not_found=NoTaskAvailable):

@@ -17,7 +17,7 @@ namespace ds {
 // A connection to a ds-service server, and the operations it offers.
 //
 // Every method throws ClientError on failure,
-// and the proto in cpp/grpc/ds-service.proto states what each operation does.
+// and the comments in ds-service/messages.hpp state what each operation does.
 // The methods are safe to call from several threads at once.
 // Destroying the client while another thread is in a call is not.
 //

@@ -43,7 +43,8 @@ cmake_build() {
     cmake --build "$BUILD_DIR" --parallel
 }
 
-# Install the built server under the prefix given as the first argument.
+# Install the built server, and the Python module with its stub,
+# under the prefix given as the first argument.
 cmake_install() {
     set +Eeuo pipefail
     . "$BUILD_DIR/generators/conanbuild.sh"

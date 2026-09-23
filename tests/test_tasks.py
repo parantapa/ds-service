@@ -778,9 +778,9 @@ def test_unknown_parent_raises_keyerror_and_adds_nothing(client):
 
 
 def test_a_task_cannot_be_its_own_parent(client):
-    # The row does not exist while its own TaskAdd is being served,
+    # The row does not exist while its own task_add is being served,
     # so naming itself is naming an unknown parent.
-    # See "The dependency graph is built at TaskAdd" in the developer notes.
+    # See "The dependency graph is built at task_add" in the developer notes.
     with pytest.raises(KeyError):
         client.task_add(
             "self",

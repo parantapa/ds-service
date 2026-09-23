@@ -5,7 +5,7 @@ It presents the server's data structures as ordinary methods,
 like the [Python client](python-client.md), which is built on it.
 
 This document describes the C++ library.
-For what each underlying RPC does, see
+For what each operation does, see
 the [data structure reference](data-structure.md).
 For how to build it, see
 [how to build the server](../how-to-guides/build-the-server.md),
@@ -56,8 +56,7 @@ for an empty address, or for a scheme that names no transport.
 
 ## Methods
 
-Every method is the snake_case form of the RPC it calls
-(`MapSet` -> `client->map_set`),
+Every method is one operation of the [data structure reference](data-structure.md),
 with one addition, `mutex_acquire`.
 Keys, ids, patterns and payloads are `std::string`.
 A payload can hold arbitrary bytes.
@@ -129,7 +128,7 @@ and `code()` returns a `ds::ErrorCode`:
 | `Transport` | Any other failure. The message is the transport's own. |
 
 The [data structure reference](data-structure.md) states
-which RPC returns which of the first four, and when.
+which operation returns which of the first four, and when.
 
 ## Threads and processes
 

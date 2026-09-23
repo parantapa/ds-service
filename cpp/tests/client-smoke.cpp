@@ -3,7 +3,7 @@
 // Usage: client-smoke PATH_TO_DS_SERVICE
 //
 // Starts the server on a free loopback port,
-// makes one call per data structure,
+// makes calls on every data structure,
 // and checks the error each failure path throws.
 // The Python suite in tests/ is the full behavioral suite.
 // This test only shows that the C++ client reaches the server

@@ -4,13 +4,14 @@
 //
 // Each struct below owns one top level data structure
 // and the lock that guards it.
-// A method named after an RPC serves that RPC:
+// A method named after an operation serves that operation,
+// such as Map::set for map_set:
 // it takes the struct's own lock,
-// and cpp/grpc/ds-service.proto states the contract it answers with.
+// and the comments in ds-service/messages.hpp state the contract it answers with.
 // Each method takes the plain request by value and moves each payload it keeps out of it.
 // It returns the plain response, or the Error for a refusal.
-// The method body holds the error code for each refusal,
-// and the proto names each of them.
+// The method body holds the ErrorCode for each refusal,
+// and the comment on the request struct names each of them.
 //
 // Nothing here depends on gRPC or protobuf.
 // See "The transport boundary" in docs/developer-notes.md.
@@ -135,7 +136,7 @@ struct TaskQueueEntryOrder {
     bool operator()(const TaskQueueEntry& a, const TaskQueueEntry& b) const;
 };
 
-// The entries of one queue, with the entry TaskGet tries first on top.
+// The entries of one queue, with the entry task_get tries first on top.
 using TaskQueue = std::priority_queue<TaskQueueEntry, std::vector<TaskQueueEntry>, TaskQueueEntryOrder>;
 
 // The task rows, one vector per column.
@@ -180,7 +181,7 @@ struct TaskManager {
 
     // Queue name -> the rows waiting on it, ordered by priority.
     // std::priority_queue is a max-heap,
-    // so TaskGet dispatches the highest priority row first.
+    // so task_get dispatches the highest priority row first.
     HashMap<std::string, TaskQueue> queue{};
 
     ds::Result<void> add(ds::TaskAddRequest request);
@@ -191,7 +192,7 @@ struct TaskManager {
     ds::Result<ds::TaskGetPriorityResponse> get_priority(ds::TaskGetPriorityRequest request);
     ds::Result<void> set_priority(ds::TaskSetPriorityRequest request);
     ds::Result<ds::TaskGetWorkerIdResponse> get_worker_id(ds::TaskGetWorkerIdRequest request);
-    // Serves TaskSearchId, over the task ids of rows in every state.
+    // Serves task_search_id, over the task ids of rows in every state.
     ds::Result<ds::SearchKeyResponse> search_id(ds::SearchKeyRequest request);
     ds::Result<ds::TaskGetResponse> get(ds::TaskGetRequest request);
     ds::Result<void> done(ds::TaskDoneRequest request);

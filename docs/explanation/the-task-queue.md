@@ -3,13 +3,13 @@
 Why the task queue behaves as it does,
 and what it leaves to the caller.
 
-For the RPCs themselves, see
+For the operations themselves, see
 the [data structure reference](../reference/data-structure.md#task-queue).
 
 ## A task belongs to the worker that claimed it
 
-`TaskGet` records the `worker_id` that claimed a task,
-and the server refuses `TaskDone` from any other worker.
+`task_get` records the `worker_id` that claimed a task,
+and the server refuses `task_done` from any other worker.
 The point is that a worker which does not hold a task
 cannot overwrite the result of the worker that does.
 
@@ -22,9 +22,9 @@ not an authentication mechanism.
 
 ## Canceling does not reach the worker
 
-`TaskCancel` moves a task to `Canceled`,
+`task_cancel` moves a task to `Canceled`,
 but nothing tells the worker that runs it.
-The worker can finish the work and call `TaskDone` as usual.
+The worker can finish the work and call `task_done` as usual.
 That call succeeds, and the server discards the output.
 
 The alternative was to refuse the call.
@@ -34,17 +34,17 @@ A worker that did its job correctly
 must not handle an error for an event it did not cause.
 
 Canceling also drops the record of which worker held the task.
-The server accepts `TaskDone` on a canceled task from anybody,
+The server accepts `task_done` on a canceled task from anybody,
 because it returns on the canceled state before it checks ownership.
 The ownership rule has nothing left to check,
 and there is no result to overwrite either way.
 
 ## A task that ends badly takes its dependents with it
 
-`TaskCancel` cancels every task waiting on the task it cancels,
+`task_cancel` cancels every task waiting on the task it cancels,
 and every task waiting on those.
-`TaskDone` with `failed` does the same, as a failure.
-`TaskAdd` does it in advance:
+`task_done` with `failed` does the same, as a failure.
+`task_add` does it in advance:
 it adds a task named with a `Canceled` parent as `Canceled`,
 and a task named with a `Failed` parent as `Failed`.
 
@@ -60,7 +60,7 @@ The caller that withdraws a task says the work of that task did not happen.
 The worker that reports a failed task says the same.
 A task that exists only to consume that work has nothing left to do.
 
-`TaskGetOutput` is where a dependent says so.
+`task_get_output` is where a dependent says so.
 A task canceled, whether by name or through a parent,
 reports `Task canceled`.
 A task failed through a parent reports
@@ -75,26 +75,26 @@ which is how a failing worker passes a traceback on to whoever asks.
 The state a dependent inherits is the parent's, not a state of its own.
 A caller that counts `failed` tasks therefore counts the work that failed
 together with the work that never ran.
-`TaskGetOutput` is what tells the two apart.
+`task_get_output` is what tells the two apart.
 
 ## There is no fault tolerance
 
 A worker that dies mid-task leaves that task `Running`
 for as long as the server lives.
 Nothing detects the death, and nothing hands the work to another worker.
-No RPC returns a task to `Ready`,
-and `TaskAdd` refuses a `task_id` that already exists.
+No operation returns a task to `Ready`,
+and `task_add` refuses a `task_id` that already exists.
 So the work runs again only if it is resubmitted under a new id.
 
 The server has no liveness signal.
-The server never hears from a worker between `TaskGet` and `TaskDone`.
+The server never hears from a worker between `task_get` and `task_done`.
 So it cannot tell a dead worker from a slow one.
 A lease long enough not to steal work from slow workers
 is too long to be useful for recovery.
 Rather than guess, the server does nothing,
 and leaves the policy to a caller that knows how long its own tasks take.
 
-`TaskCancel` is the tool for retiring such a task.
+`task_cancel` is the tool for retiring such a task.
 
 ## The server reclaims nothing
 
@@ -106,10 +106,10 @@ long after every task in it finishes.
 A long-lived server therefore accumulates rows
 in proportion to the total number of tasks ever added,
 rather than the number currently outstanding.
-`TaskSearchId` walks all of them.
+`task_search_id` walks all of them.
 
 Queue entries accumulate the same way.
-`TaskSetPriority` is the reliable way to produce them.
+`task_set_priority` is the reliable way to produce them.
 A raised priority leaves a dead entry at the old value
 that a busy queue never pops.
 

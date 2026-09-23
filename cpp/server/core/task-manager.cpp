@@ -13,7 +13,7 @@
 
 using ds::TaskState;
 
-// What TaskGetOutput reports for a Canceled task,
+// What task_get_output reports for a Canceled task,
 // and for a task that failed because a task it depends on failed.
 // The failed one names the task whose run failed,
 // which is the task a caller has to look at.
@@ -89,7 +89,7 @@ ds::Result<void> TaskManager::add(ds::TaskAddRequest request) {
 
     // Every parent is resolved before the row is added,
     // so a request naming a parent the server does not know adds nothing.
-    // See "The dependency graph is built at TaskAdd"
+    // See "The dependency graph is built at task_add"
     // in docs/developer-notes.md for what that rule buys.
     std::vector<std::size_t> parents;
     parents.reserve(request.parent_task_ids.size());
@@ -162,7 +162,7 @@ ds::Result<void> TaskManager::add(ds::TaskAddRequest request) {
     tasks.children.push_back({});
     tasks.terminal_origin.push_back(origin);
 
-    // This list is how TaskDone and TaskCancel reach the row.
+    // This list is how task_done and task_cancel reach the row.
     // The test must match the one that counted pending_parents above,
     // or the count and the releases drift apart.
     for (const auto parent : parents) {
@@ -185,7 +185,7 @@ ds::Result<ds::TaskGetStatusResponse> TaskManager::get_status(ds::TaskGetStatusR
     response.state.reserve(request.task_id.size());
     for (const auto& task_id : request.task_id) {
         auto it = task_index.find(task_id);
-        // TaskGetStatus reports Undefined for an unknown task_id.
+        // task_get_status reports Undefined for an unknown task_id.
         // That is not an error.
         if (it == task_index.end()) {
             response.state.push_back(TaskState::Undefined);
@@ -365,7 +365,7 @@ ds::Result<ds::TaskGetResponse> TaskManager::get(ds::TaskGetRequest request) {
             // An entry can be dead in two ways:
             // - Its row left Ready,
             //   either claimed through another of its queues or canceled.
-            // - TaskSetPriority pushed a newer entry that supersedes it.
+            // - task_set_priority pushed a newer entry that supersedes it.
             if (tasks.state[entry.index] != TaskState::Ready || entry.seq != tasks.seq[entry.index]) {
                 continue;
             }
@@ -426,7 +426,7 @@ ds::Result<void> TaskManager::done(ds::TaskDoneRequest request) {
     tasks.state[index] = TaskState::Finished;
 
     // Finishing a row releases the rows that were waiting on it.
-    // See "The dependency graph is built at TaskAdd"
+    // See "The dependency graph is built at task_add"
     // in docs/developer-notes.md for why the count lands on zero
     // exactly when the last parent finishes.
     for (const auto child : tasks.children[index]) {
