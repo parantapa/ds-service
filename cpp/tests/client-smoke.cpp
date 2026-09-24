@@ -29,6 +29,7 @@
 #include <unistd.h>
 
 #include "ds-service/connect.hpp"
+#include "ds-service/limits.hpp"
 
 extern char** environ;
 
@@ -211,9 +212,8 @@ void check_refusals(ds::Client& client) {
                  [&] { client.mutex_release("m", "w1"); });
     check_throws(ds::ErrorCode::DeadlineExceeded, "mutex_acquire past its timeout",
                  [&] { client.mutex_acquire("m", "w1", 100ms); });
-    // 65 MiB is one MiB over MAX_MESSAGE_SIZE_BYTES in cpp/grpc/channel-settings.hpp.
     check_throws(ds::ErrorCode::MessageTooLarge, "map_set of an oversized value",
-                 [&] { client.map_set("big", std::string(65 * 1024 * 1024, 'x')); });
+                 [&] { client.map_set("big", std::string(ds::MAX_MESSAGE_SIZE_BYTES + 1024 * 1024, 'x')); });
 }
 
 void check_transport_failures() {

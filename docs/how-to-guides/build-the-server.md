@@ -66,6 +66,25 @@ A build without the server does not need
 
 A C++ program that uses the client links the CMake target `ds-service-connect`.
 
+## Set the maximum message size
+
+`DS_SERVICE_MAX_MESSAGE_SIZE` is the largest request or response
+that the server and the clients accept, in bytes.
+The default is 33554432, which is 32 MiB.
+Set it when you configure the build:
+
+```sh
+cmake -S . -B build/Release -DDS_SERVICE_MAX_MESSAGE_SIZE=67108864
+```
+
+The value must be from 1 to 2147483647.
+Build the server and every client with the same value.
+If the two differ, one side refuses what the other sends,
+and the sender sees `MessageTooLarge`.
+The published server binary and the published wheel use the default.
+A wheel built from source takes the value
+with `--config-settings=cmake.define.DS_SERVICE_MAX_MESSAGE_SIZE=67108864`.
+
 ## Build the Python module
 
 The Python module needs [nanobind](https://nanobind.readthedocs.io/)

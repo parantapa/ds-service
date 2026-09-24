@@ -282,9 +282,19 @@ and a `static_assert` there checks the keepalive pair at compile time.
 
 **The maximum message size.**
 `MAX_MESSAGE_SIZE_BYTES` applies to both sides.
-If the two ever disagree, one side rejects what the other sends,
+It comes from `ds::MAX_MESSAGE_SIZE_BYTES` in `cpp/common/include/ds-service/limits.hpp`,
+which every transport shares.
+That in turn comes from the CMake cache variable `DS_SERVICE_MAX_MESSAGE_SIZE`,
+32 MiB by default,
+which `ds-service-common` passes on as a compile definition.
+So the value is fixed when the build is configured,
+and one build agrees with itself.
+Two builds configured with different values do not.
+One side then rejects what the other sends,
 and the sender sees a message-too-large error
 with no cause in its own code.
+The extension module exposes the value as `_ext.MAX_MESSAGE_SIZE_BYTES`,
+so the tests read it and keep no copy.
 
 **The keepalive settings.**
 `CLIENT_KEEPALIVE_TIME_MS` must stay above

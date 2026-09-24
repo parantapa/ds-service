@@ -1,5 +1,9 @@
 #pragma once
 
+#include <limits>
+
+#include "ds-service/limits.hpp"
+
 // The gRPC channel settings of the server and of the C++ client.
 //
 // Some of these are only correct as a matched pair between the server and its clients.
@@ -11,7 +15,11 @@ namespace ds::grpc_settings {
 // Largest single request or response accepted.
 // gRPC's default is 4 MiB.
 // The server and the client transport both apply it.
-constexpr int MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024;
+// The value comes from ds::MAX_MESSAGE_SIZE_BYTES,
+// which every transport shares.
+static_assert(ds::MAX_MESSAGE_SIZE_BYTES <= std::numeric_limits<int>::max(),
+              "gRPC takes the maximum message size as an int");
+constexpr int MAX_MESSAGE_SIZE_BYTES = static_cast<int>(ds::MAX_MESSAGE_SIZE_BYTES);
 
 // How often the server pings an idle client, and how long it waits for the answer.
 constexpr int SERVER_KEEPALIVE_TIME_MS = 10 * 60 * 1000;

@@ -18,9 +18,24 @@ option(DS_SERVICE_CONAN_INSTALL "Run conan install at configure time. See cmake/
 # so a development build copies the module and its stub there.
 # A wheel build installs them instead.
 option(DS_SERVICE_PYTHON_INPLACE "Copy the built Python module into python/ds_service_client" ON)
+# The largest request or response that any transport accepts, in bytes.
+# The server and its clients must be built with the same value.
+# See "The maximum message size" in docs/developer-notes.md.
+set(DS_SERVICE_MAX_MESSAGE_SIZE
+    33554432
+    CACHE STRING "Largest request or response any transport accepts, in bytes")
 
 if(DS_SERVICE_BUILD_PYTHON AND NOT DS_SERVICE_BUILD_CLIENT)
   message(FATAL_ERROR "DS_SERVICE_BUILD_PYTHON needs DS_SERVICE_BUILD_CLIENT.")
+endif()
+
+# gRPC takes the size as an int, so it must fit in one.
+if(NOT DS_SERVICE_MAX_MESSAGE_SIZE MATCHES "^[1-9][0-9]*$"
+   OR DS_SERVICE_MAX_MESSAGE_SIZE GREATER 2147483647)
+  message(
+    FATAL_ERROR
+      "DS_SERVICE_MAX_MESSAGE_SIZE must be a whole number of bytes from 1 to 2147483647, "
+      "not '${DS_SERVICE_MAX_MESSAGE_SIZE}'.")
 endif()
 
 # The Python module links the client's static libraries below into one shared object,
@@ -89,8 +104,12 @@ target_sources(
             cpp/common/include
             FILES
             cpp/common/include/ds-service/error.hpp
+            cpp/common/include/ds-service/limits.hpp
             cpp/common/include/ds-service/messages.hpp
             cpp/common/include/ds-service/task-state.hpp)
+target_compile_definitions(
+  ds-service-common
+  INTERFACE DS_SERVICE_MAX_MESSAGE_SIZE=${DS_SERVICE_MAX_MESSAGE_SIZE})
 target_compile_features(ds-service-common INTERFACE cxx_std_23)
 
 # Plain messages <-> protobuf messages, and the gRPC channel settings.

@@ -122,7 +122,7 @@ and `code()` returns a `ds::ErrorCode`:
 | `AlreadyExists` | `task_add` named a task id that is already known. |
 | `InvalidArgument` | A bad regular expression or datetime, or a bad address given to `connect`. |
 | `FailedPrecondition` | The state of a task, or the holder of a mutex, refuses the operation. |
-| `MessageTooLarge` | A request or response larger than 64 MiB. |
+| `MessageTooLarge` | A request or response larger than the build's maximum message size, 32 MiB by default. |
 | `Unavailable` | The server cannot be reached. |
 | `DeadlineExceeded` | The call outlived its deadline, or `mutex_acquire` its timeout. |
 | `Cancelled` | `should_cancel` canceled the call, or the server canceled it. |

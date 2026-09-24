@@ -146,7 +146,7 @@ The second column names the error code the client receives for the failure.
 | The call needs a key, task or mutex that does not exist | `NotFound` | `KeyError`, or `NoTaskAvailable` from `task_get` |
 | The task id is already known | `AlreadyExists` | `ValueError` |
 | A bad regular expression or datetime | `InvalidArgument` | `ValueError` |
-| A message larger than 64 MiB | `MessageTooLarge` | `ValueError` |
+| A message larger than the build's maximum message size, 32 MiB by default | `MessageTooLarge` | `ValueError` |
 | The state or the holder refuses the operation | `FailedPrecondition` | `TaskStateError`, or `MutexNotHeld` from `mutex_release` and `mutex_get_worker_id` |
 | The server cannot be reached | `Unavailable` | `TimeoutError` |
 | The call outlives its deadline | `DeadlineExceeded` | `TimeoutError` |

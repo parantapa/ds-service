@@ -12,10 +12,7 @@ import subprocess
 import pytest
 
 from ds_service_client import TransportError
-
-# A copy of MAX_MESSAGE_SIZE_BYTES in cpp/grpc/channel-settings.hpp.
-# Change the two together.
-MAX_MESSAGE_SIZE_BYTES = 64 * 1024 * 1024
+from ds_service_client._ext import MAX_MESSAGE_SIZE_BYTES
 
 
 def test_large_value_round_trips(client):

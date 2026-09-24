@@ -28,6 +28,7 @@
 #include <nanobind/stl/vector.h>
 
 #include "ds-service/connect.hpp"
+#include "ds-service/limits.hpp"
 
 namespace nb = nanobind;
 using namespace nb::literals;
@@ -101,6 +102,9 @@ std::string task_get_response_repr(const ds::TaskGetResponse& response) {
 
 NB_MODULE(_ext, m) {
     m.doc() = "The C++ ds-service client, which ds_service_client wraps.";
+
+    // The build's DS_SERVICE_MAX_MESSAGE_SIZE, so that the tests need no copy of it.
+    m.attr("MAX_MESSAGE_SIZE_BYTES") = ds::MAX_MESSAGE_SIZE_BYTES;
 
     nb::enum_<ds::TaskState>(m, "TaskState", nb::is_arithmetic(), "The state of a task.")
         .value("Waiting", ds::TaskState::Waiting)
